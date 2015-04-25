@@ -34,6 +34,7 @@ import Codec.Picture
 import Backend.GL as GL
 import Backend.GL.Mesh
 import IR as IR
+import Driver
 
 --import Effect
 
@@ -164,17 +165,16 @@ main = do
     -- CommonAttrs
     let inputSchema = 
           PipelineSchema
-          { GL.slots = T.fromList [("stream",SlotSchema Triangles $ T.fromList [("position",TV4F)])]
-          , uniforms = T.fromList [("MVP",M44F),("MVP2",M44F)]
+          { GL.slots = T.fromList [("missing shader",SlotSchema Triangles $ T.fromList [("position",TV3F)])]
+          , uniforms = T.fromList [("viewProj",M44F),("LightMap",M44F{-TODO-})]
           }
-    renderer <- mkGLPipelineInput inputSchema
-    print "renderer created"
-    --print $ slotUniform renderer
-    --print $ slotStream renderer
-    --initUtility renderer
+    pplInput <- mkGLPipelineInput inputSchema
+    print "pplInput created"
+    --print $ slotUniform pplInput
+    --print $ slotStream pplInput
+    --initUtility pplInput
 
-    let slotU           = uniformSetter renderer
-        draw captureA   = {-render renderer >> TODO-}captureA >> swapBuffers win
+    let slotU           = uniformSetter pplInput
         entityRGB       = uniformV3F "entityRGB" slotU
         entityAlpha     = uniformFloat "entityAlpha" slotU
         identityLight   = uniformFloat "identityLight" slotU
@@ -207,7 +207,7 @@ main = do
             _ -> return []
 
     putStrLn $ "loading: " ++ show bspName
-    objs <- addBSP renderer bsp
+    objs <- addBSP pplInput bsp
 {-
     -- setup menu
     levelShots <- sequence [(n,) <$> loadQ3Texture True True defaultTexture archiveTrie (SB.append "levelshots/" n) | n <- T.keys bspMap]
@@ -261,7 +261,7 @@ readMD3 :: LB.ByteString -> MD3Model
                     [x,y,z] = map read $ words $ SB.unpack o
                     p = Vec3 x y z
                 forM_ ml $ \md3 -> do
-                    lcmd3 <- addMD3 renderer md3 ["worldMat"]
+                    lcmd3 <- addMD3 pplInput md3 ["worldMat"]
                     forM_ (lcmd3Object lcmd3) $ \obj -> do
                         let unis    = objectUniformSetter $  obj
                             woldMat = uniformM44F "worldMat" unis
@@ -279,16 +279,30 @@ readMD3 :: LB.ByteString -> MD3Model
     (capturePress,capturePressSink) <- external False
     (waypointPress,waypointPressSink) <- external []
 
+    let srcName = "quake3"
+        setup = do
+          pplRes <- compileMain "." srcName
+          case pplRes of
+            Left err -> putStrLn ("error: " ++ err) >> return Nothing
+            Right ppl -> do
+              renderer <- allocPipeline ppl
+              setPipelineInput renderer (Just pplInput)
+              sortSlotObjects pplInput
+              putStrLn "reloaded"
+              return $ Just renderer
+    Just renderer <- setup
+    let draw captureA   = renderPipeline renderer >> captureA >> swapBuffers win >> pollEvents
+
     capRef <- newIORef False
     s <- fpsState
     sc <- start $ do
         anim <- animateMaps animTex
-        u <- scene win bsp objs (setScreenSize renderer) p0 slotU mousePosition fblrPress anim capturePress waypointPress capRef
+        u <- scene win bsp objs (setScreenSize pplInput) p0 slotU mousePosition fblrPress anim capturePress waypointPress capRef
         return $ (draw <$> u)
     driveNetwork sc (readInput win s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
 
-    --dispose renderer
-    print "renderer destroyed"
+    disposePipeline renderer
+    print "pplInput destroyed"
     destroyWindow win
 
 animateMaps :: [(Float, [(SetterFun TextureData, TextureData)])] -> SignalGen Float (Signal [(Float, [(SetterFun TextureData, TextureData)])])
@@ -546,7 +560,10 @@ parseEntities n s = eval n $ parse entities s
 
 
 loadQ3Texture :: Bool -> Bool -> TextureData -> Trie Entry -> ByteString -> IO TextureData
+loadQ3Texture isMip isClamped defaultTex ar name = return defaultTex
+{-
 loadQ3Texture isMip isClamped defaultTex ar name = do
+
     let name' = SB.unpack name
         n1 = SB.pack $ replaceExtension name' "tga"
         n2 = SB.pack $ replaceExtension name' "jpg"
@@ -562,3 +579,4 @@ loadQ3Texture isMip isClamped defaultTex ar name = do
             case eimg of
                 Left msg    -> putStrLn ("    error: " ++ msg) >> return defaultTex
                 Right img   -> compileTexture2DRGBAF isMip isClamped img
+-}

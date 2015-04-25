@@ -1,0 +1,12 @@
+main = let
+  modelViewProj = Uni (IM44F "viewProj")
+  emptyFB           = FrameBuffer (ColorImage #1 (V4F 0.0 0.0 0.4 1.0))
+  rasterCtx         = TriangleCtx CullNone (PolygonLine 1.0) NoOffset LastVertex
+  fragmentCtx       = AccumulationContext (ColorOp NoBlending (V4B True True True True))
+  vertexShader v    = VertexOut (PrimMulMatVec modelViewProj (PrimV3FToV4F v) ) 1.0 () (Smooth (PrimV3FToV4F v))
+  vertexStream      = Fetch "missing shader" Triangles (IV3F "position")
+  primitiveStream   = Transform vertexShader vertexStream
+  fragmentStream    = Rasterize rasterCtx primitiveStream
+  fragmentShader f  = FragmentOut f --(V4F 1.0 0.0 0.0 1.0)
+  frame             = Accumulate fragmentCtx PassAll fragmentShader fragmentStream emptyFB
+ in ScreenOut frame
