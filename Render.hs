@@ -11,12 +11,12 @@ import qualified Data.Trie as T
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable.Mutable as SMV
 import qualified Data.Vector.Storable as SV
-import qualified Data.ByteString.Char8 as SB
-import Data.Bitmap.IO
+import qualified Data.ByteString as SB
 import Debug.Trace
+import Codec.Picture
 
 import BSP
-import LambdaCube.GL
+import Backend.GL
 import MD3 (MD3Model)
 import qualified MD3 as MD3
 import Q3Patch
@@ -42,31 +42,23 @@ tessellatePatch drawV sf level = (V.concat vl,V.concat il)
     patches     = [tessellate c level | c <- controls]
     (vl,il)     = unzip $ reverse $ snd $ foldl' (\(o,l) (v,i) -> (o+V.length v, (v,V.map (+o) i):l)) (0,[]) patches
 
-addObject' :: Renderer -> ByteString -> Primitive -> Maybe (IndexStream Buffer) -> T.Trie (Stream Buffer) -> [ByteString] -> IO Object
+addObject' :: GLPipelineInput -> ByteString -> Primitive -> Maybe (IndexStream Buffer) -> T.Trie (Stream Buffer) -> [ByteString] -> IO Object
 addObject' rndr name prim idx attrs unis = addObject rndr name' prim idx attrs' unis
   where
     attrs'  = T.mapBy (\n a -> if elem n renderAttrs then Just a else Nothing) attrs
-    setters = slotStream rndr
+    setters = slots . schema $ rndr
     name'  = if T.member name setters then name else "missing shader"
     renderAttrs = T.keys $ case T.lookup name' setters of
-        Just (_,x)  -> x
+        Just (SlotSchema _ x)  -> x
         _           -> error $ "material not found: " ++ show name'
 
-addBSP :: Renderer -> BSPLevel -> IO (V.Vector Object)
+addBSP :: GLPipelineInput -> BSPLevel -> IO (V.Vector Object)
 addBSP renderer bsp = do
-    let alig = Just 1
-    
-    --zeroBitmap <- createSingleChannelBitmap (128,128) alig (\_ _ -> 0)
-    oneBitmap <- createSingleChannelBitmap (128,128) alig (\_ _ -> 255)
-    lightMapTextures <- fmap V.fromList $ forM (V.toList $ blLightmaps bsp) $ \(Lightmap d) -> SB.useAsCString d $ \ptr -> do
-        bitmap <- copyBitmapFromPtr (128,128) 3 0 (castPtr ptr) alig
-        [r,g,b] <- extractChannels bitmap alig
-        bitmapRGBA <- combineChannels [r,g,b,oneBitmap] alig
-        --bitmapRGBA <- combineChannels [oneBitmap,zeroBitmap,zeroBitmap,oneBitmap] alig
-        compileTexture2DRGBAF False True $ unsafeFreezeBitmap bitmapRGBA
-    whiteTex <- do
-        bitmapRGBA <- combineChannels [oneBitmap,oneBitmap,oneBitmap,oneBitmap] alig
-        compileTexture2DRGBAF False False $ unsafeFreezeBitmap bitmapRGBA
+    let byteStringToVector :: SB.ByteString -> SV.Vector Word8
+        byteStringToVector = SV.fromList . SB.unpack
+    lightMapTextures <- fmap V.fromList $ forM (V.toList $ blLightmaps bsp) $ \(Lightmap d) -> do
+        compileTexture2DRGBAF False True $ ImageRGB8 $ Image 128 128 $ byteStringToVector d
+    whiteTex <- compileTexture2DRGBAF False False $ ImageRGB8 $ generateImage (\_ _ -> PixelRGB8 255 255 255) 128 128
 
     let lightMapTexturesSize = V.length lightMapTextures
         shaders = blShaders bsp
@@ -139,7 +131,7 @@ data LCMD3
 setMD3Frame :: LCMD3 -> Int -> IO ()
 setMD3Frame (LCMD3 _ buf frames) idx = updateBuffer buf $ frames V.! idx
 
-addMD3 :: Renderer -> MD3Model -> [ByteString] -> IO LCMD3
+addMD3 :: GLPipelineInput -> MD3Model -> [ByteString] -> IO LCMD3
 addMD3 r model unis = do
     let cvtSurface :: MD3.Surface -> (Array,Array,V.Vector (Array,Array))
         cvtSurface sf = ( Array ArrWord16 (SV.length indices) (withV indices)

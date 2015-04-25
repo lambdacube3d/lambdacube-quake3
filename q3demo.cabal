@@ -16,7 +16,6 @@ Stability:     experimental
 Build-Type:    Simple
 Extra-Source-Files:
   BSP.hs
-  Graphics.hs
   Items.hs
   MD3.hs
   Main.hs
@@ -43,17 +42,16 @@ Executable q3demo
                   filepath,
                   vector,
 
-                  GLFW-b == 0.1.0.5,
+                  GLFW-b >= 1.4.6,
+                  JuicyPixels,
                   OpenGLRaw,
                   attoparsec,
-                  bitmap,
                   bytestring-trie,
                   data-binary-ieee754,
                   digest,
                   elerea,
-                  lambdacube-gl,
+                  lambdacube-dsl,
                   mmap,
-                  stb-image,
                   vect,
                   zlib
 

@@ -3,7 +3,7 @@
 import "GLFW-b" Graphics.UI.GLFW as GLFW
 import Control.Applicative hiding (Const)
 import Control.Monad
-import Data.Attoparsec.Char8
+import Data.Attoparsec.ByteString.Char8
 import Data.ByteString.Char8 (ByteString)
 import Data.Char
 import Data.IORef
@@ -28,18 +28,18 @@ import Debug.Trace
 
 import Graphics.Rendering.OpenGL.Raw.Core32
 
-import Data.Bitmap
 import Data.Digest.CRC32
-import Codec.Image.STB hiding (Image)
+import Codec.Picture
 
-import LambdaCube.GL
-import LambdaCube.GL.Mesh
+import Backend.GL as GL
+import Backend.GL.Mesh
+import IR as IR
 
-import Effect
+--import Effect
 
 import BSP
 import Camera
-import Graphics
+--import Graphics
 import Material
 import Render
 import ShaderParser
@@ -61,11 +61,10 @@ tableTexture :: [Float] -> ByteString -> Trie InputSetter -> IO ()
 tableTexture t n s = do
     let width       = length t
         v           = V.fromList t
-        bitmap      = createSingleChannelBitmap (width,1) $ \x y -> floor $ min 255 $ max 0 $ 128 + 128 * v V.! x
-        oneBitmap   = createSingleChannelBitmap (width,1) $ \x y -> 255
+        bitmap x y  = let a = floor $ min 255 $ max 0 $ 128 + 128 * v V.! x in PixelRGB8 a a a
         texture     = uniformFTexture2D n s
 
-    tex <- compileTexture2DRGBAF False False $ combineChannels [bitmap,bitmap,bitmap,oneBitmap]
+    tex <- compileTexture2DRGBAF False False $ ImageRGB8 $ generateImage bitmap width 1
     texture tex
 
 setupTables :: Trie InputSetter -> IO ()
@@ -144,9 +143,10 @@ main = do
             - shader descriptor
             - image file: tga or jpg
         -}
+        {-
         lcnet :: Exp Obj (Image 1 V4F)
         lcnet = PrjFrameBuffer "outFB" tix0 $ q3GFX $ T.toList shMap
-
+        -}
         -- extract spawn points
         ents = parseEntities (SB.unpack bspName) $ blEntities bsp
         spawn e = case T.lookup "classname" e of
@@ -158,24 +158,31 @@ main = do
         [x0,y0,z0] = map read $ words $ SB.unpack sp0
         p0 = Vec3 x0 y0 z0
 
-    windowSize <- initCommon "LC DSL Quake 3 Demo"
+    win <- initWindow "LC DSL Quake 3 Demo" 800 600
+    let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
 
     -- CommonAttrs
-    renderer <- compileRenderer $ ScreenOut $ fxGamma gamma lcnet
+    let inputSchema = 
+          PipelineSchema
+          { GL.slots = T.fromList [("stream",SlotSchema Triangles $ T.fromList [("position",TV4F)])]
+          , uniforms = T.fromList [("MVP",M44F),("MVP2",M44F)]
+          }
+    renderer <- mkGLPipelineInput inputSchema
     print "renderer created"
     --print $ slotUniform renderer
     --print $ slotStream renderer
-    initUtility renderer
+    --initUtility renderer
 
     let slotU           = uniformSetter renderer
-        draw captureA   = render renderer >> captureA >> swapBuffers
+        draw captureA   = {-render renderer >> TODO-}captureA >> swapBuffers win
         entityRGB       = uniformV3F "entityRGB" slotU
         entityAlpha     = uniformFloat "entityAlpha" slotU
         identityLight   = uniformFloat "identityLight" slotU
         worldMat        = uniformM44F "worldMat" slotU
         overbrightBits  = 0
-    worldMat idmtx'
-    entityRGB one'
+        idmtx = V4 (V4 1 0 0 0) (V4 0 1 0 0) (V4 0 0 1 0) (V4 0 0 0 1)
+    worldMat idmtx
+    entityRGB $ V3 1 1 1
     entityAlpha 1
     identityLight $ 1 / (2 ^ overbrightBits)
     setupTables slotU
@@ -183,11 +190,9 @@ main = do
     putStrLn "loading textures:"
     -- load textures
     let archiveTrie     = T.fromList [(SB.pack $ eFilePath a,a) | a <- ar]
-        redBitmap       = createSingleChannelBitmap (32,32) $ \x y -> if (x+y) `mod` 2 == 0 then 255 else 0
-        zeroBitmap      = emptyBitmap (32,32) 1
-        oneBitmap       = createSingleChannelBitmap (32,32) $ \x y -> 255
+        redBitmap x y   = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
 
-    defaultTexture <- compileTexture2DRGBAF True False $ combineChannels [redBitmap,redBitmap,zeroBitmap,oneBitmap]
+    defaultTexture <- compileTexture2DRGBAF True False $ ImageRGB8 $ generateImage redBitmap 32 32
     animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ map (\(s,m) -> (saTexture s,m)) $
                concatMap (\sh -> [(s,caNoMipMaps sh) | s <- caStages sh]) $ T.elems shMap) $ \(stageTex,noMip) -> do
         let texSlotName = SB.pack $ "Tex_" ++ show (crc32 $ SB.pack $ show stageTex)
@@ -278,13 +283,13 @@ readMD3 :: LB.ByteString -> MD3Model
     s <- fpsState
     sc <- start $ do
         anim <- animateMaps animTex
-        u <- scene bsp objs (setScreenSize renderer) p0 slotU windowSize mousePosition fblrPress anim capturePress waypointPress capRef
-        return $ draw <$> u
-    driveNetwork sc (readInput s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
+        u <- scene win bsp objs (setScreenSize renderer) p0 slotU mousePosition fblrPress anim capturePress waypointPress capRef
+        return $ (draw <$> u)
+    driveNetwork sc (readInput win s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
 
-    dispose renderer
+    --dispose renderer
     print "renderer destroyed"
-    closeWindow
+    destroyWindow win
 
 animateMaps :: [(Float, [(SetterFun TextureData, TextureData)])] -> SignalGen Float (Signal [(Float, [(SetterFun TextureData, TextureData)])])
 animateMaps l0 = stateful l0 $ \dt l -> zipWith (f $ dt * timeScale) l timing
@@ -298,13 +303,13 @@ animateMaps l0 = stateful l0 $ \dt l -> zipWith (f $ dt * timeScale) l timing
 
 edge :: Signal Bool -> SignalGen p (Signal Bool)
 edge s = transfer2 False (\_ cur prev _ -> cur && not prev) s =<< delay False s
-
-scene :: BSPLevel
+{-
+scene :: Window
+      -> BSPLevel
       -> V.Vector Object
       -> (Word -> Word -> IO ())
       -> Vec3
       -> T.Trie InputSetter
-      -> Signal (Int, Int)
       -> Signal (Float, Float)
       -> Signal (Bool, Bool, Bool, Bool, Bool)
       -> Signal [(Float, [(SetterFun TextureData, TextureData)])]
@@ -312,7 +317,8 @@ scene :: BSPLevel
       -> Signal [Bool]
       -> IORef Bool
       -> SignalGen Float (Signal (IO ()))
-scene bsp objs setSize p0 slotU windowSize mousePosition fblrPress anim capturePress waypointPress capRef = do
+-}
+scene win bsp objs setSize p0 slotU mousePosition fblrPress anim capturePress waypointPress capRef = do
     time <- stateful 0 (+)
     last2 <- transfer ((0,0),(0,0)) (\_ n (_,b) -> (b,n)) mousePosition
     let mouseMove = (\((ox,oy),(nx,ny)) -> (nx-ox,ny-oy)) <$> last2
@@ -339,7 +345,8 @@ scene bsp objs setSize p0 slotU windowSize mousePosition fblrPress anim captureP
         orientation = uniformM44F "orientation" slotU
         viewMat     = uniformM44F "viewMat" slotU
         timeSetter  = uniformFloat "time" slotU
-        setupGFX (w,h) (camPos,camTarget,camUp) time (anim,capturing,frameCount) = do
+        setupGFX (camPos,camTarget,camUp) time (anim,capturing,frameCount) = do
+            (w,h) <- getWindowSize win
             let cm = fromProjective (lookat camPos camTarget camUp)
                 pm = perspective 0.01 15 (pi/2) (fromIntegral w / fromIntegral h)
                 sm = fromProjective (scaling $ Vec3 s s s)
@@ -367,38 +374,41 @@ scene bsp objs setSize p0 slotU windowSize mousePosition fblrPress anim captureP
                 writeIORef capRef capturing
 #endif
                 return ()
-    r <- effectful4 setupGFX windowSize activeCamera time ((,,) <$> anim <*> capture <*> frameCount)
+    r <- effectful3 setupGFX activeCamera time ((,,) <$> anim <*> capture <*> frameCount)
     return r
 
-vec4ToV4F :: Vec4 -> V4F
+--vec4ToV4F :: Vec4 -> V4F
 vec4ToV4F (Vec4 x y z w) = V4 x y z w
 
-mat4ToM44F :: Mat4 -> M44F
+--mat4ToM44F :: Mat4 -> M44F
 mat4ToM44F (Mat4 a b c d) = V4 (vec4ToV4F a) (vec4ToV4F b) (vec4ToV4F c) (vec4ToV4F d)
-
-readInput :: State
+{-
+readInput :: Window
+          -> State
           -> Sink (Float, Float)
           -> Sink (Bool, Bool, Bool, Bool, Bool)
           -> Sink Bool
           -> Sink [Bool]
           -> IORef Bool
           -> IO (Maybe Float)
-readInput s mousePos fblrPress capturePress waypointPress capRef = do
-    t <- getTime
-    resetTime
+-}
+readInput win s mousePos fblrPress capturePress waypointPress capRef = do
+    let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
+    t <- maybe 0 id <$> getTime
+    setTime 0
 
-    (x,y) <- getMousePosition
-    mousePos (fromIntegral x,fromIntegral y)
+    (x,y) <- getCursorPos win
+    mousePos (realToFrac x,realToFrac y)
 
-    fblrPress =<< ((,,,,) <$> keyIsPressed KeyLeft <*> keyIsPressed KeyUp <*> keyIsPressed KeyDown <*> keyIsPressed KeyRight <*> keyIsPressed KeyRightShift)
-    capturePress =<< keyIsPressed (CharKey 'P')
-    waypointPress =<< mapM (keyIsPressed . CharKey) "RE12FG"
+    fblrPress =<< ((,,,,) <$> keyIsPressed Key'Left <*> keyIsPressed Key'Up <*> keyIsPressed Key'Down <*> keyIsPressed Key'Right <*> keyIsPressed Key'RightShift)
+    capturePress =<< keyIsPressed Key'P
+    waypointPress =<< mapM keyIsPressed [Key'R,Key'E,Key'1,Key'2,Key'F,Key'G]
 
     isCapturing <- readIORef capRef
     let dt = if isCapturing then recip captureRate else realToFrac t
 
     updateFPS s dt
-    k <- keyIsPressed KeyEsc
+    k <- keyIsPressed Key'Escape
     return $ if k then Nothing else Just (realToFrac dt)
 
 -- FRP boilerplate
@@ -413,31 +423,20 @@ driveNetwork network driver = do
 
 -- OpenGL/GLFW boilerplate
 
-initCommon :: String -> IO (Signal (Int, Int))
-initCommon title = do
-    initialize
-    openWindow defaultDisplayOptions
-        { displayOptions_numRedBits         = 8
-        , displayOptions_numGreenBits       = 8
-        , displayOptions_numBlueBits        = 8
-        , displayOptions_numAlphaBits       = 8
-        , displayOptions_numDepthBits       = 24
-        , displayOptions_windowIsResizable  = True
-        , displayOptions_width              = 1280
-        , displayOptions_height             = 720
-        , displayOptions_openGLVersion      = (3,2)
-        , displayOptions_openGLProfile      = CoreProfile
---        , displayOptions_displayMode    = Fullscreen
-        }
-    setWindowTitle title
+initWindow :: String -> Int -> Int -> IO Window
+initWindow title width height = do
+    GLFW.init
+    defaultWindowHints
+    mapM_ windowHint
+      [ WindowHint'ContextVersionMajor 3
+      , WindowHint'ContextVersionMinor 3
+      , WindowHint'OpenGLProfile OpenGLProfile'Core
+      , WindowHint'OpenGLForwardCompat True
+      ]
+    Just win <- createWindow width height title Nothing Nothing
+    makeContextCurrent $ Just win
 
-    (windowSize,windowSizeSink) <- external (0,0)
-    setWindowSizeCallback $ \w h -> do
-        glViewport 0 0 (fromIntegral w) (fromIntegral h)
-        putStrLn $ "window size changed " ++ show (w,h)
-        windowSizeSink (fromIntegral w, fromIntegral h)
-
-    return windowSize
+    return win
 
 -- FPS tracking
 
@@ -558,7 +557,7 @@ loadQ3Texture isMip isClamped defaultTex ar name = do
     case T.lookup fname ar of
         Nothing -> return defaultTex
         Just d  -> do
-            eimg <- decodeImage $ decompress d
+            let eimg = decodeImage $ decompress d
             putStrLn $ "  load: " ++ SB.unpack fname
             case eimg of
                 Left msg    -> putStrLn ("    error: " ++ msg) >> return defaultTex

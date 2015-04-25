@@ -13,8 +13,8 @@ import Data.Binary.Get as B
 import Data.Binary.IEEE754
 import Data.Vect hiding (Vector)
 import Data.Vector (Vector)
-import qualified Data.ByteString as SB8
-import qualified Data.ByteString.Char8 as SB
+import qualified Data.ByteString as SB
+import qualified Data.ByteString.Char8 as SB8
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Vector as V
 
@@ -66,7 +66,7 @@ data Model
 
 data Shader
     = Shader
-    { shName         :: !SB.ByteString
+    { shName         :: !SB8.ByteString
     , shSurfaceFlags :: !Int
     , shContentFlags :: !Int
     }
@@ -112,7 +112,7 @@ data Brush
 
 data Fog
     = Fog
-    { fgName        :: !SB.ByteString
+    { fgName        :: !SB8.ByteString
     , fgBrushNum    :: !Int
     , fgVisibleSide :: !Int
     }
@@ -168,7 +168,7 @@ data Visibility
 
 data BSPLevel
     = BSPLevel
-    { blEntities     :: !SB.ByteString
+    { blEntities     :: !SB8.ByteString
     , blShaders      :: !(Vector Shader)
     , blPlanes       :: !(Vector Plane)
     , blNodes        :: !(Vector Node)
@@ -187,7 +187,7 @@ data BSPLevel
     , blVisibility   :: !Visibility
     }
 
-getString   = fmap (SB.takeWhile (/= '\0')) . getByteString
+getString   = fmap (SB8.takeWhile (/= '\0')) . getByteString
 
 getWord     = getWord32le
 
@@ -230,7 +230,7 @@ getSurfaceType  = getInt >>= \i -> case i of
     _ -> fail "Invalid surface type"
 
 getEntities l   = getString l
-getShaders      = getItems  72 $ Shader     <$> (SB.map toLower <$> getString 64) <*> getInt <*> getInt
+getShaders      = getItems  72 $ Shader     <$> (SB8.map toLower <$> getString 64) <*> getInt <*> getInt
 getPlanes       = getItems  16 $ Plane      <$> getVec3 <*> getFloat
 getNodes        = getItems  36 $ Node       <$> getInt <*> getInt2 <*> getVec3i <*> getVec3i
 getLeaves       = getItems  48 $ Leaf       <$> getInt <*> getInt <*> getVec3i <*> getVec3i <*> getInt <*> getInt <*> getInt <*> getInt
@@ -256,7 +256,7 @@ getVisibility l = do
     nvecs   <- getInt
     szvecs  <- getInt
     vecs    <- getByteString $ nvecs * szvecs
-    return $ Visibility nvecs szvecs $ V.fromList $ SB8.unpack vecs
+    return $ Visibility nvecs szvecs $ V.fromList $ SB.unpack vecs
 
 readBSP :: LB.ByteString -> BSPLevel
 readBSP dat = BSPLevel
