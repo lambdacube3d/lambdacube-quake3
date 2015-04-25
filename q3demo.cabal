@@ -42,6 +42,7 @@ Executable q3demo
                   filepath,
                   vector,
 
+                  pretty-show >=1.6 && <1.7, 
                   GLFW-b >= 1.4.6,
                   JuicyPixels,
                   OpenGLRaw,

@@ -25,6 +25,7 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
 
 import Debug.Trace
+import Text.Show.Pretty
 
 import Graphics.Rendering.OpenGL.Raw.Core32
 
@@ -285,13 +286,14 @@ readMD3 :: LB.ByteString -> MD3Model
           case pplRes of
             Left err -> putStrLn ("error: " ++ err) >> return Nothing
             Right ppl -> do
+              putStrLn $ ppShow ppl
               renderer <- allocPipeline ppl
               setPipelineInput renderer (Just pplInput)
               sortSlotObjects pplInput
               putStrLn "reloaded"
               return $ Just renderer
     Just renderer <- setup
-    let draw captureA   = renderPipeline renderer >> captureA >> swapBuffers win >> pollEvents
+    let draw captureA = renderPipeline renderer >> captureA >> swapBuffers win >> pollEvents
 
     capRef <- newIORef False
     s <- fpsState
