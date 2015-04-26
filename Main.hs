@@ -366,13 +366,13 @@ scene win bsp objs setSize p0 slotU mousePosition fblrPress anim capturePress wa
         setupGFX (camPos,camTarget,camUp) time (anim,capturing,frameCount) = do
             (w,h) <- getWindowSize win
             let cm = fromProjective (lookat camPos camTarget camUp)
-                pm = perspective 0.01 15 (pi/2) (fromIntegral w / fromIntegral h)
+                pm = perspective 0.01 150 (pi/2) (fromIntegral w / fromIntegral h)
                 sm = fromProjective (scaling $ Vec3 s s s)
                 s  = 0.005
                 V4 orientA orientB orientC _ = mat4ToM44F $! cm .*. sm
                 Vec3 cx cy cz = camPos
                 near = 0.01/s
-                far  = 15/s
+                far  = 150/s
                 fovDeg = 90
                 frust = frustum fovDeg (fromIntegral w / fromIntegral h) near far camPos camTarget camUp
             timeSetter $ time / 1
