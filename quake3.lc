@@ -1,7 +1,7 @@
 main = let
   blend = Blend (FuncSubtract,FuncAdd) ((SrcColor,SrcColor),(SrcColor,OneMinusSrcAlpha)) (V4F 0.0 1.0 0.0 0.0)
   modelViewProj = Uni (IM44F "viewProj")
-  emptyFB           = FrameBuffer (ColorImage #1 (V4F 0.0 0.0 0.4 1.0))
+  emptyFB           = FrameBuffer (colorImage1 (V4F 0.0 0.0 0.4 1.0))
   polyMode          = PolygonLine 20.0
   polyMode'        = PolygonPoint (PointSize 10.0)
   polyMode''         = PolygonFill
