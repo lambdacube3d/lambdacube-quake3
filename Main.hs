@@ -17,6 +17,7 @@ import FRP.Elerea.Param
 import System.Directory
 import System.Environment
 import System.FilePath
+import Data.Binary (encodeFile,decodeFile)
 import qualified Data.ByteString.Char8 as SB
 import qualified Data.Set as Set
 import qualified Data.Trie as T
@@ -130,8 +131,13 @@ main = do
         Just bspData = T.lookup bspName bspMap
         bsp = readBSP bspData
         shNames = Set.fromList $ map shName $ V.toList $ blShaders bsp
-        shMap' = shaderMap ar
-        (normalShNames,textureShNames) = partition (\n -> T.member n shMap') $ Set.toList shNames
+
+    shMap' <- do
+      hasShaderCache <- doesFileExist "q3shader.cache"
+      case hasShaderCache of
+        True -> putStrLn "load shader cache" >> decodeFile "q3shader.cache"
+        False -> let sm = shaderMap ar in putStrLn "create shader cache" >> encodeFile "q3shader.cache" sm >> return sm
+    let (normalShNames,textureShNames) = partition (\n -> T.member n shMap') $ Set.toList shNames
         normalShNameSet     = Set.fromList normalShNames
         textureShNameSet    = Set.fromList textureShNames
         normalShMap     = T.mapBy (\n sh -> if Set.member n normalShNameSet then Just sh else Nothing) shMap'
@@ -279,21 +285,9 @@ readMD3 :: LB.ByteString -> MD3Model
     (fblrPress,fblrPressSink) <- external (False,False,False,False,False)
     (capturePress,capturePressSink) <- external False
     (waypointPress,waypointPressSink) <- external []
+    rendererRef <- newIORef =<< fromJust <$> loadQuake3Graphics pplInput
 
-    let srcName = "quake3"
-        setup = do
-          pplRes <- compileMain "." srcName
-          case pplRes of
-            Left err -> putStrLn ("error: " ++ err) >> return Nothing
-            Right ppl -> do
-              putStrLn $ ppShow ppl
-              renderer <- allocPipeline ppl
-              setPipelineInput renderer (Just pplInput)
-              sortSlotObjects pplInput
-              putStrLn "reloaded"
-              return $ Just renderer
-    Just renderer <- setup
-    let draw captureA = renderPipeline renderer >> captureA >> swapBuffers win >> pollEvents
+    let draw captureA = readIORef rendererRef >>= renderPipeline >> captureA >> swapBuffers win >> pollEvents
 
     capRef <- newIORef False
     s <- fpsState
@@ -301,10 +295,11 @@ readMD3 :: LB.ByteString -> MD3Model
         anim <- animateMaps animTex
         u <- scene win bsp objs (setScreenSize pplInput) p0 slotU mousePosition fblrPress anim capturePress waypointPress capRef
         return $ (draw <$> u)
-    driveNetwork sc (readInput win s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
+    driveNetwork sc (readInput rendererRef pplInput win s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
 
-    disposePipeline renderer
+    disposePipeline =<< readIORef rendererRef
     print "pplInput destroyed"
+
     destroyWindow win
 
 animateMaps :: [(Float, [(SetterFun TextureData, TextureData)])] -> SignalGen Float (Signal [(Float, [(SetterFun TextureData, TextureData)])])
@@ -319,7 +314,7 @@ animateMaps l0 = stateful l0 $ \dt l -> zipWith (f $ dt * timeScale) l timing
 
 edge :: Signal Bool -> SignalGen p (Signal Bool)
 edge s = transfer2 False (\_ cur prev _ -> cur && not prev) s =<< delay False s
-{-
+
 scene :: Window
       -> BSPLevel
       -> V.Vector Object
@@ -333,7 +328,6 @@ scene :: Window
       -> Signal [Bool]
       -> IORef Bool
       -> SignalGen Float (Signal (IO ()))
--}
 scene win bsp objs setSize p0 slotU mousePosition fblrPress anim capturePress waypointPress capRef = do
     time <- stateful 0 (+)
     last2 <- transfer ((0,0),(0,0)) (\_ n (_,b) -> (b,n)) mousePosition
@@ -398,8 +392,10 @@ vec4ToV4F (Vec4 x y z w) = V4 x y z w
 
 --mat4ToM44F :: Mat4 -> M44F
 mat4ToM44F (Mat4 a b c d) = V4 (vec4ToV4F a) (vec4ToV4F b) (vec4ToV4F c) (vec4ToV4F d)
-{-
-readInput :: Window
+
+readInput :: IORef GLPipeline
+          -> GLPipelineInput
+          -> Window
           -> State
           -> Sink (Float, Float)
           -> Sink (Bool, Bool, Bool, Bool, Bool)
@@ -407,8 +403,7 @@ readInput :: Window
           -> Sink [Bool]
           -> IORef Bool
           -> IO (Maybe Float)
--}
-readInput win s mousePos fblrPress capturePress waypointPress capRef = do
+readInput rendererRef pplInput win s mousePos fblrPress capturePress waypointPress capRef = do
     let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
     t <- maybe 0 id <$> getTime
     setTime 0
@@ -422,6 +417,15 @@ readInput win s mousePos fblrPress capturePress waypointPress capRef = do
 
     isCapturing <- readIORef capRef
     let dt = if isCapturing then recip captureRate else realToFrac t
+
+    reload <- keyIsPressed Key'L
+    when reload $ do
+      r <- loadQuake3Graphics pplInput
+      case r of
+        Nothing -> return ()
+        Just a  -> do
+          readIORef rendererRef >>= disposePipeline
+          writeIORef rendererRef a
 
     updateFPS s dt
     k <- keyIsPressed Key'Escape
@@ -562,7 +566,9 @@ parseEntities n s = eval n $ parse entities s
 
 
 loadQ3Texture :: Bool -> Bool -> TextureData -> Trie Entry -> ByteString -> IO TextureData
-loadQ3Texture isMip isClamped defaultTex ar name = return defaultTex
+loadQ3Texture isMip isClamped defaultTex ar name = do
+  putStrLn $ "  load: " ++ SB.unpack name
+  return defaultTex
 {-
 loadQ3Texture isMip isClamped defaultTex ar name = do
 
@@ -582,3 +588,17 @@ loadQ3Texture isMip isClamped defaultTex ar name = do
                 Left msg    -> putStrLn ("    error: " ++ msg) >> return defaultTex
                 Right img   -> compileTexture2DRGBAF isMip isClamped img
 -}
+
+loadQuake3Graphics pplInput = do
+  let srcName = "quake3"
+  putStrLn "compile quake3 graphics pipeline"
+  pplRes <- compileMain "." srcName
+  case pplRes of
+    Left err -> putStrLn ("error: " ++ err) >> return Nothing
+    Right ppl -> do
+      putStrLn $ ppShow ppl
+      renderer <- allocPipeline ppl
+      setPipelineInput renderer (Just pplInput)
+      sortSlotObjects pplInput
+      putStrLn "reloaded"
+      return $ Just renderer
