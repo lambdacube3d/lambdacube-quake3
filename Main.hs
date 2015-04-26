@@ -170,9 +170,17 @@ main = do
     let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
 
     -- CommonAttrs
-    let inputSchema = 
+    let quake3SlotSchema =
+          SlotSchema Triangles $ T.fromList
+            [ ("position", TV3F)
+            , ("diffuseUV", TV2F)
+            , ("lightmapUV", TV2F)
+            , ("normal", TV3F)
+            , ("color", TV4F)
+            ]
+        inputSchema = 
           PipelineSchema
-          { GL.slots = T.fromList [("missing shader",SlotSchema Triangles $ T.fromList [("position",TV3F)])]
+          { GL.slots = T.fromList [("missing shader", quake3SlotSchema)]
           , uniforms = T.fromList [("viewProj",M44F),("LightMap",M44F{-TODO-})]
           }
     pplInput <- mkGLPipelineInput inputSchema
