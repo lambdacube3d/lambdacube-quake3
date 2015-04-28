@@ -1,16 +1,16 @@
 main = let
   blend = Blend (FuncSubtract,FuncAdd) ((SrcColor,SrcColor),(SrcColor,OneMinusSrcAlpha)) (V4F 0.0 1.0 0.0 0.0)
   modelViewProj = Uni (IM44F "viewProj")
-  emptyFB           = FrameBuffer (colorImage1 (V4F 0.0 0.0 0.4 1.0))
+  emptyFB           = FrameBuffer (depthImage1 1000,colorImage1 (V4F 0.0 0.0 0.4 1.0))
   polyMode          = PolygonLine 20.0
   polyMode'        = PolygonPoint (PointSize 10.0)
   polyMode''         = PolygonFill
-  rasterCtx         = TriangleCtx CullNone polyMode NoOffset LastVertex
-  fragmentCtx       = AccumulationContext (ColorOp NoBlending (V4B True True True True))
+  rasterCtx         = TriangleCtx CullNone polyMode'' NoOffset FirstVertex
+  fragmentCtx       = AccumulationContext (DepthOp Less True,ColorOp NoBlending (V4B True True True True))
   vertexShader (v,n)    = VertexOut (PrimMulMatVec modelViewProj (PrimV3FToV4F v) ) 1.0 () (Smooth (PrimV3FToV4F n))
-  vertexStream      = Fetch "missing shader" Triangles (IV3F "position",IV3F "normal")
+  vertexStream      = Fetch "missing shader" Triangles (IV3F "position",IV3F "color")
   primitiveStream   = Transform vertexShader vertexStream
   fragmentStream    = Rasterize rasterCtx primitiveStream
-  fragmentShader f  = FragmentOut f-- (V4F 1.0 1.0 1.0 0.2)
+  fragmentShader f  = FragmentOutRastDepth f-- (V4F 1.0 1.0 1.0 0.2)
   frame             = Accumulate fragmentCtx PassAll fragmentShader fragmentStream emptyFB
  in ScreenOut frame
