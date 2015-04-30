@@ -52,6 +52,7 @@ Executable q3demo
                   digest,
                   elerea,
                   lambdacube-dsl,
+                  lambdacube-gl-ir,
                   mmap,
                   vect,
                   zlib
