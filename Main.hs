@@ -126,7 +126,9 @@ main = do
         bspName = case args of
             []     -> head $ T.keys bspMap
             (n:xs) -> SB.pack n
-        Just bspData = T.lookup bspName bspMap
+        bspData = case T.lookup bspName bspMap of
+            Nothing -> error "You need to put pk3 file into your current directory"
+            Just bspd -> bspd
         bsp = readBSP bspData
         shNames = Set.fromList $ map shName $ V.toList $ blShaders bsp
         shMap' = shaderMap ar
