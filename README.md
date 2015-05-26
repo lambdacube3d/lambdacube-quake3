@@ -1,2 +1,4 @@
-quake3
-======
+# quake3
+
+Put a pk3 file to the q3demo binary's folder.
+Download one from: http://lvlworld.com/
