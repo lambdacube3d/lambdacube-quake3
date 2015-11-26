@@ -21,7 +21,7 @@ many v = many_v
 
 -- utility parsers
 skipSpace' :: Parser ()
-skipSpace' = skipWhile (\c -> elem c " \t")
+skipSpace' = skipWhile (\c -> elem c (" \t" :: String))
 
 skip :: Parser ()
 skip = skipSpace <* many (comment <* skipSpace)
@@ -30,7 +30,7 @@ eol :: Parser ()
 eol = choice [string "\r\n" >> return (), satisfy (\c -> c == '\n') >> return (), satisfy (\c -> c == '\r') >> return ()]
 
 skipRest :: Parser ()
-skipRest = skipWhile (\c -> notElem c "\n\r{}") <* eol
+skipRest = skipWhile (\c -> notElem c ("\n\r{}" :: String)) <* eol
 
 comment :: Parser ByteString
 comment = (stringCI "//" <* skipWhile (\c -> c /= '\n' && c /= '\r')) <|> (string "/*" <* manyTill anyChar (try (string "*/")))
