@@ -37,6 +37,7 @@ import Backend.GL as GL
 import Backend.GL.Mesh
 import IR as IR
 import Driver
+import Type
 
 --import Effect
 
@@ -178,10 +179,16 @@ main = do
             , ("normal", TV3F)
             , ("color", TV4F)
             ]
-        inputSchema = 
+        inputSchema = {-TODO-}
           PipelineSchema
           { GL.slots = T.fromList [("missing shader", quake3SlotSchema)]
-          , uniforms = T.fromList [("viewProj",M44F),("LightMap",M44F{-TODO-})]
+          , uniforms = T.fromList [ ("viewProj",      M44F)
+                                  , ("worldMat",      M44F)
+                                  , ("entityRGB",     V3F)
+                                  , ("entityAlpha",   IR.Float)
+                                  , ("identityLight", IR.Float)
+                                  , ("LightMap",      FTexture2D)
+                                  ]
           }
     pplInput <- mkGLPipelineInput inputSchema
     print "pplInput created"
@@ -598,12 +605,12 @@ loadQ3Texture isMip isClamped defaultTex ar name = do
 -}
 
 loadQuake3Graphics pplInput = do
-  let srcName = "quake3"
+  let srcName = "Graphics"
   putStrLn "compile quake3 graphics pipeline"
-  pplRes <- compileMain "." srcName
+  pplRes <- compileMain (ioFetch ["."]) OpenGL33 undefined srcName
   case pplRes of
-    Left err -> putStrLn ("error: " ++ err) >> return Nothing
-    Right ppl -> do
+    (Left err,a) -> putStrLn ("error: " ++ show err ++ show a) >> return Nothing
+    (Right (ppl,_),_) -> do
       putStrLn $ ppShow ppl
       renderer <- allocPipeline ppl
       setPipelineInput renderer (Just pplInput)

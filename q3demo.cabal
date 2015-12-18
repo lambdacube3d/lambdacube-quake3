@@ -51,7 +51,7 @@ Executable q3demo
                   data-binary-ieee754,
                   digest,
                   elerea,
-                  lambdacube-dsl,
+                  lambdacube-compiler,
                   lambdacube-gl-ir,
                   mmap,
                   vect,
