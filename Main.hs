@@ -37,7 +37,6 @@ import Backend.GL as GL
 import Backend.GL.Mesh
 import IR as IR
 import Driver
-import Type
 
 --import Effect
 
@@ -60,13 +59,17 @@ import Foreign
 
 type Sink a = a -> IO ()
 
+uniformFTexture2D' n s v = do
+  putStrLn $ "uniformFTexture2D: " ++ show n
+  uniformFTexture2D n s v
+
 -- Utility code
 tableTexture :: [Float] -> ByteString -> Trie InputSetter -> IO ()
 tableTexture t n s = do
     let width       = length t
         v           = V.fromList t
         bitmap x y  = let a = floor $ min 255 $ max 0 $ 128 + 128 * v V.! x in PixelRGB8 a a a
-        texture     = uniformFTexture2D n s
+        texture     = uniformFTexture2D' n s
 
     tex <- compileTexture2DRGBAF False False $ ImageRGB8 $ generateImage bitmap width 1
     texture tex
@@ -131,8 +134,10 @@ main = do
             (n:xs) -> SB.pack n
         Just bspData = T.lookup bspName bspMap
         bsp = readBSP bspData
-        shNames = Set.fromList $ map shName $ V.toList $ blShaders bsp
+        maxMaterial = 20 -- TODO: remove if we will have fast reducer
+        shNames = Set.fromList $ Prelude.take maxMaterial [n | n <- map shName $ V.toList $ blShaders bsp, SB.isInfixOf "floor" n || SB.isInfixOf "wall" n || SB.isInfixOf "door" n]
 
+    mapM_ SB.putStrLn $ map shName $ V.toList $ blShaders bsp
     shMap' <- do
       hasShaderCache <- doesFileExist "q3shader.cache"
       case hasShaderCache of
@@ -145,6 +150,22 @@ main = do
         --textureShMap    = T.fromList [(n,defaultCommonAttrs {caStages = [defaultStageAttrs {saTexture = ST_Map n, saDepthWrite = True}]}) | n <- Set.toList textureShNameSet]
         textureShMap    = T.fromList [(n,imageShader n) | n <- Set.toList textureShNameSet]
         shMap = T.unionL normalShMap textureShMap
+        shMapTexSlot = mangleCA <$> shMap
+          where
+            mangleStageTex stageTex = SB.pack $ "Tex_" ++ show (crc32 $ SB.pack $ show stageTex)
+            mangleCA ca = ca {caStages = mangleSA <$> caStages ca}
+            mangleSA sa = sa {saTextureUniform = mangleStageTex sa}
+        textureUniforms = Set.toList . Set.fromList . concat . map name . concat . map caStages $ T.elems shMapTexSlot
+          where
+            name s = [saTextureUniform s]
+            {-
+            name s = case saTexture s of
+              ST_Map n        -> [n]
+              ST_ClampMap n   -> [n]
+              ST_AnimMap _ n  -> [head n]
+              ST_Lightmap     -> ["LightMap"]
+              ST_WhiteImage   -> []
+            -}
         -- create gfx network to render active materials
         {-
         TODO: gfx network should be created from shaderMap and bsp
@@ -167,28 +188,47 @@ main = do
         [x0,y0,z0] = map read $ words $ SB.unpack sp0
         p0 = Vec3 x0 y0 z0
 
+
+    putStrLn $ "all materials:  " ++ show (T.size shMap')
+    putStrLn $ "used materials: " ++ show (T.size shMap)
+    putStrLn $ "texture uniforms: \n" ++ ppShow textureUniforms
+    writeFile "SampleMaterial.lc" $ unlines
+      [ "module SampleMaterial where"
+      , "import Material"
+      , "sampleMaterial ="
+      , unlines . map ("  "++) . lines . ppShow . T.toList $ shMapTexSlot
+      ]
     win <- initWindow "LC DSL Quake 3 Demo" 800 600
     let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
 
     -- CommonAttrs
     let quake3SlotSchema =
           SlotSchema Triangles $ T.fromList
-            [ ("position", TV3F)
-            , ("diffuseUV", TV2F)
-            , ("lightmapUV", TV2F)
-            , ("normal", TV3F)
-            , ("color", TV4F)
+            [ ("color",       TV4F)
+            , ("diffuseUV",   TV2F)
+            , ("normal",      TV3F)
+            , ("position",    TV3F)
+            , ("lightmapUV",  TV2F)
             ]
         inputSchema = {-TODO-}
           PipelineSchema
-          { GL.slots = T.fromList [("missing shader", quake3SlotSchema)]
-          , uniforms = T.fromList [ ("viewProj",      M44F)
-                                  , ("worldMat",      M44F)
-                                  , ("entityRGB",     V3F)
-                                  , ("entityAlpha",   IR.Float)
-                                  , ("identityLight", IR.Float)
-                                  , ("LightMap",      FTexture2D)
-                                  ]
+          { GL.slots = T.fromList $ zip ("missing shader" : T.keys shMap) (repeat quake3SlotSchema)
+          , uniforms = T.fromList $ [ ("viewProj",      M44F)
+                                    , ("worldMat",      M44F)
+                                    , ("viewMat",       M44F)
+                                    , ("orientation",   M44F)
+                                    , ("viewOrigin",    V3F)
+                                    , ("entityRGB",     V3F)
+                                    , ("entityAlpha",   IR.Float)
+                                    , ("identityLight", IR.Float)
+                                    , ("time",          IR.Float)
+                                    , ("LightMap",      FTexture2D)
+                                    , ("SinTable",             FTexture2D)
+                                    , ("SquareTable",          FTexture2D)
+                                    , ("SawToothTable",        FTexture2D)
+                                    , ("InverseSawToothTable", FTexture2D)
+                                    , ("TriangleTable",        FTexture2D)
+                                    ] ++ zip textureUniforms (repeat FTexture2D)
           }
     pplInput <- mkGLPipelineInput inputSchema
     print "pplInput created"
@@ -215,17 +255,16 @@ main = do
         redBitmap x y   = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
 
     defaultTexture <- compileTexture2DRGBAF True False $ ImageRGB8 $ generateImage redBitmap 32 32
-    animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ map (\(s,m) -> (saTexture s,m)) $
-               concatMap (\sh -> [(s,caNoMipMaps sh) | s <- caStages sh]) $ T.elems shMap) $ \(stageTex,noMip) -> do
-        let texSlotName = SB.pack $ "Tex_" ++ show (crc32 $ SB.pack $ show stageTex)
-            setTex isClamped img  = uniformFTexture2D texSlotName slotU =<< loadQ3Texture (not noMip) isClamped defaultTexture archiveTrie img
+    animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ concatMap (\sh -> [(saTexture sa,saTextureUniform sa,caNoMipMaps sh) | sa <- caStages sh]) $ T.elems shMapTexSlot) $
+      \(stageTex,texSlotName,noMip) -> do
+        let setTex isClamped img  = uniformFTexture2D' texSlotName slotU =<< loadQ3Texture (not noMip) isClamped defaultTexture archiveTrie img
         case stageTex of
             ST_Map img          -> setTex False img >> return []
             ST_ClampMap img     -> setTex True img >> return []
             ST_AnimMap t imgs   -> do
                 txList <- mapM (loadQ3Texture (not noMip) False defaultTexture archiveTrie) imgs
-                --return [(1 / t / fromIntegral (length imgs),cycle $ zip (repeat (uniformFTexture2D texSlotName slotU)) txList)]
-                return [(1/t,cycle $ zip (repeat (uniformFTexture2D texSlotName slotU)) txList)]
+                --return [(1 / t / fromIntegral (length imgs),cycle $ zip (repeat (uniformFTexture2D' texSlotName slotU)) txList)]
+                return [(1/t,cycle $ zip (repeat (uniformFTexture2D' texSlotName slotU)) txList)]
             _ -> return []
 
     putStrLn $ "loading: " ++ show bspName
@@ -235,8 +274,8 @@ main = do
     levelShots <- sequence [(n,) <$> loadQ3Texture True True defaultTexture archiveTrie (SB.append "levelshots/" n) | n <- T.keys bspMap]
     menuObj <- addMesh menuRenderer "postSlot" compiledQuad ["ScreenQuad"]
     let menuObjUnis = objectUniformSetter menuObj
-    --uniformFTexture2D "ScreenQuad" menuObjUnis defaultTexture
-    uniformFTexture2D "ScreenQuad" menuObjUnis $ snd $ head levelShots
+    --uniformFTexture2D' "ScreenQuad" menuObjUnis defaultTexture
+    uniformFTexture2D' "ScreenQuad" menuObjUnis $ snd $ head levelShots
 -}
     -- add entities
 {-
@@ -305,11 +344,12 @@ readMD3 :: LB.ByteString -> MD3Model
     let draw captureA = readIORef rendererRef >>= renderPipeline >> captureA >> swapBuffers win >> pollEvents
 
     capRef <- newIORef False
-    s <- fpsState
     sc <- start $ do
         anim <- animateMaps animTex
         u <- scene win bsp objs (setScreenSize pplInput) p0 slotU mousePosition fblrPress anim capturePress waypointPress capRef
         return $ (draw <$> u)
+    setTime 0
+    s <- fpsState
     driveNetwork sc (readInput rendererRef pplInput win s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
 
     disposePipeline =<< readIORef rendererRef
@@ -470,6 +510,7 @@ initWindow title width height = do
       ]
     Just win <- createWindow width height title Nothing Nothing
     makeContextCurrent $ Just win
+    glEnable gl_FRAMEBUFFER_SRGB
 
     return win
 
@@ -582,10 +623,6 @@ parseEntities n s = eval n $ parse entities s
 
 loadQ3Texture :: Bool -> Bool -> TextureData -> Trie Entry -> ByteString -> IO TextureData
 loadQ3Texture isMip isClamped defaultTex ar name = do
-  putStrLn $ "  load: " ++ SB.unpack name
-  return defaultTex
-{-
-loadQ3Texture isMip isClamped defaultTex ar name = do
 
     let name' = SB.unpack name
         n1 = SB.pack $ replaceExtension name' "tga"
@@ -595,14 +632,14 @@ loadQ3Texture isMip isClamped defaultTex ar name = do
         b2 = T.member n2 ar
         fname   = if b0 then name else if b1 then n1 else n2
     case T.lookup fname ar of
-        Nothing -> return defaultTex
+        Nothing -> putStrLn ("    unknown: " ++ show fname) >> return defaultTex
         Just d  -> do
             let eimg = decodeImage $ decompress d
             putStrLn $ "  load: " ++ SB.unpack fname
             case eimg of
                 Left msg    -> putStrLn ("    error: " ++ msg) >> return defaultTex
-                Right img   -> compileTexture2DRGBAF isMip isClamped img
--}
+                Right img   -> compileTexture2DRGBAF' True isMip isClamped img
+
 
 loadQuake3Graphics pplInput = do
   let srcName = "Graphics"
@@ -611,9 +648,25 @@ loadQuake3Graphics pplInput = do
   case pplRes of
     (Left err,a) -> putStrLn ("error: " ++ show err ++ show a) >> return Nothing
     (Right (ppl,_),_) -> do
-      putStrLn $ ppShow ppl
+      writeFile "quake3.pipeline" $ ppUnlines $ ppShow ppl
       renderer <- allocPipeline ppl
       setPipelineInput renderer (Just pplInput)
       sortSlotObjects pplInput
       putStrLn "reloaded"
       return $ Just renderer
+
+ppUnlines :: String -> String
+ppUnlines [] = []
+ppUnlines ('"':xs) | isMultilineString xs = "unlines\n    [ \"" ++ go xs
+  where go ('\\':'n':xs) = "\"\n    , \"" ++ go xs
+        go ('\\':c:xs) = '\\':c:go xs
+        go ('"':xs) = "\"\n    ]" ++ ppUnlines xs
+        go (x:xs) = x : go xs
+
+        isMultilineString ('\\':'n':xs) = True
+        isMultilineString ('\\':c:xs) = isMultilineString xs
+        isMultilineString ('"':xs) = False
+        isMultilineString (x:xs) = isMultilineString xs
+        isMultilineString [] = False
+
+ppUnlines (x:xs) = x : ppUnlines xs

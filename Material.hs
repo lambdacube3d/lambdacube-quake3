@@ -198,6 +198,7 @@ data StageAttrs
 
     -- parser internals
     , saDepthMaskExplicit   :: Bool
+    , saTextureUniform  :: !SB.ByteString
     }
     deriving (Show,Generic)
 
@@ -213,6 +214,7 @@ defaultStageAttrs = StageAttrs
     , saDepthFunc   = D_Lequal
     , saAlphaFunc   = Nothing
     , saDepthMaskExplicit   = False
+    , saTextureUniform  = mempty
     }
 
 {-

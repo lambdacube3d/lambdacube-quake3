@@ -53,6 +53,7 @@ Executable q3demo
                   elerea,
                   lambdacube-compiler,
                   lambdacube-gl-ir,
+                  lambdacube-ir,
                   mmap,
                   vect,
                   zlib
