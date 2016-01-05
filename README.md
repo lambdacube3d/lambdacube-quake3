@@ -9,3 +9,5 @@ Put a pk3 file to the q3demo binary's folder.
 cabal install
 
 q3demo q3dm1
+
+![Quake III level viewer](https://github.com/csabahruska/quake3/raw/master/lambdacube-edsl-quake3.jpg)
