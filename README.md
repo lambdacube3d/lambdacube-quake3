@@ -10,4 +10,4 @@ cabal install
 
 q3demo q3dm1
 
-![Quake III level viewer](https://github.com/csabahruska/quake3/raw/master/lambdacube-edsl-quake3.jpg)
+![Quake III level viewer](https://raw.githubusercontent.com/csabahruska/quake3/master/lambdacube-edsl-quake3.jpg)
