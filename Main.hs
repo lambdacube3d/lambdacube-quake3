@@ -283,6 +283,7 @@ readMD3 :: LB.ByteString -> MD3Model
         anim <- animateMaps animTex
         u <- scene bsp objs (setScreenSize renderer) p0 slotU windowSize mousePosition fblrPress anim capturePress waypointPress capRef
         return $ draw <$> u
+    resetTime
     driveNetwork sc (readInput s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
 
     dispose renderer
