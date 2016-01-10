@@ -163,7 +163,7 @@ main = do
     windowSize <- initCommon "LC DSL Quake 3 Demo"
 
     -- CommonAttrs
-    renderer <- compileRenderer $ ScreenOut $ fxGamma gamma lcnet
+    renderer <- compileRenderer $ ScreenOut $ {-fxGamma gamma -}lcnet
     print "renderer created"
     --print $ slotUniform renderer
     --print $ slotStream renderer
@@ -193,14 +193,15 @@ main = do
     animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ map (\(s,m) -> (saTexture s,m)) $
                concatMap (\sh -> [(s,caNoMipMaps sh) | s <- caStages sh]) $ T.elems shMap) $ \(stageTex,noMip) -> do
         let texSlotName = SB.pack $ "Tex_" ++ show (crc32 $ SB.pack $ show stageTex)
-            setTex isClamped img  = uniformFTexture2D texSlotName slotU =<< loadQ3Texture (not noMip) isClamped defaultTexture archiveTrie img
+            setTexUni = uniformFTexture2D texSlotName slotU
+            setTex isClamped img  = setTexUni =<< loadQ3Texture (not noMip) isClamped defaultTexture archiveTrie img
         case stageTex of
             ST_Map img          -> setTex False img >> return []
             ST_ClampMap img     -> setTex True img >> return []
             ST_AnimMap t imgs   -> do
                 txList <- mapM (loadQ3Texture (not noMip) False defaultTexture archiveTrie) imgs
                 --return [(1 / t / fromIntegral (length imgs),cycle $ zip (repeat (uniformFTexture2D texSlotName slotU)) txList)]
-                return [(1/t,cycle $ zip (repeat (uniformFTexture2D texSlotName slotU)) txList)]
+                return [(1/t,cycle $ zip (repeat setTexUni) txList)]
             _ -> return []
 
     putStrLn $ "loading: " ++ show bspName
@@ -564,4 +565,4 @@ loadQ3Texture isMip isClamped defaultTex ar name = do
             putStrLn $ "  load: " ++ SB.unpack fname
             case eimg of
                 Left msg    -> putStrLn ("    error: " ++ msg) >> return defaultTex
-                Right img   -> compileTexture2DRGBAF isMip isClamped img
+                Right img   -> compileTexture2DRGBAF' True isMip isClamped img

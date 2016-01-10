@@ -51,7 +51,7 @@ Executable q3demo
                   data-binary-ieee754,
                   digest,
                   elerea,
-                  lambdacube-gl,
+                  lambdacube-gl == 0.2.*,
                   mmap,
                   stb-image,
                   vect,
