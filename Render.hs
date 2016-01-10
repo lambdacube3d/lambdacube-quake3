@@ -1,22 +1,23 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 module Render where
 
 import Control.Applicative
 import Control.Monad
-import Data.ByteString.Char8 (ByteString)
 import Data.Vect.Float
 import Data.List
 import Foreign
-import qualified Data.Trie as T
+import Data.Map (Map)
+import qualified Data.Map as Map
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable.Mutable as SMV
 import qualified Data.Vector.Storable as SV
 import qualified Data.ByteString as SB
+import qualified Data.ByteString.Char8 as SB8
 import Debug.Trace
 import Codec.Picture
 
 import BSP
-import Backend.GL
+import LambdaCube.GL
 import MD3 (MD3Model)
 import qualified MD3 as MD3
 import Q3Patch
@@ -42,23 +43,23 @@ tessellatePatch drawV sf level = (V.concat vl,V.concat il)
     patches     = [tessellate c level | c <- controls]
     (vl,il)     = unzip $ reverse $ snd $ foldl' (\(o,l) (v,i) -> (o+V.length v, (v,V.map (+o) i):l)) (0,[]) patches
 
-addObject' :: GLPipelineInput -> ByteString -> Primitive -> Maybe (IndexStream Buffer) -> T.Trie (Stream Buffer) -> [ByteString] -> IO Object
+addObject' :: GLStorage -> String -> Primitive -> Maybe (IndexStream Buffer) -> Map String (Stream Buffer) -> [String] -> IO Object
 addObject' rndr name prim idx attrs unis = addObject rndr name' prim idx attrs' unis
   where
-    attrs'  = T.mapBy (\n a -> if elem n renderAttrs then Just a else Nothing) attrs
-    setters = slots . schema $ rndr
-    name'  = if T.member name setters then name else "missing shader"
-    renderAttrs = T.keys $ case T.lookup name' setters of
-        Just (SlotSchema _ x)  -> x
+    attrs'  = Map.filterWithKey (\n _ -> elem n renderAttrs) attrs
+    setters = objectArrays . schema $ rndr
+    name'  = if Map.member name setters then name else "missing shader"
+    renderAttrs = Map.keys $ case Map.lookup name' setters of
+        Just (ObjectArraySchema _ x)  -> x
         _           -> error $ "material not found: " ++ show name'
 
-addBSP :: GLPipelineInput -> BSPLevel -> IO (V.Vector Object)
+addBSP :: GLStorage -> BSPLevel -> IO (V.Vector Object)
 addBSP renderer bsp = do
     let byteStringToVector :: SB.ByteString -> SV.Vector Word8
         byteStringToVector = SV.fromList . SB.unpack
     lightMapTextures <- fmap V.fromList $ forM (V.toList $ blLightmaps bsp) $ \(Lightmap d) -> do
-        compileTexture2DRGBAF False True $ ImageRGB8 $ Image 128 128 $ byteStringToVector d
-    whiteTex <- compileTexture2DRGBAF False False $ ImageRGB8 $ generateImage (\_ _ -> PixelRGB8 255 255 255) 128 128
+        uploadTexture2DToGPU' False False True $ ImageRGB8 $ Image 128 128 $ byteStringToVector d
+    whiteTex <- uploadTexture2DToGPU' False False False $ ImageRGB8 $ generateImage (\_ _ -> PixelRGB8 255 255 255) 128 128
 
     let lightMapTexturesSize = V.length lightMapTextures
         shaders = blShaders bsp
@@ -97,13 +98,13 @@ addBSP renderer bsp = do
         , Array ArrFloat (4 * vertexCount) $ attribute dvColor
         ]
     indexBuffer <- compileBuffer [Array ArrWord32 (SV.length indices) $ withV SV.unsafeWith indices]
-    let obj (lmIdx,startV,countV,startI,countI,prim,name) = do
-            let attrs = T.fromList $
-                    [ ("position",      Stream TV3F vertexBuffer 0 startV countV)
-                    , ("diffuseUV",     Stream TV2F vertexBuffer 1 startV countV)
-                    , ("lightmapUV",    Stream TV2F vertexBuffer 2 startV countV)
-                    , ("normal",        Stream TV3F vertexBuffer 3 startV countV)
-                    , ("color",         Stream TV4F vertexBuffer 4 startV countV)
+    let obj (lmIdx,startV,countV,startI,countI,prim,SB8.unpack -> name) = do
+            let attrs = Map.fromList $
+                    [ ("position",      Stream Attribute_V3F vertexBuffer 0 startV countV)
+                    , ("diffuseUV",     Stream Attribute_V2F vertexBuffer 1 startV countV)
+                    , ("lightmapUV",    Stream Attribute_V2F vertexBuffer 2 startV countV)
+                    , ("normal",        Stream Attribute_V3F vertexBuffer 3 startV countV)
+                    , ("color",         Stream Attribute_V4F vertexBuffer 4 startV countV)
                     ]
                 index = IndexStream indexBuffer 0 startI countI
                 isValidIdx i = i >= 0 && i < lightMapTexturesSize
@@ -131,7 +132,7 @@ data LCMD3
 setMD3Frame :: LCMD3 -> Int -> IO ()
 setMD3Frame (LCMD3 _ buf frames) idx = updateBuffer buf $ frames V.! idx
 
-addMD3 :: GLPipelineInput -> MD3Model -> [ByteString] -> IO LCMD3
+addMD3 :: GLStorage -> MD3Model -> [String] -> IO LCMD3
 addMD3 r model unis = do
     let cvtSurface :: MD3.Surface -> (Array,Array,V.Vector (Array,Array))
         cvtSurface sf = ( Array ArrWord16 (SV.length indices) (withV indices)
@@ -175,10 +176,10 @@ addMD3 r model unis = do
     objs <- forM (zip [0..] $ V.toList surfaces) $ \(idx,sf) -> do
         let countV = V.length $ MD3.srTexCoords sf
             countI = 3 * V.length (MD3.srTriangles sf)
-            attrs = T.fromList $
-                [ ("diffuseUV",     Stream TV2F buffer (1 * numSurfaces + idx) 0 countV)
-                , ("position",      Stream TV3F buffer (2 * numSurfaces + idx) 0 countV)
-                , ("normal",        Stream TV3F buffer (3 * numSurfaces + idx) 0 countV)
+            attrs = Map.fromList $
+                [ ("diffuseUV",     Stream Attribute_V2F buffer (1 * numSurfaces + idx) 0 countV)
+                , ("position",      Stream Attribute_V3F buffer (2 * numSurfaces + idx) 0 countV)
+                , ("normal",        Stream Attribute_V3F buffer (3 * numSurfaces + idx) 0 countV)
                 , ("color",         ConstV4F (V4 0.5 0 0 1))
                 ]
             index = IndexStream buffer idx 0 countI

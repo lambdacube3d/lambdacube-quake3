@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, PackageImports, TupleSections, CPP, DataKinds #-}
+{-# LANGUAGE ViewPatterns, OverloadedStrings, PackageImports, CPP #-}
 
 import "GLFW-b" Graphics.UI.GLFW as GLFW
 import Control.Applicative hiding (Const)
@@ -13,6 +13,8 @@ import Data.Trie (Trie)
 import Data.Vect
 import Data.Vect.Float.Instances ()
 import Data.Word
+import Data.Map (Map)
+import qualified Data.Map as Map
 import FRP.Elerea.Param
 import System.Directory
 import System.Environment
@@ -28,15 +30,15 @@ import qualified Data.Vector.Storable as SV
 import Debug.Trace
 import Text.Show.Pretty
 
-import Graphics.Rendering.OpenGL.Raw.Core32
+import Graphics.GL.Core32
 
 import Data.Digest.CRC32
 import Codec.Picture
 
-import Backend.GL as GL
-import Backend.GL.Mesh
-import IR as IR
-import Driver
+import LambdaCube.GL as GL
+import LambdaCube.GL.Mesh
+--import IR as IR
+import LambdaCube.Compiler.Driver
 
 --import Effect
 
@@ -64,17 +66,17 @@ uniformFTexture2D' n s v = do
   uniformFTexture2D n s v
 
 -- Utility code
-tableTexture :: [Float] -> ByteString -> Trie InputSetter -> IO ()
+tableTexture :: [Float] -> String -> Map String InputSetter -> IO ()
 tableTexture t n s = do
     let width       = length t
         v           = V.fromList t
         bitmap x y  = let a = floor $ min 255 $ max 0 $ 128 + 128 * v V.! x in PixelRGB8 a a a
         texture     = uniformFTexture2D' n s
 
-    tex <- compileTexture2DRGBAF False False $ ImageRGB8 $ generateImage bitmap width 1
+    tex <- uploadTexture2DToGPU' False False False $ ImageRGB8 $ generateImage bitmap width 1
     texture tex
 
-setupTables :: Trie InputSetter -> IO ()
+setupTables :: Map String InputSetter -> IO ()
 setupTables s = do
     let funcTableSize = 1024 :: Float
         sinTexture              = [sin (i*2*pi/(funcTableSize-1)) | i <- [0..funcTableSize-1]]
@@ -97,7 +99,7 @@ setupTables s = do
 -- framebuffer capture function
 withFrameBuffer :: Int -> Int -> Int -> Int -> (Ptr Word8 -> IO ()) -> IO ()
 withFrameBuffer x y w h fn = allocaBytes (w*h*4) $ \p -> do
-    glReadPixels (fromIntegral x) (fromIntegral y) (fromIntegral w) (fromIntegral h) gl_RGBA gl_UNSIGNED_BYTE $ castPtr p
+    glReadPixels (fromIntegral x) (fromIntegral y) (fromIntegral w) (fromIntegral h) GL_RGBA GL_UNSIGNED_BYTE $ castPtr p
     fn p
 #endif
 
@@ -155,7 +157,7 @@ main = do
             mangleStageTex stageTex = SB.pack $ "Tex_" ++ show (crc32 $ SB.pack $ show stageTex)
             mangleCA ca = ca {caStages = mangleSA <$> caStages ca}
             mangleSA sa = sa {saTextureUniform = mangleStageTex sa}
-        textureUniforms = Set.toList . Set.fromList . concat . map name . concat . map caStages $ T.elems shMapTexSlot
+        textureUniforms = map SB.unpack . Set.toList . Set.fromList . concat . map name . concat . map caStages $ T.elems shMapTexSlot
           where
             name s = [saTextureUniform s]
             {-
@@ -203,25 +205,25 @@ main = do
 
     -- CommonAttrs
     let quake3SlotSchema =
-          SlotSchema Triangles $ T.fromList
-            [ ("color",       TV4F)
-            , ("diffuseUV",   TV2F)
-            , ("normal",      TV3F)
-            , ("position",    TV3F)
-            , ("lightmapUV",  TV2F)
+          ObjectArraySchema Triangles $ Map.fromList
+            [ ("color",       Attribute_V4F)
+            , ("diffuseUV",   Attribute_V2F)
+            , ("normal",      Attribute_V3F)
+            , ("position",    Attribute_V3F)
+            , ("lightmapUV",  Attribute_V2F)
             ]
         inputSchema = {-TODO-}
           PipelineSchema
-          { GL.slots = T.fromList $ zip ("missing shader" : T.keys shMap) (repeat quake3SlotSchema)
-          , uniforms = T.fromList $ [ ("viewProj",      M44F)
+          { objectArrays = Map.fromList $ zip ("missing shader" : map SB.unpack (T.keys shMap)) (repeat quake3SlotSchema)
+          , uniforms = Map.fromList $ [ ("viewProj",    M44F)
                                     , ("worldMat",      M44F)
                                     , ("viewMat",       M44F)
                                     , ("orientation",   M44F)
                                     , ("viewOrigin",    V3F)
                                     , ("entityRGB",     V3F)
-                                    , ("entityAlpha",   IR.Float)
-                                    , ("identityLight", IR.Float)
-                                    , ("time",          IR.Float)
+                                    , ("entityAlpha",   GL.Float)
+                                    , ("identityLight", GL.Float)
+                                    , ("time",          GL.Float)
                                     , ("LightMap",      FTexture2D)
                                     , ("SinTable",             FTexture2D)
                                     , ("SquareTable",          FTexture2D)
@@ -230,13 +232,13 @@ main = do
                                     , ("TriangleTable",        FTexture2D)
                                     ] ++ zip textureUniforms (repeat FTexture2D)
           }
-    pplInput <- mkGLPipelineInput inputSchema
-    print "pplInput created"
-    --print $ slotUniform pplInput
-    --print $ slotStream pplInput
-    --initUtility pplInput
+    storage <- allocStorage inputSchema
+    print "storage created"
+    --print $ slotUniform storage
+    --print $ slotStream storage
+    --initUtility storage
 
-    let slotU           = uniformSetter pplInput
+    let slotU           = uniformSetter storage
         entityRGB       = uniformV3F "entityRGB" slotU
         entityAlpha     = uniformFloat "entityAlpha" slotU
         identityLight   = uniformFloat "identityLight" slotU
@@ -254,9 +256,9 @@ main = do
     let archiveTrie     = T.fromList [(SB.pack $ eFilePath a,a) | a <- ar]
         redBitmap x y   = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
 
-    defaultTexture <- compileTexture2DRGBAF True False $ ImageRGB8 $ generateImage redBitmap 32 32
+    defaultTexture <- uploadTexture2DToGPU' False True False $ ImageRGB8 $ generateImage redBitmap 32 32
     animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ concatMap (\sh -> [(saTexture sa,saTextureUniform sa,caNoMipMaps sh) | sa <- caStages sh]) $ T.elems shMapTexSlot) $
-      \(stageTex,texSlotName,noMip) -> do
+      \(stageTex,SB.unpack -> texSlotName,noMip) -> do
         let setTex isClamped img  = uniformFTexture2D' texSlotName slotU =<< loadQ3Texture (not noMip) isClamped defaultTexture archiveTrie img
         case stageTex of
             ST_Map img          -> setTex False img >> return []
@@ -268,7 +270,7 @@ main = do
             _ -> return []
 
     putStrLn $ "loading: " ++ show bspName
-    objs <- addBSP pplInput bsp
+    objs <- addBSP storage bsp
 {-
     -- setup menu
     levelShots <- sequence [(n,) <$> loadQ3Texture True True defaultTexture archiveTrie (SB.append "levelshots/" n) | n <- T.keys bspMap]
@@ -322,7 +324,7 @@ readMD3 :: LB.ByteString -> MD3Model
                     [x,y,z] = map read $ words $ SB.unpack o
                     p = Vec3 x y z
                 forM_ ml $ \md3 -> do
-                    lcmd3 <- addMD3 pplInput md3 ["worldMat"]
+                    lcmd3 <- addMD3 storage md3 ["worldMat"]
                     forM_ (lcmd3Object lcmd3) $ \obj -> do
                         let unis    = objectUniformSetter $  obj
                             woldMat = uniformM44F "worldMat" unis
@@ -339,21 +341,21 @@ readMD3 :: LB.ByteString -> MD3Model
     (fblrPress,fblrPressSink) <- external (False,False,False,False,False)
     (capturePress,capturePressSink) <- external False
     (waypointPress,waypointPressSink) <- external []
-    rendererRef <- newIORef =<< fromJust <$> loadQuake3Graphics pplInput
+    rendererRef <- newIORef =<< fromJust <$> loadQuake3Graphics storage
 
-    let draw captureA = readIORef rendererRef >>= renderPipeline >> captureA >> swapBuffers win >> pollEvents
+    let draw captureA = readIORef rendererRef >>= renderFrame >> captureA >> swapBuffers win >> pollEvents
 
     capRef <- newIORef False
     sc <- start $ do
         anim <- animateMaps animTex
-        u <- scene win bsp objs (setScreenSize pplInput) p0 slotU mousePosition fblrPress anim capturePress waypointPress capRef
+        u <- scene win bsp objs (setScreenSize storage) p0 slotU mousePosition fblrPress anim capturePress waypointPress capRef
         return $ (draw <$> u)
     setTime 0
     s <- fpsState
-    driveNetwork sc (readInput rendererRef pplInput win s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
+    driveNetwork sc (readInput rendererRef storage win s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
 
-    disposePipeline =<< readIORef rendererRef
-    print "pplInput destroyed"
+    disposeRenderer =<< readIORef rendererRef
+    print "storage destroyed"
 
     destroyWindow win
 
@@ -375,7 +377,7 @@ scene :: Window
       -> V.Vector Object
       -> (Word -> Word -> IO ())
       -> Vec3
-      -> T.Trie InputSetter
+      -> Map String InputSetter
       -> Signal (Float, Float)
       -> Signal (Bool, Bool, Bool, Bool, Bool)
       -> Signal [(Float, [(SetterFun TextureData, TextureData)])]
@@ -448,8 +450,8 @@ vec4ToV4F (Vec4 x y z w) = V4 x y z w
 --mat4ToM44F :: Mat4 -> M44F
 mat4ToM44F (Mat4 a b c d) = V4 (vec4ToV4F a) (vec4ToV4F b) (vec4ToV4F c) (vec4ToV4F d)
 
-readInput :: IORef GLPipeline
-          -> GLPipelineInput
+readInput :: IORef GLRenderer
+          -> GLStorage
           -> Window
           -> State
           -> Sink (Float, Float)
@@ -458,7 +460,7 @@ readInput :: IORef GLPipeline
           -> Sink [Bool]
           -> IORef Bool
           -> IO (Maybe Float)
-readInput rendererRef pplInput win s mousePos fblrPress capturePress waypointPress capRef = do
+readInput rendererRef storage win s mousePos fblrPress capturePress waypointPress capRef = do
     let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
     t <- maybe 0 id <$> getTime
     setTime 0
@@ -475,11 +477,11 @@ readInput rendererRef pplInput win s mousePos fblrPress capturePress waypointPre
 
     reload <- keyIsPressed Key'L
     when reload $ do
-      r <- loadQuake3Graphics pplInput
+      r <- loadQuake3Graphics storage
       case r of
         Nothing -> return ()
         Just a  -> do
-          readIORef rendererRef >>= disposePipeline
+          readIORef rendererRef >>= disposeRenderer
           writeIORef rendererRef a
 
     updateFPS s dt
@@ -510,7 +512,7 @@ initWindow title width height = do
       ]
     Just win <- createWindow width height title Nothing Nothing
     makeContextCurrent $ Just win
-    glEnable gl_FRAMEBUFFER_SRGB
+    glEnable GL_FRAMEBUFFER_SRGB
 
     return win
 
@@ -638,20 +640,20 @@ loadQ3Texture isMip isClamped defaultTex ar name = do
             putStrLn $ "  load: " ++ SB.unpack fname
             case eimg of
                 Left msg    -> putStrLn ("    error: " ++ msg) >> return defaultTex
-                Right img   -> compileTexture2DRGBAF' True isMip isClamped img
+                Right img   -> uploadTexture2DToGPU' True isMip isClamped img
 
 
-loadQuake3Graphics pplInput = do
+loadQuake3Graphics storage = do
   let srcName = "Graphics"
   putStrLn "compile quake3 graphics pipeline"
-  pplRes <- compileMain (ioFetch ["."]) OpenGL33 undefined srcName
+  pplRes <- compileMain ["."] OpenGL33 srcName
   case pplRes of
-    (Left err,a) -> putStrLn ("error: " ++ show err ++ show a) >> return Nothing
-    (Right (ppl,_),_) -> do
+    Left err -> putStrLn ("error: " ++ err) >> return Nothing
+    Right ppl -> do
       writeFile "quake3.pipeline" $ ppUnlines $ ppShow ppl
-      renderer <- allocPipeline ppl
-      setPipelineInput renderer (Just pplInput)
-      sortSlotObjects pplInput
+      renderer <- allocRenderer ppl
+      setStorage renderer storage
+      sortSlotObjects storage
       putStrLn "reloaded"
       return $ Just renderer
 
