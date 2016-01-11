@@ -1,4 +1,4 @@
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ViewPatterns, OverloadedStrings #-}
 module Render where
 
 import Control.Applicative
@@ -58,7 +58,7 @@ addBSP renderer bsp = do
     let byteStringToVector :: SB.ByteString -> SV.Vector Word8
         byteStringToVector = SV.fromList . SB.unpack
     lightMapTextures <- fmap V.fromList $ forM (V.toList $ blLightmaps bsp) $ \(Lightmap d) -> do
-        uploadTexture2DToGPU' False False True $ ImageRGB8 $ Image 128 128 $ byteStringToVector d
+        uploadTexture2DToGPU' False True True $ ImageRGB8 $ Image 128 128 $ byteStringToVector d
     whiteTex <- uploadTexture2DToGPU' False False False $ ImageRGB8 $ generateImage (\_ _ -> PixelRGB8 255 255 255) 128 128
 
     let lightMapTexturesSize = V.length lightMapTextures

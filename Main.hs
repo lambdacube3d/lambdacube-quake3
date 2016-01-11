@@ -61,22 +61,18 @@ import Foreign
 
 type Sink a = a -> IO ()
 
-uniformFTexture2D' n s v = do
-  putStrLn $ "uniformFTexture2D: " ++ show n
-  uniformFTexture2D n s v
-
 -- Utility code
-tableTexture :: [Float] -> String -> Map String InputSetter -> IO ()
+tableTexture :: [Float] -> GLUniformName -> Map GLUniformName InputSetter -> IO ()
 tableTexture t n s = do
     let width       = length t
         v           = V.fromList t
         bitmap x y  = let a = floor $ min 255 $ max 0 $ 128 + 128 * v V.! x in PixelRGB8 a a a
-        texture     = uniformFTexture2D' n s
+        texture     = uniformFTexture2D n s
 
     tex <- uploadTexture2DToGPU' False False False $ ImageRGB8 $ generateImage bitmap width 1
     texture tex
 
-setupTables :: Map String InputSetter -> IO ()
+setupTables :: Map GLUniformName InputSetter -> IO ()
 setupTables s = do
     let funcTableSize = 1024 :: Float
         sinTexture              = [sin (i*2*pi/(funcTableSize-1)) | i <- [0..funcTableSize-1]]
@@ -258,15 +254,15 @@ main = do
 
     defaultTexture <- uploadTexture2DToGPU' False True False $ ImageRGB8 $ generateImage redBitmap 32 32
     animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ concatMap (\sh -> [(saTexture sa,saTextureUniform sa,caNoMipMaps sh) | sa <- caStages sh]) $ T.elems shMapTexSlot) $
-      \(stageTex,SB.unpack -> texSlotName,noMip) -> do
-        let setTex isClamped img  = uniformFTexture2D' texSlotName slotU =<< loadQ3Texture (not noMip) isClamped defaultTexture archiveTrie img
+      \(stageTex,texSlotName,noMip) -> do
+        let texSetter = uniformFTexture2D texSlotName  slotU
+            setTex isClamped img = texSetter =<< loadQ3Texture (not noMip) isClamped defaultTexture archiveTrie img
         case stageTex of
             ST_Map img          -> setTex False img >> return []
             ST_ClampMap img     -> setTex True img >> return []
             ST_AnimMap t imgs   -> do
                 txList <- mapM (loadQ3Texture (not noMip) False defaultTexture archiveTrie) imgs
-                --return [(1 / t / fromIntegral (length imgs),cycle $ zip (repeat (uniformFTexture2D' texSlotName slotU)) txList)]
-                return [(1/t,cycle $ zip (repeat (uniformFTexture2D' texSlotName slotU)) txList)]
+                return [(1/t,cycle $ zip (repeat texSetter) txList)]
             _ -> return []
 
     putStrLn $ "loading: " ++ show bspName
@@ -314,7 +310,7 @@ readMD3 :: LB.ByteString -> MD3Model
         "classname" "item_armor_shard"
         }
     -}
-{-
+
     forM_ ents $ \e -> case T.lookup "classname" e of
         Nothing -> return ()
         Just k  -> case T.lookup k itemModels of
@@ -336,7 +332,7 @@ readMD3 :: LB.ByteString -> MD3Model
                 Just m  -> do
                     -- TODO
                     return ()
--}
+
     (mousePosition,mousePositionSink) <- external (0,0)
     (fblrPress,fblrPressSink) <- external (False,False,False,False,False)
     (capturePress,capturePressSink) <- external False
@@ -377,7 +373,7 @@ scene :: Window
       -> V.Vector Object
       -> (Word -> Word -> IO ())
       -> Vec3
-      -> Map String InputSetter
+      -> Map GLUniformName InputSetter
       -> Signal (Float, Float)
       -> Signal (Bool, Bool, Bool, Bool, Bool)
       -> Signal [(Float, [(SetterFun TextureData, TextureData)])]
@@ -653,7 +649,7 @@ loadQuake3Graphics storage = do
       writeFile "quake3.pipeline" $ ppUnlines $ ppShow ppl
       renderer <- allocRenderer ppl
       setStorage renderer storage
-      sortSlotObjects storage
+      --sortSlotObjects storage
       putStrLn "reloaded"
       return $ Just renderer
 
