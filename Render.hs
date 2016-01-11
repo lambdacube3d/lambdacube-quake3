@@ -63,7 +63,7 @@ addBSP renderer bsp = do
         [r,g,b] <- extractChannels bitmap alig
         bitmapRGBA <- combineChannels [r,g,b,oneBitmap] alig
         --bitmapRGBA <- combineChannels [oneBitmap,zeroBitmap,zeroBitmap,oneBitmap] alig
-        compileTexture2DRGBAF False True $ unsafeFreezeBitmap bitmapRGBA
+        compileTexture2DRGBAF True True $ unsafeFreezeBitmap bitmapRGBA
     whiteTex <- do
         bitmapRGBA <- combineChannels [oneBitmap,oneBitmap,oneBitmap,oneBitmap] alig
         compileTexture2DRGBAF False False $ unsafeFreezeBitmap bitmapRGBA

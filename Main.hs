@@ -234,7 +234,7 @@ items =
 readMD3 :: LB.ByteString -> MD3Model
 -}
     -- load items
-    let itemModels = T.fromList [(SB.pack $ itClassName it, [ MD3.readMD3 $ decompress' e | n <- itWorldModel it
+    let itemModels = T.fromList [(SB.pack $ itClassName it, [ trace (show n) $ MD3.readMD3 $ decompress' e | n <- itWorldModel it
                                                             , e <- maybeToList $ T.lookup (SB.pack n) archiveTrie
                                                             ]) | it <- items]
     {-
@@ -249,7 +249,7 @@ readMD3 :: LB.ByteString -> MD3Model
         "classname" "item_armor_shard"
         }
     -}
-{-
+
     forM_ ents $ \e -> case T.lookup "classname" e of
         Nothing -> return ()
         Just k  -> case T.lookup k itemModels of
@@ -271,7 +271,7 @@ readMD3 :: LB.ByteString -> MD3Model
                 Just m  -> do
                     -- TODO
                     return ()
--}
+
     (mousePosition,mousePositionSink) <- external (0,0)
     (fblrPress,fblrPressSink) <- external (False,False,False,False,False)
     (capturePress,capturePressSink) <- external False

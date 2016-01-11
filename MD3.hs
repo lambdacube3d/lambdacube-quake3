@@ -85,7 +85,7 @@ getXyzNormal = do
 getSurface = (\(o,v) -> skip o >> return v) =<< lookAhead getSurface'
   where
     getSurface' = do
-        dat <- getRemainingLazyByteString
+        dat <- lookAhead getRemainingLazyByteString
         "IDP3" <- getString 4
         name <- getString 64
         flags <- getInt
@@ -95,7 +95,7 @@ getSurface = (\(o,v) -> skip o >> return v) =<< lookAhead getSurface'
                                     (getV oTexCoords nVerts getVec2 dat) (getVV oXyzNormals nFrames nVerts getXyzNormal dat))
 
 getMD3Model = do
-    dat <- getRemainingLazyByteString
+    dat <- lookAhead getRemainingLazyByteString
     "IDP3" <- getString 4
     version <- getInt
     name <- getString 64
