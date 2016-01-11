@@ -181,6 +181,7 @@ addMD3 r model unis = do
                 , ("position",      Stream Attribute_V3F buffer (2 * numSurfaces + idx) 0 countV)
                 , ("normal",        Stream Attribute_V3F buffer (3 * numSurfaces + idx) 0 countV)
                 , ("color",         ConstV4F (V4 0.5 0 0 1))
+                , ("lightmapUV",    ConstV2F (V2 0 0))
                 ]
             index = IndexStream buffer idx 0 countI
         addObject' r "missing shader" TriangleList (Just index) attrs ["worldMat"]
