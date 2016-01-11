@@ -1,7 +1,28 @@
+{-# LANGUAGE DeriveGeneric, StandaloneDeriving #-}
 module Material where
 
 import Data.Vect
 import qualified Data.ByteString.Char8 as SB
+
+import Data.Binary
+import GHC.Generics (Generic)
+
+deriving instance Generic Vec3
+instance Binary Vec3
+instance Binary RGBGen
+instance Binary AlphaGen
+instance Binary TCGen
+instance Binary TCMod
+instance Binary WaveType
+instance Binary StageTexture
+instance Binary AlphaFunction
+instance Binary Wave
+instance Binary Deform
+instance Binary DepthFunction
+instance Binary CullType
+instance Binary Blending
+instance Binary StageAttrs
+instance Binary CommonAttrs
 
 identityLight :: Float
 identityLight = 1
@@ -21,9 +42,9 @@ data WaveType
     | WT_Sawtooth
     | WT_InverseSawtooth
     | WT_Noise
-    deriving Show
+    deriving (Show,Generic)
 
-data Wave = Wave !WaveType !Float !Float !Float !Float deriving Show
+data Wave = Wave !WaveType !Float !Float !Float !Float deriving (Show,Generic)
 
 data Deform
     = D_AutoSprite
@@ -41,13 +62,13 @@ data Deform
     | D_Text6
     | D_Text7
     | D_Wave !Float !Wave
-    deriving Show
+    deriving (Show,Generic)
 
 data CullType
     = CT_FrontSided
     | CT_BackSided
     | CT_TwoSided
-    deriving Show
+    deriving (Show,Generic)
 
 data CommonAttrs
     = CommonAttrs
@@ -66,7 +87,7 @@ data CommonAttrs
     -- parser internals
     , caIsSky           :: Bool
     }
-    deriving Show
+    deriving (Show,Generic)
 
 defaultCommonAttrs :: CommonAttrs
 defaultCommonAttrs = CommonAttrs
@@ -96,7 +117,7 @@ data RGBGen
     | RGB_LightingDiffuse
     | RGB_OneMinusVertex
     | RGB_Undefined
-    deriving Show
+    deriving (Show,Generic)
 
 data AlphaGen
     = A_Wave !Wave
@@ -108,7 +129,7 @@ data AlphaGen
     | A_Vertex
     | A_LightingSpecular
     | A_OneMinusVertex
-    deriving Show
+    deriving (Show,Generic)
 
 data TCGen
     = TG_Base
@@ -116,7 +137,7 @@ data TCGen
     | TG_Environment -- TODO, check: RB_CalcEnvironmentTexCoords
     | TG_Vector !Vec3 !Vec3
     | TG_Undefined  -- FIXME: HACK!!
-    deriving Show
+    deriving (Show,Generic)
 
 data TCMod
     = TM_EntityTranslate
@@ -126,7 +147,7 @@ data TCMod
     | TM_Stretch !Wave
     | TM_Transform !Float !Float !Float !Float !Float !Float
     | TM_Turb !Float !Float !Float !Float
-    deriving Show
+    deriving (Show,Generic)
 
 data StageTexture
     = ST_Map        !SB.ByteString
@@ -134,18 +155,18 @@ data StageTexture
     | ST_AnimMap    !Float ![SB.ByteString]
     | ST_Lightmap
     | ST_WhiteImage
-    deriving (Show, Eq, Ord)
+    deriving (Show, Eq, Ord, Generic)
 
 data AlphaFunction
     = A_Gt0
     | A_Lt128
     | A_Ge128
-    deriving (Show, Eq, Ord)
+    deriving (Show, Eq, Ord, Generic)
 
 data DepthFunction
     = D_Equal
     | D_Lequal
-    deriving Show
+    deriving (Show,Generic)
 
 data Blending
     = B_DstAlpha
@@ -159,7 +180,7 @@ data Blending
     | B_SrcAlphaSaturate
     | B_SrcColor
     | B_Zero
-    deriving (Show, Eq)
+    deriving (Show, Eq, Generic)
 
 data StageAttrs
     = StageAttrs
@@ -176,7 +197,7 @@ data StageAttrs
     -- parser internals
     , saDepthMaskExplicit   :: Bool
     }
-    deriving Show
+    deriving (Show,Generic)
 
 defaultStageAttrs :: StageAttrs
 defaultStageAttrs = StageAttrs

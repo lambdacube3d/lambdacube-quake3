@@ -23,6 +23,7 @@ import qualified Data.Trie as T
 import qualified Data.Trie.Internal as T
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
+import Data.Binary (encodeFile,decodeFile)
 
 import Debug.Trace
 
@@ -122,6 +123,11 @@ main = do
                 }
 
     args <- getArgs
+    shMap' <- do
+      hasShaderCache <- doesFileExist "q3shader.cache"
+      case hasShaderCache of
+        True -> putStrLn "load shader cache" >> decodeFile "q3shader.cache"
+        False -> let sm = shaderMap ar in putStrLn "create shader cache" >> encodeFile "q3shader.cache" sm >> return sm
     let bspMap = T.fromList [(SB.pack $ takeBaseName n, decompress' e) | e <- ar, let n = eFilePath e, ".bsp" == takeExtensionCI n, isPrefixOfCI "maps" n]
         bspName = case args of
             []     -> head $ T.keys bspMap
@@ -131,7 +137,6 @@ main = do
             Just bspd -> bspd
         bsp = readBSP bspData
         shNames = Set.fromList $ map shName $ V.toList $ blShaders bsp
-        shMap' = shaderMap ar
         (normalShNames,textureShNames) = partition (\n -> T.member n shMap') $ Set.toList shNames
         normalShNameSet     = Set.fromList normalShNames
         textureShNameSet    = Set.fromList textureShNames
@@ -215,41 +220,10 @@ main = do
     uniformFTexture2D "ScreenQuad" menuObjUnis $ snd $ head levelShots
 -}
     -- add entities
-{-
-data Item
-    = Item
-    { itClassName   :: String
-    , itPickupSound :: String
-    , itWorldModel  :: [String]
-    , itIcon        :: String
-    , itPickupName  :: String
-    , itQuantity    :: Int
-    , itType        :: ItemType
-    , itTag         :: Tag
-    , itPreCaches   :: String
-    , itSounds      :: String
-    } deriving Show
-
-items =
-readMD3 :: LB.ByteString -> MD3Model
--}
     -- load items
     let itemModels = T.fromList [(SB.pack $ itClassName it, [ trace (show n) $ MD3.readMD3 $ decompress' e | n <- itWorldModel it
                                                             , e <- maybeToList $ T.lookup (SB.pack n) archiveTrie
                                                             ]) | it <- items]
-    {-
-        "origin" "1012 2090 108"
-        "angle" "180"
-        "model" "models/mapobjects/visor_posed.md3"
-        "classname" "misc_model"
-    -}
-    {-
-        {
-        "origin" "1120 2128 16"
-        "classname" "item_armor_shard"
-        }
-    -}
-
     forM_ ents $ \e -> case T.lookup "classname" e of
         Nothing -> return ()
         Just k  -> case T.lookup k itemModels of
