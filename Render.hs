@@ -14,6 +14,7 @@ import qualified Data.Vector.Storable as SV
 import qualified Data.ByteString.Char8 as SB
 import Data.Bitmap.IO
 import Debug.Trace
+import System.FilePath
 
 import BSP
 import LambdaCube.GL
@@ -47,7 +48,11 @@ addObject' rndr name prim idx attrs unis = addObject rndr name' prim idx attrs' 
   where
     attrs'  = T.mapBy (\n a -> if elem n renderAttrs then Just a else Nothing) attrs
     setters = slotStream rndr
-    name'  = if T.member name setters then name else "missing shader"
+    alias   = SB.pack . dropExtension . SB.unpack $ name
+    name'
+      | T.member name setters = name
+      | T.member alias setters = alias
+      | otherwise = "missing shader"
     renderAttrs = T.keys $ case T.lookup name' setters of
         Just (_,x)  -> x
         _           -> error $ "material not found: " ++ show name'
@@ -187,14 +192,15 @@ addMD3 r model unis = do
                 [ ("diffuseUV",     Stream TV2F buffer (1 * numSurfaces + idx) 0 countV)
                 , ("position",      Stream TV3F buffer (2 * numSurfaces + idx) 0 countV)
                 , ("normal",        Stream TV3F buffer (3 * numSurfaces + idx) 0 countV)
-                , ("color",         ConstV4F (V4 0.5 0 0 1))
+                , ("color",         ConstV4F (V4 1 1 1 1))
+                , ("lightmapUV",    ConstV2F (V2 0 0))
                 ]
             index = IndexStream buffer idx 0 countI
-        addObject' r "missing shader" TriangleList (Just index) attrs ["worldMat"]
+        forM (V.toList $ MD3.srShaders sf) $ \s -> addObject' r (MD3.shName s) TriangleList (Just index) attrs ["worldMat"]
     -- question: how will be the referred shaders loaded?
     --           general problem: should the gfx network contain all passes (every possible materials)?
     return $ LCMD3
-        { lcmd3Object   = objs
+        { lcmd3Object   = concat objs
         , lcmd3Buffer   = buffer
         , lcmd3Frames   = frames
         }

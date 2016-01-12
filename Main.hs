@@ -106,7 +106,7 @@ main = do
 #endif
     ar <- loadArchive
 
-    let imageShader txName = defaultCommonAttrs {caStages = sa:saLM:[]}
+    let imageShader hasLightmap txName = defaultCommonAttrs {caStages = sa:if hasLightmap then saLM:[] else []}
           where
             sa = defaultStageAttrs
                 { saTexture     = ST_Map txName
@@ -136,14 +136,18 @@ main = do
             Nothing -> error "You need to put pk3 file into your current directory"
             Just bspd -> bspd
         bsp = readBSP bspData
-        shNames = Set.fromList $ map shName $ V.toList $ blShaders bsp
-        (normalShNames,textureShNames) = partition (\n -> T.member n shMap') $ Set.toList shNames
-        normalShNameSet     = Set.fromList normalShNames
-        textureShNameSet    = Set.fromList textureShNames
-        normalShMap     = T.mapBy (\n sh -> if Set.member n normalShNameSet then Just sh else Nothing) shMap'
-        --textureShMap    = T.fromList [(n,defaultCommonAttrs {caStages = [defaultStageAttrs {saTexture = ST_Map n, saDepthWrite = True}]}) | n <- Set.toList textureShNameSet]
-        textureShMap    = T.fromList [(n,imageShader n) | n <- Set.toList textureShNameSet]
-        shMap = T.unionL normalShMap textureShMap
+        archiveTrie = T.fromList [(SB.pack $ eFilePath a,a) | a <- ar]
+        itemModels = T.fromList [(SB.pack $ itClassName it, [ trace (show n) $ MD3.readMD3 $ decompress' e | n <- itWorldModel it
+                                                            , e <- maybeToList $ T.lookup (SB.pack n) archiveTrie
+                                                            ]) | it <- items]
+        itemMaterials = Set.fromList . concatMap (concatMap (map MD3.shName . V.toList . MD3.srShaders) . V.toList . MD3.mdSurfaces) . concat $ T.elems itemModels
+        shNames = Set.fromList $ map shName (V.toList $ blShaders bsp)
+        shMap = T.fromList [mkShader True n | n <- Set.toList shNames] `T.unionL` T.fromList [mkShader False n | n <- Set.toList itemMaterials]
+        mkShader hasLightmap n = case T.lookup n shMap' of
+          Just s -> (n,s)
+          Nothing -> let alias = SB.pack . dropExtension . SB.unpack $ n in case T.lookup alias shMap' of
+            Just s -> (alias,s)
+            Nothing -> (n,imageShader hasLightmap n)
         -- create gfx network to render active materials
         {-
         TODO: gfx network should be created from shaderMap and bsp
@@ -187,10 +191,13 @@ main = do
     identityLight $ 1 / (2 ^ overbrightBits)
     setupTables slotU
 
+    putStrLn "item materials:"
+    forM_ itemMaterials print
+    putStrLn "shaders:"
+    forM_ (T.keys shMap) print
     putStrLn "loading textures:"
     -- load textures
-    let archiveTrie     = T.fromList [(SB.pack $ eFilePath a,a) | a <- ar]
-        redBitmap       = createSingleChannelBitmap (32,32) $ \x y -> if (x+y) `mod` 2 == 0 then 255 else 0
+    let redBitmap       = createSingleChannelBitmap (32,32) $ \x y -> if (x+y) `mod` 2 == 0 then 255 else 0
         zeroBitmap      = emptyBitmap (32,32) 1
         oneBitmap       = createSingleChannelBitmap (32,32) $ \x y -> 255
 
@@ -221,9 +228,7 @@ main = do
 -}
     -- add entities
     -- load items
-    let itemModels = T.fromList [(SB.pack $ itClassName it, [ trace (show n) $ MD3.readMD3 $ decompress' e | n <- itWorldModel it
-                                                            , e <- maybeToList $ T.lookup (SB.pack n) archiveTrie
-                                                            ]) | it <- items]
+
     forM_ ents $ \e -> case T.lookup "classname" e of
         Nothing -> return ()
         Just k  -> case T.lookup k itemModels of
@@ -238,7 +243,7 @@ main = do
                         let unis    = objectUniformSetter $  obj
                             woldMat = uniformM44F "worldMat" unis
                             sm = fromProjective (scaling $ Vec3 s s s)
-                            s  = 0.005 / 64 * 2 -- FIXE: what is the correct value?
+                            s  = 0.005 / 64 * 4 -- FIXE: what is the correct value?
                         woldMat $ mat4ToM44F $ sm .*. (fromProjective $ translation p)
             Nothing -> when (k == "misc_model") $ case T.lookup "model" e of
                 Nothing -> return ()
@@ -319,7 +324,7 @@ scene bsp objs setSize p0 slotU windowSize mousePosition fblrPress anim captureP
         timeSetter  = uniformFloat "time" slotU
         setupGFX (w,h) (camPos,camTarget,camUp) time (anim,capturing,frameCount) = do
             let cm = fromProjective (lookat camPos camTarget camUp)
-                pm = perspective 0.01 15 (pi/2) (fromIntegral w / fromIntegral h)
+                pm = perspective 0.01 15 (pi/3) (fromIntegral w / fromIntegral h)
                 sm = fromProjective (scaling $ Vec3 s s s)
                 s  = 0.005
                 V4 orientA orientB orientC _ = mat4ToM44F $! cm .*. sm

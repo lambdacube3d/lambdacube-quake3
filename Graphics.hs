@@ -114,7 +114,7 @@ mkColor ca sa rgbaV = snoc' rgb alpha
     entityAlpha     = Uni (IFloat "entityAlpha") :: Exp V Float
     identityLight   = Uni (IFloat "identityLight") :: Exp V Float
     --red             = Const $ V3 1 0 0
-    green           = Const $ V3 0 1 0
+    white           = Const $ V3 1 1 1
     V4 rV gV bV aV  = unpack' rgbaV
     rgb = case saRGBGen sa of
         RGB_Wave w              -> let c = mkWave w in pack' $ V3 c c c
@@ -125,7 +125,7 @@ mkColor ca sa rgbaV = snoc' rgb alpha
         RGB_OneMinusEntity      -> v3V one' @- entityRGB
         RGB_ExactVertex         -> pack' $ V3 rV gV bV
         RGB_Vertex              -> (pack' $ V3 rV gV bV) @* identityLight
-        RGB_LightingDiffuse     -> green -- TODO
+        RGB_LightingDiffuse     -> white -- TODO
         {-  input:
                 entity: ambientLight
                         directedLight
