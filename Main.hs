@@ -129,10 +129,16 @@ main = do
         True -> putStrLn "load shader cache" >> decodeFile "q3shader.cache"
         False -> let sm = shaderMap ar in putStrLn "create shader cache" >> encodeFile "q3shader.cache" sm >> return sm
     let bspMap = T.fromList [(SB.pack $ takeBaseName n, decompress' e) | e <- ar, let n = eFilePath e, ".bsp" == takeExtensionCI n, isPrefixOfCI "maps" n]
-        bspName = case args of
-            []     -> head $ T.keys bspMap
-            (n:xs) -> SB.pack n
-        bspData = case T.lookup bspName bspMap of
+    bspName <- case args of
+      (n:xs) -> return $ SB.pack n
+      _ -> do
+            let maps = map SB.unpack $ T.keys bspMap
+            putStrLn $ "Available maps:"
+            putStrLn $ unwords maps
+            putStrLn "Enter map name:"
+            name <- SB.getLine
+            return $ if T.member name bspMap then name else SB.pack $ head maps
+    let bspData = case T.lookup bspName bspMap of
             Nothing -> error "You need to put pk3 file into your current directory"
             Just bspd -> bspd
         bsp = readBSP bspData
@@ -324,14 +330,14 @@ scene bsp objs setSize p0 slotU windowSize mousePosition fblrPress anim captureP
         timeSetter  = uniformFloat "time" slotU
         setupGFX (w,h) (camPos,camTarget,camUp) time (anim,capturing,frameCount) = do
             let cm = fromProjective (lookat camPos camTarget camUp)
-                pm = perspective 0.01 15 (pi/3) (fromIntegral w / fromIntegral h)
+                pm = perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h)
                 sm = fromProjective (scaling $ Vec3 s s s)
                 s  = 0.005
                 V4 orientA orientB orientC _ = mat4ToM44F $! cm .*. sm
                 Vec3 cx cy cz = camPos
-                near = 0.01/s
-                far  = 15/s
-                fovDeg = 90
+                near = 0.00001/s
+                far  = 100/s
+                fovDeg = 60
                 frust = frustum fovDeg (fromIntegral w / fromIntegral h) near far camPos camTarget camUp
             timeSetter $ time / 1
             --putStrLn $ "time: " ++ show time ++ " " ++ show capturing
