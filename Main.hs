@@ -143,12 +143,25 @@ main = do
             Just bspd -> bspd
         bsp = readBSP bspData
         archiveTrie = T.fromList [(SB.pack $ eFilePath a,a) | a <- ar]
-        itemModels = T.fromList [(SB.pack $ itClassName it, [ trace (show n) $ MD3.readMD3 $ decompress' e | n <- itWorldModel it
-                                                            , e <- maybeToList $ T.lookup (SB.pack n) archiveTrie
-                                                            ]) | it <- items]
-        itemMaterials = Set.fromList . concatMap (concatMap (map MD3.shName . V.toList . MD3.srShaders) . V.toList . MD3.mdSurfaces) . concat $ T.elems itemModels
+        itemMap = T.fromList [(SB.pack $ itClassName it,it) | it <- items]
+        md3Objs = concatMap collectObj ents
+        md3Map = T.fromList [(SB.pack n, MD3.readMD3 $ decompress' m) | n <- Set.toList . Set.fromList . map snd $ md3Objs, m <- maybeToList $ T.lookup (SB.pack n) archiveTrie]
+        mkWorldMat x y z = mat4ToM44F $ sm .*. (fromProjective $ translation $ Vec3 x y z)
+          where
+            sm = fromProjective (scaling $ Vec3 s s s)
+            s  = 0.005 / 64 * 4 -- FIXE: what is the correct value?
+        collectObj e
+          | Just classname <- T.lookup "classname" e
+          , Just o <- T.lookup "origin" e
+          , [x,y,z] <- map (read :: String -> Float) $ words $ SB.unpack o = case T.lookup classname itemMap of
+            Just i -> [(mat, m) | m <- itWorldModel i, let mat = mkWorldMat x y z]
+            Nothing -> case T.lookup "model2" e of
+              Just m -> [(mkWorldMat x y z, SB.unpack m)]
+              Nothing -> []
+          | otherwise = []
+        md3Materials = Set.fromList . concatMap (concatMap (map MD3.shName . V.toList . MD3.srShaders) . V.toList . MD3.mdSurfaces) $ T.elems md3Map
         shNames = Set.fromList $ map shName (V.toList $ blShaders bsp)
-        shMap = T.fromList [mkShader True n | n <- Set.toList shNames] `T.unionL` T.fromList [mkShader False n | n <- Set.toList itemMaterials]
+        shMap = T.fromList [mkShader True n | n <- Set.toList shNames] `T.unionL` T.fromList [mkShader False n | n <- Set.toList md3Materials]
         mkShader hasLightmap n = case T.lookup n shMap' of
           Just s -> (n,s)
           Nothing -> let alias = SB.pack . dropExtension . SB.unpack $ n in case T.lookup alias shMap' of
@@ -166,14 +179,14 @@ main = do
 
         -- extract spawn points
         ents = parseEntities (SB.unpack bspName) $ blEntities bsp
-        spawn e = case T.lookup "classname" e of
-            Just "info_player_deathmatch"   -> True
-            Just "info_player_start"        -> True
-            Just "info_player_intermission" -> True
-            _                               -> False
-        Just sp0 = T.lookup "origin" $ head $ filter spawn ents
-        [x0,y0,z0] = map read $ words $ SB.unpack sp0
-        p0 = Vec3 x0 y0 z0
+        p0 = let spawn e = case T.lookup "classname" e of
+                    Just "info_player_deathmatch"   -> True
+                    Just "info_player_start"        -> True
+                    Just "info_player_intermission" -> True
+                    _                               -> False
+                 Just sp0 = T.lookup "origin" $ head $ filter spawn ents
+                 [x0,y0,z0] = map read $ words $ SB.unpack sp0
+             in Vec3 x0 y0 z0
 
     windowSize <- initCommon "LC DSL Quake 3 Demo"
 
@@ -197,8 +210,8 @@ main = do
     identityLight $ 1 / (2 ^ overbrightBits)
     setupTables slotU
 
-    putStrLn "item materials:"
-    forM_ itemMaterials print
+    putStrLn "md3 materials:"
+    forM_ md3Materials print
     putStrLn "shaders:"
     forM_ (T.keys shMap) print
     putStrLn "loading textures:"
@@ -233,30 +246,12 @@ main = do
     uniformFTexture2D "ScreenQuad" menuObjUnis $ snd $ head levelShots
 -}
     -- add entities
-    -- load items
-
-    forM_ ents $ \e -> case T.lookup "classname" e of
-        Nothing -> return ()
-        Just k  -> case T.lookup k itemModels of
-            Just ml -> do
-                putStrLn $ "add model: " ++ SB.unpack k
-                let Just o = T.lookup "origin" e
-                    [x,y,z] = map read $ words $ SB.unpack o
-                    p = Vec3 x y z
-                forM_ ml $ \md3 -> do
+    forM_ md3Objs $ \(mat,name) -> case T.lookup (SB.pack name) md3Map of
+      Nothing -> return ()
+      Just md3 -> do
+                    putStrLn $ "add model: " ++ name
                     lcmd3 <- addMD3 renderer md3 ["worldMat"]
-                    forM_ (lcmd3Object lcmd3) $ \obj -> do
-                        let unis    = objectUniformSetter $  obj
-                            woldMat = uniformM44F "worldMat" unis
-                            sm = fromProjective (scaling $ Vec3 s s s)
-                            s  = 0.005 / 64 * 4 -- FIXE: what is the correct value?
-                        woldMat $ mat4ToM44F $ sm .*. (fromProjective $ translation p)
-            Nothing -> when (k == "misc_model") $ case T.lookup "model" e of
-                Nothing -> return ()
-                Just m  -> do
-                    -- TODO
-                    return ()
-
+                    forM_ (lcmd3Object lcmd3) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) mat
     (mousePosition,mousePositionSink) <- external (0,0)
     (fblrPress,fblrPressSink) <- external (False,False,False,False,False)
     (capturePress,capturePressSink) <- external False
