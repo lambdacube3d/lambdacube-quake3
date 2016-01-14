@@ -216,11 +216,11 @@ main = do
     forM_ (T.keys shMap) print
     putStrLn "loading textures:"
     -- load textures
-    let redBitmap       = createSingleChannelBitmap (32,32) $ \x y -> if (x+y) `mod` 2 == 0 then 255 else 0
-        zeroBitmap      = emptyBitmap (32,32) 1
-        oneBitmap       = createSingleChannelBitmap (32,32) $ \x y -> 255
+    let redBitmap       = createSingleChannelBitmap (2,2) $ \x y -> if (x+y) `mod` 2 == 0 then 255 else 0
+        zeroBitmap      = emptyBitmap (2,2) 1
+        oneBitmap       = createSingleChannelBitmap (2,2) $ \x y -> 255
 
-    defaultTexture <- compileTexture2DRGBAF True False $ combineChannels [redBitmap,redBitmap,zeroBitmap,oneBitmap]
+    defaultTexture <- compileTexture2DRGBAF' False False False False $ combineChannels [redBitmap,redBitmap,zeroBitmap,oneBitmap]
     animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ map (\(s,m) -> (saTexture s,m)) $
                concatMap (\sh -> [(s,caNoMipMaps sh) | s <- caStages sh]) $ T.elems shMap) $ \(stageTex,noMip) -> do
         let texSlotName = SB.pack $ "Tex_" ++ show (crc32 $ SB.pack $ show stageTex)
@@ -546,4 +546,4 @@ loadQ3Texture isMip isClamped defaultTex ar name = do
             putStrLn $ "  load: " ++ SB.unpack fname
             case eimg of
                 Left msg    -> putStrLn ("    error: " ++ msg) >> return defaultTex
-                Right img   -> compileTexture2DRGBAF' True isMip isClamped img
+                Right img   -> compileTexture2DRGBAF' True True isMip isClamped img
