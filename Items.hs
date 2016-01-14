@@ -48,7 +48,7 @@ data ItemType
                             -- EFX: rotate + bob
     | IT_PERSISTANT_POWERUP
     | IT_TEAM
-    deriving Show
+    deriving (Eq,Show)
 
 data Item
     = Item

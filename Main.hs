@@ -154,7 +154,8 @@ main = do
           | Just classname <- T.lookup "classname" e
           , Just o <- T.lookup "origin" e
           , [x,y,z] <- map (read :: String -> Float) $ words $ SB.unpack o = case T.lookup classname itemMap of
-            Just i -> [(mat, m) | m <- itWorldModel i, let mat = mkWorldMat x y z]
+            Just i -> [(mat, m) | m <- Prelude.take cnt $ itWorldModel i, let mat = mkWorldMat x y z]
+              where cnt = if itType i `elem` [IT_HEALTH, IT_POWERUP] then 2 else 1
             Nothing -> case T.lookup "model2" e of
               Just m -> [(mkWorldMat x y z, SB.unpack m)]
               Nothing -> []
