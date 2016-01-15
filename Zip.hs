@@ -21,7 +21,7 @@ data Entry
     { eFilePath     :: !String
     , eIsCompressed :: !Bool
     , eData         :: !LB.ByteString
-    }
+    } deriving Show
 
 type Archive = [Entry]
 

@@ -144,8 +144,10 @@ data LCMD3
 setMD3Frame :: LCMD3 -> Int -> IO ()
 setMD3Frame (LCMD3 _ buf frames) idx = updateBuffer buf $ frames V.! idx
 
-addMD3 :: Renderer -> MD3Model -> [ByteString] -> IO LCMD3
-addMD3 r model unis = do
+type MD3Skin = T.Trie ByteString
+
+addMD3 :: Renderer -> MD3Model -> MD3Skin -> [ByteString] -> IO LCMD3
+addMD3 r model skin unis = do
     let cvtSurface :: MD3.Surface -> (Array,Array,V.Vector (Array,Array))
         cvtSurface sf = ( Array ArrWord16 (SV.length indices) (withV indices)
                         , Array ArrFloat (2 * SV.length texcoords) (withV texcoords)
@@ -196,7 +198,10 @@ addMD3 r model unis = do
                 , ("lightmapUV",    ConstV2F (V2 0 0))
                 ]
             index = IndexStream buffer idx 0 countI
-        forM (V.toList $ MD3.srShaders sf) $ \s -> addObject' r (MD3.shName s) TriangleList (Just index) attrs ["worldMat"]
+            materialName s = case T.lookup (MD3.srName sf) skin of
+              Nothing -> MD3.shName s
+              Just a  -> a
+        forM (V.toList $ MD3.srShaders sf) $ \s -> addObject' r (materialName s) TriangleList (Just index) attrs ["worldMat"]
     -- question: how will be the referred shaders loaded?
     --           general problem: should the gfx network contain all passes (every possible materials)?
     return $ LCMD3
