@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
 module Render where
 
 import Control.Applicative
@@ -136,13 +136,14 @@ addBSP renderer bsp = do
 
 data LCMD3
     = LCMD3
-    { lcmd3Object   :: [Object]
+    { lcmd3Model    :: MD3Model
+    , lcmd3Object   :: [Object]
     , lcmd3Buffer   :: Buffer
     , lcmd3Frames   :: V.Vector [(Int,Array)]
     }
 
 setMD3Frame :: LCMD3 -> Int -> IO ()
-setMD3Frame (LCMD3 _ buf frames) idx = updateBuffer buf $ frames V.! idx
+setMD3Frame (LCMD3{..}) idx = updateBuffer lcmd3Buffer $ lcmd3Frames V.! idx
 
 type MD3Skin = T.Trie ByteString
 
@@ -205,7 +206,8 @@ addMD3 r model skin unis = do
     -- question: how will be the referred shaders loaded?
     --           general problem: should the gfx network contain all passes (every possible materials)?
     return $ LCMD3
-        { lcmd3Object   = concat objs
+        { lcmd3Model    = model
+        , lcmd3Object   = concat objs
         , lcmd3Buffer   = buffer
         , lcmd3Frames   = frames
         }

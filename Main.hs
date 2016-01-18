@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, PackageImports, TupleSections, CPP, DataKinds, ViewPatterns #-}
+{-# LANGUAGE OverloadedStrings, PackageImports, TupleSections, CPP, DataKinds, ViewPatterns, LambdaCase, RecordWildCards, FlexibleContexts #-}
 
 import "GLFW-b" Graphics.UI.GLFW as GLFW
 import Control.Applicative hiding (Const)
@@ -19,6 +19,7 @@ import System.Environment
 import System.FilePath
 import qualified Data.ByteString.Char8 as SB
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 import qualified Data.Trie as T
 import qualified Data.Trie.Internal as T
 import qualified Data.Vector as V
@@ -145,9 +146,12 @@ main = do
         archiveTrie = T.fromList [(SB.pack $ eFilePath a,a) | a <- ar]
         itemMap = T.fromList [(SB.pack $ itClassName it,it) | it <- items]
 
-        characterNames = [ "anarki","biker","bitterman","bones","crash","doom","grunt","hunter","keel","klesk","lucy","major","mynx"
-                         , "orbb","ranger","razor","sarge","slash","sorlag","tankjr","uriel","visor","xaero"]
-        characterModels = [[(characterModelSkin name part,"models/players/" ++ name ++ "/" ++ part ++ ".md3") | part <- ["head","upper","lower"]] | name <- characterNames]
+        characterNames = {-characterNamesDemo-} characterNamesFull
+          where
+            characterNamesFull = [ "anarki","biker","bitterman","bones","crash","doom","grunt","hunter","keel","klesk","lucy","major","mynx"
+                                 , "orbb","ranger","razor","sarge","slash","sorlag","tankjr","uriel","visor","xaero"
+                                 ]
+            characterNamesDemo = ["major","visor","sarge","grunt"]
         characterModelSkin name part = T.fromList
             [ (SB.pack . head $ k,SB.pack . head $ v)
             | l <- lines $ SB.unpack $ decompress e
@@ -160,12 +164,16 @@ main = do
             Just e = trace n $ T.lookup (SB.pack n) archiveTrie
             n = "models/players/" ++ name ++ "/" ++ part ++ "_default.skin"
         characterSkinMaterials = Set.fromList $ concat [T.elems $ characterModelSkin name part | name <- characterNames, part <- ["head","upper","lower"]]
-
-        md3Objs = concatMap collectObj ents ++ concat [[(mkWorldMat x y z, m) | m <- ml] | (Vec3 x y z,ml) <- zip spawnPoints characterModels]
-        md3Map = T.fromList [(SB.pack n, MD3.readMD3 $ decompress' m) | n <- Set.toList . Set.fromList . map (snd . snd) $ md3Objs, m <- maybeToList $ T.lookup (SB.pack n) archiveTrie]
-        mkWorldMat x y z = sm .*. (fromProjective $ translation $ Vec3 x y z)
+        characterObjs = [[(mkWorldMat x (y + 100 * fromIntegral i) z, m) | m <- ml] | (i,ml) <- zip [0..] characterModels]
           where
-            sm = fromProjective (scaling $ Vec3 s s s)
+            Vec3 x y z = p0
+            characterModels = [[(characterModelSkin name part,"models/players/" ++ name ++ "/" ++ part ++ ".md3") | part <- ["head","upper","lower"]] | name <- characterNames]
+
+        md3Objs = concatMap collectObj ents
+        md3Map = T.fromList [(SB.pack n, MD3.readMD3 $ decompress' m) | n <- Set.toList . Set.fromList . map (snd . snd) $ md3Objs ++ concat characterObjs, m <- maybeToList $ T.lookup (SB.pack n) archiveTrie]
+        mkWorldMat x y z = sm .*. ({-fromProjective $ -}translation $ Vec3 x y z)
+          where
+            sm = {-fromProjective-} (scaling $ Vec3 s s s)
             s  = 0.005 / 64 * 4 -- FIXE: what is the correct value?
         collectObj e
           | Just classname <- T.lookup "classname" e
@@ -268,15 +276,29 @@ main = do
     --uniformFTexture2D "ScreenQuad" menuObjUnis defaultTexture
     uniformFTexture2D "ScreenQuad" menuObjUnis $ snd $ head levelShots
 -}
+
     -- add entities
-    lcMD3Objs <- concat <$> forM md3Objs
-      (\(mat,(skin,name)) -> case T.lookup (SB.pack name) md3Map of
-        Nothing -> return []
-        Just md3 -> do
-                    putStrLn $ "add model: " ++ name
+    let addMD3Obj (mat,(skin,name)) = case T.lookup (SB.pack name) md3Map of
+          Nothing -> return []
+          Just md3 -> do
+                    putStrLn ("add model: " ++ name)
                     lcmd3 <- addMD3 renderer md3 skin ["worldMat"]
                     return [(mat,lcmd3)]
+
+    lcMD3Objs <- concat <$> forM md3Objs addMD3Obj
+
+    -- add characters
+    lcCharacterObjs <- forM characterObjs
+      (\[(mat,(hSkin,hName)),(_,(uSkin,uName)),(_,(lSkin,lName))] -> do
+        let Just hMD3 = T.lookup (SB.pack hName) md3Map
+            Just uMD3 = T.lookup (SB.pack uName) md3Map
+            Just lMD3 = T.lookup (SB.pack lName) md3Map
+        hLC <- addMD3 renderer hMD3 hSkin ["worldMat"]
+        uLC <- addMD3 renderer uMD3 uSkin ["worldMat"]
+        lLC <- addMD3 renderer lMD3 lSkin ["worldMat"]
+        return (mat,(hMD3,hLC),(uMD3,uLC),(lMD3,lLC))
       )
+
     (mousePosition,mousePositionSink) <- external (0,0)
     (fblrPress,fblrPressSink) <- external (False,False,False,False,False)
     (capturePress,capturePressSink) <- external False
@@ -286,7 +308,7 @@ main = do
     s <- fpsState
     sc <- start $ do
         anim <- animateMaps animTex
-        u <- scene lcMD3Objs bsp objs (setScreenSize renderer) p0 slotU windowSize mousePosition fblrPress anim capturePress waypointPress capRef
+        u <- scene lcCharacterObjs lcMD3Objs bsp objs (setScreenSize renderer) p0 slotU windowSize mousePosition fblrPress anim capturePress waypointPress capRef
         return $ draw <$> u
     resetTime
     driveNetwork sc (readInput s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
@@ -322,7 +344,7 @@ scene :: BSPLevel
       -> IORef Bool
       -> SignalGen Float (Signal (IO ()))
 -}
-scene lcMD3Objs bsp objs setSize p0 slotU windowSize mousePosition fblrPress anim capturePress waypointPress capRef = do
+scene lcCharacterObjs lcMD3Objs bsp objs setSize p0 slotU windowSize mousePosition fblrPress anim capturePress waypointPress capRef = do
     time <- stateful 0 (+)
     last2 <- transfer ((0,0),(0,0)) (\_ n (_,b) -> (b,n)) mousePosition
     let mouseMove = (\((ox,oy),(nx,ny)) -> (nx-ox,ny-oy)) <$> last2
@@ -362,8 +384,44 @@ scene lcMD3Objs bsp objs setSize p0 slotU windowSize mousePosition fblrPress ani
                 frust = frustum fovDeg (fromIntegral w / fromIntegral h) near far camPos camTarget camUp
 
             forM_ lcMD3Objs $ \(mat,lcmd3) -> do
-              forM_ (lcmd3Object lcmd3) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ mat4ToM44F $ ((fromProjective $ rotationEuler (Vec3 time 0 0)) .*. mat)
-            --rotationEuler (Vec3 a b c) = orthogonal $ toOrthoUnsafe $ rotMatrixZ a .*. rotMatrixX b .*. rotMatrixY (-c)
+              forM_ (lcmd3Object lcmd3) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ mat4ToM44F $ fromProjective $ (rotationEuler (Vec3 time 0 0) .*. mat)
+
+            forM_ lcCharacterObjs $ \(mat,(hMD3,hLC),(uMD3,uLC),(lMD3,lLC)) -> do
+              {-
+                -- entity, parent, parentModel, parent_tag_name
+                CG_PositionRotatedEntityOnTag( &torso, &legs, ci->legsModel, "tag_torso");
+                CG_PositionRotatedEntityOnTag( &head, &torso, ci->torsoModel, "tag_head");
+              -}
+              -- torso = upper
+              -- TODO:
+              --  transform torso to legs
+              --  transform head to torso (and legs)
+              let numFrame = minimum $ map (length . MD3.mdFrames) [{-hMD3,-}uMD3,lMD3]
+                  frame = floor (time * 15) `mod` numFrame
+                  frame' = 0
+                  -- after/before neg transpose
+                  -- after id id
+                  -- after id transpose
+                  -- before neg transpose
+                  -----
+                  -- before id trans
+                  -- before id id
+                  
+                  tagToMat4 MD3.Tag{..} = translateAfter4 (tgOrigin &* s) (orthogonal . toOrthoUnsafe $ {-transpose $ -}Mat3 tgAxisX tgAxisY tgAxisZ)
+                  --headoffset -3 0 0
+                  headoffset = Vec3 (-3) 0 0
+                  --hMat = one :: Proj4 -- {-translation (neg headoffset) .*. -}(tagToMat4 $ (MD3.mdTags uMD3 V.! frame) Map.! "tag_head") .*. uMat
+                  hMat = (tagToMat4 $ (MD3.mdTags uMD3 V.! frame') Map.! "tag_head"){- .*. (tagToMat4 $ (MD3.mdTags uMD3 V.! frame) Map.! "tag_head")-} .*. uMat
+                  uMat = (tagToMat4 $ (MD3.mdTags lMD3 V.! frame) Map.! "tag_torso")-- .*. (tagToMat4 $ (MD3.mdTags uMD3 V.! frame) Map.! "tag_torso")-- .*. lMat
+                  lMat = one :: Proj4
+                  s  = 1 / (0.005 / 64 * 4) -- FIXE: what is the correct value?
+                  lcMat m = mat4ToM44F $ fromProjective $ {-scaling (Vec3 s s s) .*. -}m .*. rotationEuler (Vec3 time 0 0) .*. mat
+              forM_ (lcmd3Object hLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat hMat
+              forM_ (lcmd3Object uLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat uMat
+              forM_ (lcmd3Object lLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat lMat
+              --setMD3Frame hLC frame
+              setMD3Frame uLC frame
+              setMD3Frame lLC frame
 
             timeSetter $ time / 1
             --putStrLn $ "time: " ++ show time ++ " " ++ show capturing
@@ -373,7 +431,10 @@ scene lcMD3Objs bsp objs setSize p0 slotU windowSize mousePosition fblrPress ani
             matSetter $! mat4ToM44F $! cm .*. sm .*. pm
             forM_ anim $ \(_,a) -> let (s,t) = head a in s t
             setSize (fromIntegral w) (fromIntegral h)
-            cullSurfaces bsp camPos frust objs
+            -- hack
+            keyIsPressed (CharKey 'S') >>= \case
+              True  -> V.forM_ objs $ \obj -> enableObject obj True
+              False -> cullSurfaces bsp camPos frust objs
             return $ do
 #ifdef CAPTURE
                 when capturing $ do

@@ -6,6 +6,8 @@ import Control.Monad
 import Data.Int
 import Data.Word
 
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Binary as B
 import Data.Binary.Get as B
 import Data.Binary.IEEE754
@@ -51,7 +53,7 @@ data Surface
 data MD3Model
     = MD3Model
     { mdFrames      :: Vector Frame
-    , mdTags        :: Vector (Vector Tag)
+    , mdTags        :: Vector (Map SB.ByteString Tag)
     , mdSurfaces    :: Vector Surface
     } deriving Show
 
@@ -102,7 +104,11 @@ getMD3Model = do
     flags <- getInt
     [nFrames,nTags,nSurfaces,nSkins] <- replicateM 4 getInt
     [oFrames,oTags,oSurfaces,oSkins,oEnd] <- replicateM 5 getInt
-    return $ MD3Model (getV oFrames nFrames getFrame dat) (getVV oTags nFrames nTags getTag dat) (getV oSurfaces nSurfaces getSurface dat)
+    return $ MD3Model
+      { mdFrames    = getV oFrames nFrames getFrame dat
+      , mdTags      = (\v -> Map.fromList [(tgName t,t) | t <- V.toList v]) <$> getVV oTags nFrames nTags getTag dat
+      , mdSurfaces  = getV oSurfaces nSurfaces getSurface dat
+      }
 
 loadMD3 :: String -> IO MD3Model
 loadMD3 n = readMD3 <$> LB.readFile n
