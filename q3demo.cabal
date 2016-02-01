@@ -51,9 +51,10 @@ Executable q3demo
                   data-binary-ieee754,
                   digest,
                   elerea,
-                  lambdacube-compiler,
-                  lambdacube-gl-ir,
-                  lambdacube-ir,
+                  lambdacube-compiler == 0.3.*,
+                  lambdacube-gl == 0.4.*,
+                  lambdacube-ir == 0.2.*,
+                  time,
                   mmap,
                   vect,
                   zlib

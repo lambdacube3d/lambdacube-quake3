@@ -1,4 +1,8 @@
-{-# LANGUAGE ViewPatterns, OverloadedStrings, PackageImports, CPP #-}
+{-# LANGUAGE ViewPatterns, OverloadedStrings, PackageImports, CPP, LambdaCase #-}
+
+import System.IO
+import Data.Time.Clock
+import Text.Printf
 
 import "GLFW-b" Graphics.UI.GLFW as GLFW
 import Control.Applicative hiding (Const)
@@ -38,7 +42,7 @@ import Codec.Picture
 import LambdaCube.GL as GL
 import LambdaCube.GL.Mesh
 --import IR as IR
-import LambdaCube.Compiler.Driver
+import LambdaCube.Compiler hiding (ppShow)
 
 --import Effect
 
@@ -104,6 +108,8 @@ captureRate = 30
 
 main :: IO ()
 main = do
+    hSetBuffering stdout NoBuffering
+    hSetBuffering stdin NoBuffering
 #ifdef CAPTURE
     ilInit
 #endif
@@ -132,8 +138,10 @@ main = do
             (n:xs) -> SB.pack n
         Just bspData = T.lookup bspName bspMap
         bsp = readBSP bspData
-        maxMaterial = 20 -- TODO: remove if we will have fast reducer
-        shNames = Set.fromList $ Prelude.take maxMaterial [n | n <- map shName $ V.toList $ blShaders bsp, SB.isInfixOf "floor" n || SB.isInfixOf "wall" n || SB.isInfixOf "door" n]
+        maxMaterial = 50 -- TODO: remove if we will have fast reducer
+        (selectedMaterials,ignoredMaterials) = partition (\n -> or [SB.isInfixOf k n | k <- ["floor","wall","door","trim","block"]])
+                                                         (map shName $ V.toList $ blShaders bsp)
+        shNames = Set.fromList $ Prelude.take maxMaterial selectedMaterials
 
     mapM_ SB.putStrLn $ map shName $ V.toList $ blShaders bsp
     shMap' <- do
@@ -188,14 +196,18 @@ main = do
 
 
     putStrLn $ "all materials:  " ++ show (T.size shMap')
-    putStrLn $ "used materials: " ++ show (T.size shMap)
+    --putStrLn $ "used materials: " ++ show (T.size shMap)
     putStrLn $ "texture uniforms: \n" ++ ppShow textureUniforms
+    putStrLn $ "used materials: " ++ show (T.size shMapTexSlot)
     writeFile "SampleMaterial.lc" $ unlines
       [ "module SampleMaterial where"
       , "import Material"
       , "sampleMaterial ="
       , unlines . map ("  "++) . lines . ppShow . T.toList $ shMapTexSlot
       ]
+    SB.putStrLn $ SB.unlines ignoredMaterials
+    q3ppl <- compileQuake3Graphics
+
     win <- initWindow "LC DSL Quake 3 Demo" 800 600
     let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
 
@@ -337,7 +349,7 @@ readMD3 :: LB.ByteString -> MD3Model
     (fblrPress,fblrPressSink) <- external (False,False,False,False,False)
     (capturePress,capturePressSink) <- external False
     (waypointPress,waypointPressSink) <- external []
-    rendererRef <- newIORef =<< fromJust <$> loadQuake3Graphics storage
+    rendererRef <- newIORef =<< fromJust <$> loadQuake3Graphics storage q3ppl
 
     let draw captureA = readIORef rendererRef >>= renderFrame >> captureA >> swapBuffers win >> pollEvents
 
@@ -473,7 +485,7 @@ readInput rendererRef storage win s mousePos fblrPress capturePress waypointPres
 
     reload <- keyIsPressed Key'L
     when reload $ do
-      r <- loadQuake3Graphics storage
+      r <- loadQuake3Graphics storage =<< compileQuake3Graphics
       case r of
         Nothing -> return ()
         Just a  -> do
@@ -638,20 +650,35 @@ loadQ3Texture isMip isClamped defaultTex ar name = do
                 Left msg    -> putStrLn ("    error: " ++ msg) >> return defaultTex
                 Right img   -> uploadTexture2DToGPU' True isMip isClamped img
 
+showTime delta
+    | t > 1e-1  = printf "%.3fs" t
+    | t > 1e-3  = printf "%.1fms" (t/1e-3)
+    | otherwise = printf "%.0fus" (t/1e-6)
+  where
+    t = realToFrac delta :: Double
 
-loadQuake3Graphics storage = do
-  let srcName = "Graphics"
-  putStrLn "compile quake3 graphics pipeline"
-  pplRes <- compileMain ["."] OpenGL33 srcName
-  case pplRes of
-    Left err -> putStrLn ("error: " ++ err) >> return Nothing
-    Right ppl -> do
-      writeFile "quake3.pipeline" $ ppUnlines $ ppShow ppl
-      renderer <- allocRenderer ppl
-      setStorage renderer storage
-      --sortSlotObjects storage
-      putStrLn "reloaded"
-      return $ Just renderer
+timeDiff m = (\s x e -> (diffUTCTime e s, x))
+  <$> getCurrentTime
+  <*> m
+  <*> getCurrentTime
+
+printTimeDiff s a = do
+  putStr s
+  (t,r) <- timeDiff a
+  putStrLn $ showTime t
+  return r
+
+compileQuake3Graphics = printTimeDiff "compile quake3 graphics pipeline..." $ compileMain ["."] OpenGL33 "Graphics"
+
+loadQuake3Graphics storage = \case
+  Left err -> putStrLn ("error: " ++ err) >> return Nothing
+  Right ppl -> do
+    writeFile "quake3.pipeline" $ ppUnlines $ ppShow ppl
+    renderer <- printTimeDiff "allocate pipeline..." $ allocRenderer ppl
+    printTimeDiff "setStorage..." $ setStorage renderer storage
+    --sortSlotObjects storage
+    putStrLn "reloaded"
+    return $ Just renderer
 
 ppUnlines :: String -> String
 ppUnlines [] = []
