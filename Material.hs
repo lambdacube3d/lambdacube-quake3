@@ -1,13 +1,17 @@
-{-# LANGUAGE DeriveGeneric, StandaloneDeriving #-}
+{-# LANGUAGE DeriveGeneric, StandaloneDeriving, TypeSynonymInstances, FlexibleInstances #-}
 module Material where
 
 import Data.Binary
 import GHC.Generics (Generic)
 
-import Data.Vect
 import qualified Data.ByteString.Char8 as SB
+--import Data.Vect
+import LambdaCube.Linear
 
-deriving instance Generic Vec3
+type Vec3 = V3 Float
+type Vec4 = V4 Float
+
+deriving instance Generic (V3 a)
 instance Binary RGBGen
 instance Binary AlphaGen
 instance Binary TCGen
@@ -16,7 +20,7 @@ instance Binary WaveType
 instance Binary StageTexture
 instance Binary AlphaFunction
 instance Binary Wave
-instance Binary Vec3
+instance Binary a => Binary (V3 a)
 instance Binary Deform
 instance Binary DepthFunction
 instance Binary CullType

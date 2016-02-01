@@ -3,6 +3,7 @@
 import System.IO
 import Data.Time.Clock
 import Text.Printf
+import Data.Aeson (encode,eitherDecode)
 
 import "GLFW-b" Graphics.UI.GLFW as GLFW
 import Control.Applicative hiding (Const)
@@ -24,6 +25,7 @@ import System.Directory
 import System.Environment
 import System.FilePath
 import Data.Binary (encodeFile,decodeFile)
+import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteString.Char8 as SB
 import qualified Data.Set as Set
 import qualified Data.Trie as T
@@ -49,7 +51,7 @@ import LambdaCube.Compiler hiding (ppShow)
 import BSP
 import Camera
 --import Graphics
-import Material
+import Material hiding (Vec3)
 import Render
 import ShaderParser
 import Zip
@@ -139,11 +141,12 @@ main = do
         Just bspData = T.lookup bspName bspMap
         bsp = readBSP bspData
         maxMaterial = 50 -- TODO: remove if we will have fast reducer
-        (selectedMaterials,ignoredMaterials) = partition (\n -> or [SB.isInfixOf k n | k <- ["floor","wall","door","trim","block"]])
-                                                         (map shName $ V.toList $ blShaders bsp)
-        shNames = Set.fromList $ Prelude.take maxMaterial selectedMaterials
+        allShName = map shName $ V.toList $ blShaders bsp
+        (selectedMaterials,ignoredMaterials) = partition (\n -> or $ True:[SB.isInfixOf k n | k <- ["floor","wall","door","trim","block"]]) allShName
+        shNames = Set.fromList $ {-Prelude.take maxMaterial-} selectedMaterials
 
-    mapM_ SB.putStrLn $ map shName $ V.toList $ blShaders bsp
+    --putStrLn $ "level materials"
+    --mapM_ SB.putStrLn $ map shName $ V.toList $ blShaders bsp
     shMap' <- do
       hasShaderCache <- doesFileExist "q3shader.cache"
       case hasShaderCache of
@@ -197,8 +200,9 @@ main = do
 
     putStrLn $ "all materials:  " ++ show (T.size shMap')
     --putStrLn $ "used materials: " ++ show (T.size shMap)
-    putStrLn $ "texture uniforms: \n" ++ ppShow textureUniforms
+    --putStrLn $ "texture uniforms: \n" ++ ppShow textureUniforms
     putStrLn $ "used materials: " ++ show (T.size shMapTexSlot)
+    putStrLn $ "ignored materials: " ++ show (length ignoredMaterials)
     writeFile "SampleMaterial.lc" $ unlines
       [ "module SampleMaterial where"
       , "import Material"
@@ -241,7 +245,7 @@ main = do
                                     ] ++ zip textureUniforms (repeat FTexture2D)
           }
     storage <- allocStorage inputSchema
-    print "storage created"
+    putStrLn "storage created"
     --print $ slotUniform storage
     --print $ slotStream storage
     --initUtility storage
@@ -358,12 +362,12 @@ readMD3 :: LB.ByteString -> MD3Model
         anim <- animateMaps animTex
         u <- scene win bsp objs (setScreenSize storage) p0 slotU mousePosition fblrPress anim capturePress waypointPress capRef
         return $ (draw <$> u)
-    setTime 0
     s <- fpsState
+    setTime 0
     driveNetwork sc (readInput rendererRef storage win s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
 
     disposeRenderer =<< readIORef rendererRef
-    print "storage destroyed"
+    putStrLn "storage destroyed"
 
     destroyWindow win
 
@@ -440,7 +444,11 @@ scene win bsp objs setSize p0 slotU mousePosition fblrPress anim capturePress wa
             matSetter $! mat4ToM44F $! cm .*. sm .*. pm
             forM_ anim $ \(_,a) -> let (s,t) = head a in s t
             setSize (fromIntegral w) (fromIntegral h)
-            cullSurfaces bsp camPos frust objs
+            -- hack
+            let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
+            keyIsPressed (Key'S) >>= \case
+              True  -> V.forM_ objs $ \obj -> enableObject obj True
+              False -> cullSurfaces bsp camPos frust objs
             return $ do
 #ifdef CAPTURE
                 when capturing $ do
@@ -668,16 +676,22 @@ printTimeDiff s a = do
   putStrLn $ showTime t
   return r
 
-compileQuake3Graphics = printTimeDiff "compile quake3 graphics pipeline..." $ compileMain ["."] OpenGL33 "Graphics"
+compileQuake3Graphics = printTimeDiff "compile quake3 graphics pipeline..." $ do
+  compileMain ["."] OpenGL33 "Graphics" >>= \case 
+    Left err -> putStrLn ("error: " ++ err) >> return Nothing
+    Right ppl -> LB.writeFile "quake3.json" (encode ppl) >> return (Just "quake3.json")
 
 loadQuake3Graphics storage = \case
-  Left err -> putStrLn ("error: " ++ err) >> return Nothing
-  Right ppl -> do
-    writeFile "quake3.pipeline" $ ppUnlines $ ppShow ppl
-    renderer <- printTimeDiff "allocate pipeline..." $ allocRenderer ppl
+  Nothing -> return Nothing
+  Just ppl -> do
+    printTimeDiff "write quake3.pipeline..." $
+      writeFile "quake3.pipeline" $ ppUnlines $ ppShow ppl
+    renderer <- printTimeDiff "allocate pipeline..." $ do
+      eitherDecode <$> LB.readFile ppl >>= \case
+        Left err -> fail err
+        Right ppl -> allocRenderer ppl
     printTimeDiff "setStorage..." $ setStorage renderer storage
     --sortSlotObjects storage
-    putStrLn "reloaded"
     return $ Just renderer
 
 ppUnlines :: String -> String

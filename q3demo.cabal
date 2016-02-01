@@ -54,6 +54,7 @@ Executable q3demo
                   lambdacube-compiler == 0.3.*,
                   lambdacube-gl == 0.4.*,
                   lambdacube-ir == 0.2.*,
+                  aeson,
                   time,
                   mmap,
                   vect,
