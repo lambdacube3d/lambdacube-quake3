@@ -1,0 +1,20 @@
+refactor the code
+  - to be a game engine
+  - support multiple renderers:
+      - lambdacube edsl
+      - lambdacube dsl
+      - gpipe2
+
+rendering improvements:
+  - sky rendering
+  - character animation
+      done - parse animation.cfg
+      done - assemble characters according tags
+      - attach weapon to character hand according tags
+  - animate items (e.g. ammos and armors)
+
+game engine:
+  - level collision support
+      e.g. http://openzone.googlecode.com/git-history/f73bb8dfe8e6a16c13d39aba1c8f6537ee263d07/doc/Quake3BSP.html
+  - level sounds
+  - simulate level actors (e.g. doors, jump pads)

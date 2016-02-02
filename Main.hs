@@ -409,7 +409,7 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
               --  transform torso to legs
               --  transform head to torso (and legs)
               let t = floor $ time * 15
-                  legAnim = animationMap Map.! LEGS_IDLE
+                  legAnim = animationMap Map.! LEGS_RUN
                   legFrame = aFirstFrame legAnim + t `mod` aNumFrames legAnim
                   torsoAnim = animationMap Map.! TORSO_GESTURE
                   torsoFrame = aFirstFrame torsoAnim + t `mod` aNumFrames torsoAnim
