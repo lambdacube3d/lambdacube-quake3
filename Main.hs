@@ -433,7 +433,7 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
                   hMat = (tagToMat4 $ (MD3.mdTags uMD3 V.! torsoFrame) Map.! "tag_head"){- .*. (tagToMat4 $ (MD3.mdTags uMD3 V.! frame) Map.! "tag_head")-} .*. uMat
                   uMat = (tagToMat4 $ (MD3.mdTags lMD3 V.! legFrame) Map.! "tag_torso")-- .*. (tagToMat4 $ (MD3.mdTags uMD3 V.! frame) Map.! "tag_torso")-- .*. lMat
                   lMat = one :: Proj4
-                  s  = 1 / (0.005 / 64 * 4) -- FIXE: what is the correct value?
+                  s  = 1 / (0.005 / 64 * pi) -- FIXE: what is the correct value?
                   lcMat m = mat4ToM44F $ fromProjective $ {-scaling (Vec3 s s s) .*. -}m .*. rotationEuler (Vec3 time 0 0) .*. mat
               forM_ (lcmd3Object hLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat hMat
               forM_ (lcmd3Object uLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat uMat
