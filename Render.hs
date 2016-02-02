@@ -176,17 +176,32 @@ addMD3 r model skin unis = do
                 (p,n) = V.unzip pn
             posNorms = V.map cvtPosNorm $ MD3.srXyzNormal sf
 
-        addSurface (il,tl,pl,nl,pnl) sf = (i:il,t:tl,p:pl,n:nl,pn:pnl)
+        addSurface sf (il,tl,pl,nl,pnl) = (i:il,t:tl,p:pl,n:nl,pn:pnl)
           where
             (i,t,pn) = cvtSurface sf
             (p,n)    = V.head pn
-        addFrame f (idx,pn) = V.zipWith (\l (p,n) -> (2 * numSurfaces + idx,p):(3 * numSurfaces + idx,n):l) f pn
-        (il,tl,pl,nl,pnl)   = V.foldl' addSurface ([],[],[],[],[]) surfaces
+        (il,tl,pl,nl,pnl)   = V.foldr addSurface ([],[],[],[],[]) surfaces
         surfaces            = MD3.mdSurfaces model
         numSurfaces         = V.length surfaces
-        frames              = foldl' addFrame (V.replicate (V.length $ MD3.mdFrames model) []) $ zip [0..] pnl
+        frames              = foldr addSurfaceFrames emptyFrame $ zip [0..] pnl
+          where
+            emptyFrame = V.replicate (V.length $ MD3.mdFrames model) []
+            -- TODO: ????
+            addSurfaceFrames (idx,pn) f = V.zipWith (\l (p,n) -> (2 * numSurfaces + idx,p):(3 * numSurfaces + idx,n):l) f pn
 
-    buffer <- compileBuffer $ concat [reverse il,reverse tl,reverse pl,reverse nl]
+    {-
+        buffer layout
+          index arrays for surfaces         [index array of surface 0,          index array of surface 1,         ...]
+          texture coord arrays for surfaces [texture coord array of surface 0,  texture coord array of surface 1, ...]
+          position arrays for surfaces      [position array of surface 0,       position array of surface 1,      ...]
+          normal arrays for surfaces        [normal array of surface 0,         normal array of surface 1,        ...]
+        in short: [ surf1_idx..surfN_idx
+                  , surf1_tex..surfN_tex
+                  , surf1_pos..surfN_pos
+                  , surf1_norm..surfN_norm
+                  ]
+    -}
+    buffer <- compileBuffer $ concat [il,tl,pl,nl]
 
     objs <- forM (zip [0..] $ V.toList surfaces) $ \(idx,sf) -> do
         let countV = V.length $ MD3.srTexCoords sf

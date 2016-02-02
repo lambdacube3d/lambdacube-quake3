@@ -46,6 +46,7 @@ import Material
 import Render
 import ShaderParser
 import Zip
+import Character
 
 import Items
 import qualified MD3 as MD3
@@ -168,6 +169,11 @@ main = do
           where
             Vec3 x y z = p0
             characterModels = [[(characterModelSkin name part,"models/players/" ++ name ++ "/" ++ part ++ ".md3") | part <- ["head","upper","lower"]] | name <- characterNames]
+        characters = [ parseCharacter fname $ decompress e
+                     | name <- characterNames
+                     , let fname = "models/players/" ++ name ++ "/animation.cfg"
+                           Just e = T.lookup (SB.pack fname) archiveTrie
+                     ]
 
         md3Objs = concatMap collectObj ents
         md3Map = T.fromList [(SB.pack n, MD3.readMD3 $ decompress' m) | n <- Set.toList . Set.fromList . map (snd . snd) $ md3Objs ++ concat characterObjs, m <- maybeToList $ T.lookup (SB.pack n) archiveTrie]
@@ -308,7 +314,7 @@ main = do
     s <- fpsState
     sc <- start $ do
         anim <- animateMaps animTex
-        u <- scene lcCharacterObjs lcMD3Objs bsp objs (setScreenSize renderer) p0 slotU windowSize mousePosition fblrPress anim capturePress waypointPress capRef
+        u <- scene characters lcCharacterObjs lcMD3Objs bsp objs (setScreenSize renderer) p0 slotU windowSize mousePosition fblrPress anim capturePress waypointPress capRef
         return $ draw <$> u
     resetTime
     driveNetwork sc (readInput s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
@@ -344,7 +350,7 @@ scene :: BSPLevel
       -> IORef Bool
       -> SignalGen Float (Signal (IO ()))
 -}
-scene lcCharacterObjs lcMD3Objs bsp objs setSize p0 slotU windowSize mousePosition fblrPress anim capturePress waypointPress capRef = do
+scene characters lcCharacterObjs lcMD3Objs bsp objs setSize p0 slotU windowSize mousePosition fblrPress anim capturePress waypointPress capRef = do
     time <- stateful 0 (+)
     last2 <- transfer ((0,0),(0,0)) (\_ n (_,b) -> (b,n)) mousePosition
     let mouseMove = (\((ox,oy),(nx,ny)) -> (nx-ox,ny-oy)) <$> last2
@@ -386,8 +392,18 @@ scene lcCharacterObjs lcMD3Objs bsp objs setSize p0 slotU windowSize mousePositi
             forM_ lcMD3Objs $ \(mat,lcmd3) -> do
               forM_ (lcmd3Object lcmd3) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ mat4ToM44F $ fromProjective $ (rotationEuler (Vec3 time 0 0) .*. mat)
 
-            forM_ lcCharacterObjs $ \(mat,(hMD3,hLC),(uMD3,uLC),(lMD3,lLC)) -> do
+            forM_ (zip characters lcCharacterObjs) $ \(Character{..},(mat,(hMD3,hLC),(uMD3,uLC),(lMD3,lLC))) -> do
               {-
+typedef struct {
+	vec3_t		origin;
+	vec3_t		axis[3];
+} orientation_t;
+
+void _VectorCopy( const vec3_t in, vec3_t out );
+void _VectorMA( const vec3_t veca, float scale, const vec3_t vecb, vec3_t vecc );
+  = vecc[i] = veca[i] + scale*vecb[i]; i={0,1,2}
+void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
+
                 -- entity, parent, parentModel, parent_tag_name
                 CG_PositionRotatedEntityOnTag( &torso, &legs, ci->legsModel, "tag_torso");
                 CG_PositionRotatedEntityOnTag( &head, &torso, ci->torsoModel, "tag_head");
@@ -396,9 +412,9 @@ scene lcCharacterObjs lcMD3Objs bsp objs setSize p0 slotU windowSize mousePositi
               -- TODO:
               --  transform torso to legs
               --  transform head to torso (and legs)
-              let numFrame = minimum $ map (length . MD3.mdFrames) [{-hMD3,-}uMD3,lMD3]
-                  frame = floor (time * 15) `mod` numFrame
-                  frame' = 0
+              let --numFrame = minimum $ map (length . MD3.mdFrames) [{-hMD3,-}uMD3,lMD3]
+                  --frame = floor (time * 15) `mod` numFrame
+                  --frame' = 0
                   -- after/before neg transpose
                   -- after id id
                   -- after id transpose
@@ -406,13 +422,16 @@ scene lcCharacterObjs lcMD3Objs bsp objs setSize p0 slotU windowSize mousePositi
                   -----
                   -- before id trans
                   -- before id id
-                  
+                  t = floor $ time * 15
+                  legAnim = animationMap Map.! LEGS_IDLE
+                  legFrame = aFirstFrame legAnim + t `mod` aNumFrames legAnim
+                  torsoAnim = animationMap Map.! TORSO_GESTURE
+                  torsoFrame = aFirstFrame torsoAnim + t `mod` aNumFrames torsoAnim
+
                   tagToMat4 MD3.Tag{..} = translateAfter4 (tgOrigin &* s) (orthogonal . toOrthoUnsafe $ {-transpose $ -}Mat3 tgAxisX tgAxisY tgAxisZ)
-                  --headoffset -3 0 0
-                  headoffset = Vec3 (-3) 0 0
                   --hMat = one :: Proj4 -- {-translation (neg headoffset) .*. -}(tagToMat4 $ (MD3.mdTags uMD3 V.! frame) Map.! "tag_head") .*. uMat
-                  hMat = (tagToMat4 $ (MD3.mdTags uMD3 V.! frame') Map.! "tag_head"){- .*. (tagToMat4 $ (MD3.mdTags uMD3 V.! frame) Map.! "tag_head")-} .*. uMat
-                  uMat = (tagToMat4 $ (MD3.mdTags lMD3 V.! frame) Map.! "tag_torso")-- .*. (tagToMat4 $ (MD3.mdTags uMD3 V.! frame) Map.! "tag_torso")-- .*. lMat
+                  hMat = (tagToMat4 $ (MD3.mdTags uMD3 V.! torsoFrame) Map.! "tag_head"){- .*. (tagToMat4 $ (MD3.mdTags uMD3 V.! frame) Map.! "tag_head")-} .*. uMat
+                  uMat = (tagToMat4 $ (MD3.mdTags lMD3 V.! legFrame) Map.! "tag_torso")-- .*. (tagToMat4 $ (MD3.mdTags uMD3 V.! frame) Map.! "tag_torso")-- .*. lMat
                   lMat = one :: Proj4
                   s  = 1 / (0.005 / 64 * 4) -- FIXE: what is the correct value?
                   lcMat m = mat4ToM44F $ fromProjective $ {-scaling (Vec3 s s s) .*. -}m .*. rotationEuler (Vec3 time 0 0) .*. mat
@@ -420,8 +439,8 @@ scene lcCharacterObjs lcMD3Objs bsp objs setSize p0 slotU windowSize mousePositi
               forM_ (lcmd3Object uLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat uMat
               forM_ (lcmd3Object lLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat lMat
               --setMD3Frame hLC frame
-              setMD3Frame uLC frame
-              setMD3Frame lLC frame
+              setMD3Frame uLC torsoFrame
+              setMD3Frame lLC legFrame
 
             timeSetter $ time / 1
             --putStrLn $ "time: " ++ show time ++ " " ++ show capturing

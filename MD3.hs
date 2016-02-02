@@ -71,8 +71,7 @@ getInt      = fromIntegral <$> getInt' :: Get Int
     getInt' = fromIntegral <$> getWord32le :: Get Int32
 getInt3     = (,,) <$> getInt <*> getInt <*> getInt
 getAngle    = (\i -> fromIntegral i * 2 * pi / 255) <$> getUByte
-getV o n f dat              = runGet (V.replicateM n f) (LB.drop (fromIntegral o) dat)
-getVV o nOuter nInner f dat = V.generate nOuter (\i -> V.take nInner $ V.drop (nInner * i) $ getV o (nOuter*nInner) f dat)
+getV o n f dat = runGet (V.replicateM n f) (LB.drop (fromIntegral o) dat)
 
 getFrame    = Frame <$> getVec3 <*> getVec3 <*> getVec3 <*> getFloat <*> getString 64
 getTag      = Tag <$> getString 64 <*> getVec3 <*> getVec3 <*> getVec3 <*> getVec3
@@ -94,19 +93,20 @@ getSurface = (\(o,v) -> skip o >> return v) =<< lookAhead getSurface'
         [nFrames,nShaders,nVerts,nTris] <- replicateM 4 getInt
         [oTris,oShaders,oTexCoords,oXyzNormals,oEnd] <- replicateM 5 getInt
         return $ (oEnd,Surface name (getV oShaders nShaders getShader dat) (getV oTris nTris getInt3 dat)
-                                    (getV oTexCoords nVerts getVec2 dat) (getVV oXyzNormals nFrames nVerts getXyzNormal dat))
+                                    (getV oTexCoords nVerts getVec2 dat) (getV oXyzNormals nFrames (V.replicateM nVerts getXyzNormal) dat))
 
 getMD3Model = do
     dat <- lookAhead getRemainingLazyByteString
     "IDP3" <- getString 4
     version <- getInt
+    when (version /= 15) $ fail "unsupported md3 version"
     name <- getString 64
     flags <- getInt
     [nFrames,nTags,nSurfaces,nSkins] <- replicateM 4 getInt
-    [oFrames,oTags,oSurfaces,oSkins,oEnd] <- replicateM 5 getInt
+    [oFrames,oTags,oSurfaces,oEnd] <- replicateM 4 getInt
     return $ MD3Model
       { mdFrames    = getV oFrames nFrames getFrame dat
-      , mdTags      = (\v -> Map.fromList [(tgName t,t) | t <- V.toList v]) <$> getVV oTags nFrames nTags getTag dat
+      , mdTags      = (\v -> Map.fromList [(tgName t,t) | t <- V.toList v]) <$> getV oTags nFrames (V.replicateM nTags getTag) dat
       , mdSurfaces  = getV oSurfaces nSurfaces getSurface dat
       }
 

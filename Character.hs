@@ -3,7 +3,7 @@ module Character where
 
 import Control.Applicative
 import Control.Monad
-import LambdaCube.Linear
+import LambdaCube.GL (V3(..))
 import Data.Map (Map,(!))
 import qualified Data.Map as Map
 
