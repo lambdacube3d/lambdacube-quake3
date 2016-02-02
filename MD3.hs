@@ -81,7 +81,7 @@ getXyzNormal = do
     v <- getVec3i16
     lat <- getAngle
     lng <- getAngle
-    return (v &* 64, Vec3 (cos lng * sin lat) (cos lat) (-sin lng * sin lat))
+    return (v &* (1/64), Vec3 (cos lat * sin lng) (sin lat * sin lng) (cos lng))
 
 getSurface = (\(o,v) -> skip o >> return v) =<< lookAhead getSurface'
   where

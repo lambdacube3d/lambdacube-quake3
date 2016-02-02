@@ -177,10 +177,7 @@ main = do
 
         md3Objs = concatMap collectObj ents
         md3Map = T.fromList [(SB.pack n, MD3.readMD3 $ decompress' m) | n <- Set.toList . Set.fromList . map (snd . snd) $ md3Objs ++ concat characterObjs, m <- maybeToList $ T.lookup (SB.pack n) archiveTrie]
-        mkWorldMat x y z = sm .*. ({-fromProjective $ -}translation $ Vec3 x y z)
-          where
-            sm = {-fromProjective-} (scaling $ Vec3 s s s)
-            s  = 0.005 / 64 * 4 -- FIXE: what is the correct value?
+        mkWorldMat x y z = translation $ Vec3 x y z
         collectObj e
           | Just classname <- T.lookup "classname" e
           , Just o <- T.lookup "origin" e
@@ -382,7 +379,7 @@ scene characters lcCharacterObjs lcMD3Objs bsp objs setSize p0 slotU windowSize 
                 pm = perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h)
                 sm = fromProjective (scaling $ Vec3 s s s)
                 s  = 0.005
-                V4 orientA orientB orientC _ = mat4ToM44F $! cm .*. sm
+                --V4 orientA orientB orientC _ = mat4ToM44F $! cm .*. sm
                 Vec3 cx cy cz = camPos
                 near = 0.00001/s
                 far  = 100/s
@@ -409,32 +406,19 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
                 CG_PositionRotatedEntityOnTag( &head, &torso, ci->torsoModel, "tag_head");
               -}
               -- torso = upper
-              -- TODO:
               --  transform torso to legs
               --  transform head to torso (and legs)
-              let --numFrame = minimum $ map (length . MD3.mdFrames) [{-hMD3,-}uMD3,lMD3]
-                  --frame = floor (time * 15) `mod` numFrame
-                  --frame' = 0
-                  -- after/before neg transpose
-                  -- after id id
-                  -- after id transpose
-                  -- before neg transpose
-                  -----
-                  -- before id trans
-                  -- before id id
-                  t = floor $ time * 15
+              let t = floor $ time * 15
                   legAnim = animationMap Map.! LEGS_IDLE
                   legFrame = aFirstFrame legAnim + t `mod` aNumFrames legAnim
                   torsoAnim = animationMap Map.! TORSO_GESTURE
                   torsoFrame = aFirstFrame torsoAnim + t `mod` aNumFrames torsoAnim
 
-                  tagToMat4 MD3.Tag{..} = translateAfter4 (tgOrigin &* s) (orthogonal . toOrthoUnsafe $ {-transpose $ -}Mat3 tgAxisX tgAxisY tgAxisZ)
-                  --hMat = one :: Proj4 -- {-translation (neg headoffset) .*. -}(tagToMat4 $ (MD3.mdTags uMD3 V.! frame) Map.! "tag_head") .*. uMat
-                  hMat = (tagToMat4 $ (MD3.mdTags uMD3 V.! torsoFrame) Map.! "tag_head"){- .*. (tagToMat4 $ (MD3.mdTags uMD3 V.! frame) Map.! "tag_head")-} .*. uMat
-                  uMat = (tagToMat4 $ (MD3.mdTags lMD3 V.! legFrame) Map.! "tag_torso")-- .*. (tagToMat4 $ (MD3.mdTags uMD3 V.! frame) Map.! "tag_torso")-- .*. lMat
+                  tagToMat4 MD3.Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ Mat3 tgAxisX tgAxisY tgAxisZ)
+                  hMat = (tagToMat4 $ (MD3.mdTags uMD3 V.! torsoFrame) Map.! "tag_head") .*. uMat
+                  uMat = (tagToMat4 $ (MD3.mdTags lMD3 V.! legFrame) Map.! "tag_torso")
                   lMat = one :: Proj4
-                  s  = 1 / (0.005 / 64 * pi) -- FIXE: what is the correct value?
-                  lcMat m = mat4ToM44F $ fromProjective $ {-scaling (Vec3 s s s) .*. -}m .*. rotationEuler (Vec3 time 0 0) .*. mat
+                  lcMat m = mat4ToM44F $ fromProjective $ m .*. rotationEuler (Vec3 time 0 0) .*. mat
               forM_ (lcmd3Object hLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat hMat
               forM_ (lcmd3Object uLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat uMat
               forM_ (lcmd3Object lLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat lMat
