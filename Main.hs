@@ -493,6 +493,7 @@ readInput rendererRef storage win s mousePos fblrPress capturePress waypointPres
 
     reload <- keyIsPressed Key'L
     when reload $ do
+      -- TODO: multi threaded reloading (compile in a new thread and switch when it is ready)
       r <- loadQuake3Graphics storage =<< compileQuake3Graphics
       case r of
         Nothing -> return ()
