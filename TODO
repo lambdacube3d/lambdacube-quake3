@@ -19,8 +19,11 @@ rendering improvements:
   - autosprite support
 
 game engine:
-  - level collision support
-      e.g. http://openzone.googlecode.com/git-history/f73bb8dfe8e6a16c13d39aba1c8f6537ee263d07/doc/Quake3BSP.html
+  - level collision support (e.g. http://openzone.googlecode.com/git-history/f73bb8dfe8e6a16c13d39aba1c8f6537ee263d07/doc/Quake3BSP.html)
+      done - trace collision function
+      - colliding camera
+      - colliding character
+      - character <-> item collision (e.g. ammo)
   - attach weapon to character hand according tags
   - animate items (e.g. ammos and armors)
   - level sounds

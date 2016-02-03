@@ -47,6 +47,7 @@ import Render
 import ShaderParser
 import Zip
 import Character
+import Collision
 
 import Items
 import qualified MD3 as MD3
@@ -369,12 +370,14 @@ scene characters lcCharacterObjs lcMD3Objs bsp objs setSize p0 slotU windowSize 
                 Nothing -> controlledCamera
                 Just camData -> return camData
 
+    prevCamPos <- delay p0 $ (\(p,_,_) -> p) <$> activeCamera
+
     let matSetter   = uniformM44F "viewProj" slotU
         viewOrigin  = uniformV3F "viewOrigin" slotU
         orientation = uniformM44F "orientation" slotU
         viewMat     = uniformM44F "viewMat" slotU
         timeSetter  = uniformFloat "time" slotU
-        setupGFX (w,h) (camPos,camTarget,camUp) time (anim,capturing,frameCount,(legAnimType,torsoAnimType)) = do
+        setupGFX (w,h) ((camPos,camTarget,camUp),prevCamPos) time (anim,capturing,frameCount,(legAnimType,torsoAnimType)) = do
             let cm = fromProjective (lookat camPos camTarget camUp)
                 pm = perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h)
                 sm = fromProjective (scaling $ Vec3 s s s)
@@ -386,6 +389,9 @@ scene characters lcCharacterObjs lcMD3Objs bsp objs setSize p0 slotU windowSize 
                 fovDeg = 60
                 frust = frustum fovDeg (fromIntegral w / fromIntegral h) near far camPos camTarget camUp
 
+            case traceRay bsp prevCamPos camPos of
+                Nothing -> return ()
+                Just a -> putStrLn $ "collided: " ++ show a
             forM_ lcMD3Objs $ \(mat,lcmd3) -> do
               forM_ (lcmd3Object lcmd3) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ mat4ToM44F $ fromProjective $ (rotationEuler (Vec3 time 0 0) .*. mat)
 
@@ -447,7 +453,7 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
 #endif
                 return ()
     let characterAnim = return (LEGS_SWIM,TORSO_STAND2)
-    r <- effectful4 setupGFX windowSize activeCamera time ((,,,) <$> anim <*> capture <*> frameCount <*> characterAnim)
+    r <- effectful4 setupGFX windowSize ((,) <$> activeCamera <*> prevCamPos) time ((,,,) <$> anim <*> capture <*> frameCount <*> characterAnim)
     return r
 
 vec4ToV4F :: Vec4 -> V4F

@@ -17,6 +17,7 @@ data TraceHit
   , outputStartsOut :: !Bool
   , outputAllSolid  :: !Bool
   }
+  deriving Show
 {-
 monoid (min,and,or)
 float outputFraction;    -- min
@@ -31,44 +32,45 @@ instance Monoid TraceHit where
 epsilon = 1/32
 clamp = max 0 . min 1
 
-traceRay :: BSPLevel -> Vec3 -> Vec3 -> (Vec3,TraceHit)
-traceRay bsp inputStart inputEnd = (outputEnd,th)
-  where
+traceRay :: BSPLevel -> Vec3 -> Vec3 -> Maybe (Vec3,TraceHit)
+traceRay bsp inputStart inputEnd
+  | outputFraction == 1 = Nothing 
+  | otherwise = Just (outputEnd,th)
+ where
     th@TraceHit{..} = checkNode bsp inputStart inputEnd 0 0 1 inputStart inputEnd
-    outputEnd
-      | outputFraction == 1 = inputEnd
-      | otherwise = inputStart + outputFraction *& (inputEnd - inputStart)
+    outputEnd = inputStart + outputFraction *& (inputEnd - inputStart)
 
 checkNode bsp@BSPLevel{..} inputStart inputEnd nodeIndex startFraction endFraction start end
+  -- leaf
   | nodeIndex < 0 = let Leaf{..} = blLeaves ! (-(nodeIndex + 1))
-                        brushes = V.take lfNumLeafBrushes $ V.drop lfFirstLeafBrush blBrushes
+                        leafBrushes = V.take lfNumLeafBrushes $ V.drop lfFirstLeafBrush blLeafBrushes
                     in mconcat [ checkBrush bsp inputStart inputEnd brush
-                               | brush@Brush{..} <- V.toList brushes
+                               | brushIndex <- V.toList leafBrushes
+                               , let brush@Brush{..} = blBrushes ! brushIndex
                                , brNumSides > 0
-                               , shContentFlags (blShaders ! brShaderNum) .&. 1 == 1]
-  | otherwise = result
-      where
-        Node{..}  = blNodes ! nodeIndex
-        Plane{..} = blPlanes ! ndPlaneNum
-        startDistance = start `dotprod` plNormal - plDist
-        endDistance = end `dotprod` plNormal - plDist
-        result
-          | startDistance >= 0 && endDistance >= 0 = checkNode bsp inputStart inputEnd (fst ndChildren) startFraction endFraction start end
-          | startDistance < 0 && endDistance < 0 = checkNode bsp inputStart inputEnd (snd ndChildren) startFraction endFraction start end
-          | otherwise = 
-              let 
-                  inverseDistance = 1 / (startDistance - endDistance)
-                  (side,clamp -> fraction1,clamp -> fraction2)
-                    | startDistance < endDistance = (True,(startDistance + epsilon) * inverseDistance,(startDistance + epsilon) * inverseDistance)
-                    | endDistance < startDistance = (False,(startDistance + epsilon) * inverseDistance,(startDistance - epsilon) * inverseDistance)
-                    | otherwise = (False,1,0)
-                  middleFraction1 = startFraction + (endFraction - startFraction) * fraction1
-                  middleFraction2 = startFraction + (endFraction - startFraction) * fraction2
-                  middle1 = start + fraction1 *& (end - start);
-                  middle2 = start + fraction2 *& (end - start);
-                  selectChildren b = if b then snd ndChildren else fst ndChildren
-              in checkNode bsp inputStart inputEnd (selectChildren side) startFraction middleFraction1 start middle1 `mappend`
-                 checkNode bsp inputStart inputEnd (selectChildren $ not side) middleFraction2 endFraction middle2 end
+                               , shContentFlags (blShaders ! brShaderNum) .&. 1 == 1
+                               ]
+  -- node
+  | startDistance >= 0 && endDistance >= 0 = checkNode bsp inputStart inputEnd (fst ndChildren) startFraction endFraction start end
+  | startDistance < 0 && endDistance < 0 = checkNode bsp inputStart inputEnd (snd ndChildren) startFraction endFraction start end
+  | otherwise =
+      let inverseDistance = 1 / (startDistance - endDistance)
+          (side,clamp -> fraction1,clamp -> fraction2)
+            | startDistance < endDistance = (True, (startDistance + epsilon) * inverseDistance,(startDistance + epsilon) * inverseDistance)
+            | endDistance < startDistance = (False,(startDistance + epsilon) * inverseDistance,(startDistance - epsilon) * inverseDistance)
+            | otherwise = (False,1,0)
+          middleFraction1 = startFraction + (endFraction - startFraction) * fraction1
+          middleFraction2 = startFraction + (endFraction - startFraction) * fraction2
+          middle1 = start + fraction1 *& (end - start);
+          middle2 = start + fraction2 *& (end - start);
+          selectChildren b = if b then snd ndChildren else fst ndChildren
+      in checkNode bsp inputStart inputEnd (selectChildren side) startFraction middleFraction1 start middle1 `mappend`
+         checkNode bsp inputStart inputEnd (selectChildren $ not side) middleFraction2 endFraction middle2 end
+ where
+  Node{..}  = blNodes ! nodeIndex
+  Plane{..} = blPlanes ! ndPlaneNum
+  startDistance = start `dotprod` plNormal - plDist
+  endDistance = end `dotprod` plNormal - plDist
 
 checkBrush BSPLevel{..} inputStart inputEnd Brush{..} =
   let brushPlanes = fmap ((blPlanes !) . bsPlaneNum) $ V.take brNumSides . V.drop brFirstSide $ blBrushSides
