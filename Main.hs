@@ -210,7 +210,8 @@ main = do
       , unlines . map ("  "++) . lines . ppShow . T.toList $ shMapTexSlot
       ]
     SB.putStrLn $ SB.unlines ignoredMaterials
-    q3ppl <- compileQuake3Graphics
+    let pplName = SB.unpack bspName ++ "_ppl.json"
+    q3ppl <- compileQuake3GraphicsCached pplName
 
     win <- initWindow "LC DSL Quake 3 Demo" 800 600
     let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
@@ -364,7 +365,7 @@ readMD3 :: LB.ByteString -> MD3Model
         return $ (draw <$> u)
     s <- fpsState
     setTime 0
-    driveNetwork sc (readInput rendererRef storage win s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
+    driveNetwork sc (readInput pplName rendererRef storage win s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
 
     disposeRenderer =<< readIORef rendererRef
     putStrLn "storage destroyed"
@@ -466,7 +467,8 @@ vec4ToV4F (Vec4 x y z w) = V4 x y z w
 --mat4ToM44F :: Mat4 -> M44F
 mat4ToM44F (Mat4 a b c d) = V4 (vec4ToV4F a) (vec4ToV4F b) (vec4ToV4F c) (vec4ToV4F d)
 
-readInput :: IORef GLRenderer
+readInput :: String
+          -> IORef GLRenderer
           -> GLStorage
           -> Window
           -> State
@@ -476,7 +478,7 @@ readInput :: IORef GLRenderer
           -> Sink [Bool]
           -> IORef Bool
           -> IO (Maybe Float)
-readInput rendererRef storage win s mousePos fblrPress capturePress waypointPress capRef = do
+readInput pplName rendererRef storage win s mousePos fblrPress capturePress waypointPress capRef = do
     let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
     t <- maybe 0 id <$> getTime
     setTime 0
@@ -494,7 +496,7 @@ readInput rendererRef storage win s mousePos fblrPress capturePress waypointPres
     reload <- keyIsPressed Key'L
     when reload $ do
       -- TODO: multi threaded reloading (compile in a new thread and switch when it is ready)
-      r <- loadQuake3Graphics storage =<< compileQuake3Graphics
+      r <- loadQuake3Graphics storage =<< compileQuake3Graphics pplName
       case r of
         Nothing -> return ()
         Just a  -> do
@@ -677,18 +679,21 @@ printTimeDiff s a = do
   putStrLn $ showTime t
   return r
 
-compileQuake3Graphics = printTimeDiff "compile quake3 graphics pipeline..." $ do
+compileQuake3GraphicsCached name = doesFileExist name >>= \case
+  True -> putStrLn "use cached pipeline" >> return (Just name)
+  False -> compileQuake3Graphics name
+
+compileQuake3Graphics name = printTimeDiff "compile quake3 graphics pipeline..." $ do
   compileMain ["."] OpenGL33 "Graphics" >>= \case 
     Left err -> putStrLn ("error: " ++ err) >> return Nothing
-    Right ppl -> LB.writeFile "quake3.json" (encode ppl) >> return (Just "quake3.json")
+    Right ppl -> LB.writeFile name (encode ppl) >> return (Just name)
 
 loadQuake3Graphics storage = \case
   Nothing -> return Nothing
-  Just ppl -> do
-    printTimeDiff "write quake3.pipeline..." $
-      writeFile "quake3.pipeline" $ ppUnlines $ ppShow ppl
+  Just name -> do
+    putStrLn $ "load " ++ name
     renderer <- printTimeDiff "allocate pipeline..." $ do
-      eitherDecode <$> LB.readFile ppl >>= \case
+      eitherDecode <$> LB.readFile name >>= \case
         Left err -> fail err
         Right ppl -> allocRenderer ppl
     printTimeDiff "setStorage..." $ setStorage renderer storage

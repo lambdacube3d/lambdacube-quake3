@@ -29,7 +29,7 @@ Flag Capture
   Description:    Enable the continuous screen capture functionality.
   Default:        False
 
-Executable q3demo
+Executable q3demo-dsl
   HS-Source-Dirs: .
   Main-IS:        Main.hs
   GHC-Options:    -Wall -fno-warn-unused-do-bind -fno-warn-name-shadowing -O1 -fspec-constr-count=6 -rtsopts
