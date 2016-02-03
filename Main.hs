@@ -374,7 +374,7 @@ scene characters lcCharacterObjs lcMD3Objs bsp objs setSize p0 slotU windowSize 
         orientation = uniformM44F "orientation" slotU
         viewMat     = uniformM44F "viewMat" slotU
         timeSetter  = uniformFloat "time" slotU
-        setupGFX (w,h) (camPos,camTarget,camUp) time (anim,capturing,frameCount) = do
+        setupGFX (w,h) (camPos,camTarget,camUp) time (anim,capturing,frameCount,(legAnimType,torsoAnimType)) = do
             let cm = fromProjective (lookat camPos camTarget camUp)
                 pm = perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h)
                 sm = fromProjective (scaling $ Vec3 s s s)
@@ -409,9 +409,9 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
               --  transform torso to legs
               --  transform head to torso (and legs)
               let t = floor $ time * 15
-                  legAnim = animationMap Map.! LEGS_RUN
+                  legAnim = animationMap Map.! legAnimType
                   legFrame = aFirstFrame legAnim + t `mod` aNumFrames legAnim
-                  torsoAnim = animationMap Map.! TORSO_GESTURE
+                  torsoAnim = animationMap Map.! torsoAnimType
                   torsoFrame = aFirstFrame torsoAnim + t `mod` aNumFrames torsoAnim
 
                   tagToMat4 MD3.Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ Mat3 tgAxisX tgAxisY tgAxisZ)
@@ -446,7 +446,8 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
                 writeIORef capRef capturing
 #endif
                 return ()
-    r <- effectful4 setupGFX windowSize activeCamera time ((,,) <$> anim <*> capture <*> frameCount)
+    let characterAnim = return (LEGS_SWIM,TORSO_STAND2)
+    r <- effectful4 setupGFX windowSize activeCamera time ((,,,) <$> anim <*> capture <*> frameCount <*> characterAnim)
     return r
 
 vec4ToV4F :: Vec4 -> V4F

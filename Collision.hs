@@ -1,0 +1,89 @@
+{-# LANGUAGE RecordWildCards, ViewPatterns #-}
+module Collision where
+{-
+  Quake 3 BSP Collision Detection
+  http://openzone.googlecode.com/git-history/f73bb8dfe8e6a16c13d39aba1c8f6537ee263d07/doc/Quake3BSP.html
+-}
+import Data.Vector ((!))
+import qualified Data.Vector as V
+import Data.Vect.Float
+import Data.Vect.Float.Instances
+import Data.Bits ((.&.))
+import BSP
+
+data TraceHit
+  = TraceHit
+  { outputFraction  :: !Float
+  , outputStartsOut :: !Bool
+  , outputAllSolid  :: !Bool
+  }
+{-
+monoid (min,and,or)
+float outputFraction;    -- min
+boolean outputStartsOut; -- mappend: and
+boolean outputAllSolid;  -- mappend: or
+-}
+
+instance Monoid TraceHit where
+  mempty = TraceHit 1 True False
+  (TraceHit a1 b1 c1) `mappend` (TraceHit a2 b2 c2) = TraceHit (min a1 a2) (b1 && b2) (c1 || c2)
+
+epsilon = 1/32
+clamp = max 0 . min 1
+
+traceRay :: BSPLevel -> Vec3 -> Vec3 -> (Vec3,TraceHit)
+traceRay bsp inputStart inputEnd = (outputEnd,th)
+  where
+    th@TraceHit{..} = checkNode bsp inputStart inputEnd 0 0 1 inputStart inputEnd
+    outputEnd
+      | outputFraction == 1 = inputEnd
+      | otherwise = inputStart + outputFraction *& (inputEnd - inputStart)
+
+checkNode bsp@BSPLevel{..} inputStart inputEnd nodeIndex startFraction endFraction start end
+  | nodeIndex < 0 = let Leaf{..} = blLeaves ! (-(nodeIndex + 1))
+                        brushes = V.take lfNumLeafBrushes $ V.drop lfFirstLeafBrush blBrushes
+                    in mconcat [ checkBrush bsp inputStart inputEnd brush
+                               | brush@Brush{..} <- V.toList brushes
+                               , brNumSides > 0
+                               , shContentFlags (blShaders ! brShaderNum) .&. 1 == 1]
+  | otherwise = result
+      where
+        Node{..}  = blNodes ! nodeIndex
+        Plane{..} = blPlanes ! ndPlaneNum
+        startDistance = start `dotprod` plNormal - plDist
+        endDistance = end `dotprod` plNormal - plDist
+        result
+          | startDistance >= 0 && endDistance >= 0 = checkNode bsp inputStart inputEnd (fst ndChildren) startFraction endFraction start end
+          | startDistance < 0 && endDistance < 0 = checkNode bsp inputStart inputEnd (snd ndChildren) startFraction endFraction start end
+          | otherwise = 
+              let 
+                  inverseDistance = 1 / (startDistance - endDistance)
+                  (side,clamp -> fraction1,clamp -> fraction2)
+                    | startDistance < endDistance = (True,(startDistance + epsilon) * inverseDistance,(startDistance + epsilon) * inverseDistance)
+                    | endDistance < startDistance = (False,(startDistance + epsilon) * inverseDistance,(startDistance - epsilon) * inverseDistance)
+                    | otherwise = (False,1,0)
+                  middleFraction1 = startFraction + (endFraction - startFraction) * fraction1
+                  middleFraction2 = startFraction + (endFraction - startFraction) * fraction2
+                  middle1 = start + fraction1 *& (end - start);
+                  middle2 = start + fraction2 *& (end - start);
+                  selectChildren b = if b then snd ndChildren else fst ndChildren
+              in checkNode bsp inputStart inputEnd (selectChildren side) startFraction middleFraction1 start middle1 `mappend`
+                 checkNode bsp inputStart inputEnd (selectChildren $ not side) middleFraction2 endFraction middle2 end
+
+checkBrush BSPLevel{..} inputStart inputEnd Brush{..} =
+  let brushPlanes = fmap ((blPlanes !) . bsPlaneNum) $ V.take brNumSides . V.drop brFirstSide $ blBrushSides
+      startEndDistances = [(inputStart `dotprod` plNormal - plDist, inputEnd `dotprod` plNormal - plDist) | Plane{..} <- V.toList brushPlanes]
+      eval p [] = Just p
+      eval p@(startFraction,endFraction,startsOut,endsOut) ((startDistance,endDistance):xs)
+        | startDistance > 0 && endDistance > 0 = Nothing -- both are in front of the plane, its outside of this brush
+        | startDistance <= 0 && endDistance <= 0 = eval p xs
+        | startDistance > endDistance = let fraction = (startDistance - epsilon) / (startDistance - endDistance)
+                                        in  eval (max fraction startFraction,endFraction,startsOut || startDistance > 0,endsOut || endDistance > 0) xs
+        | otherwise = let fraction = (startDistance + epsilon) / (startDistance - endDistance)
+                      in  eval (startFraction, min fraction endFraction,startsOut || startDistance > 0,endsOut || endDistance > 0) xs
+  in case eval (-1,1,False,False) startEndDistances of
+      Just (startFraction,endFraction,startsOut,endsOut)
+        | startsOut == False    -> TraceHit 1 False (not endsOut)
+        | startFraction < endFraction
+          && startFraction > -1 -> TraceHit (max startFraction 0) True False
+      _ -> mempty
