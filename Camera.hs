@@ -4,25 +4,29 @@ import Control.Applicative
 import Data.Vect
 import qualified Data.Vector as V
 import FRP.Elerea.Param
+import Collision
+import BSP (BSPLevel)
 
-userCamera :: Vec3 -> Signal (Float, Float) -> Signal (Bool, Bool, Bool, Bool, Bool)
+userCamera :: BSPLevel -> Vec3 -> Signal (Float, Float) -> Signal (Bool, Bool, Bool, Bool, Bool)
            -> SignalGen Float (Signal (Vec3, Vec3, Vec3))
-userCamera p mposs keyss = fmap (\(pos,target,up,_) -> (pos,target,up)) <$> transfer2 (p,zero,zero,(0,0)) calcCam mposs keyss
+userCamera bsp p mposs keyss = fmap (\(pos,target,up,_) -> (pos,target,up)) <$> transfer2 (p,zero,zero,(0,0)) calcCam mposs keyss
   where
     d0 = Vec4 0 (-1) 0 1
     u0 = Vec4 0 0 (-1) 1
-    calcCam dt (dmx,dmy) (left,up,down,right,turbo) (p0,_,_,(mx,my)) = (p',p'&+d,u,(mx',my'))
-      where
-        nil c n = if c then n else zero
-        p'  = nil left (v &* (-t)) &+ nil up (d &* t) &+ nil down (d &* (-t)) &+ nil right (v &* t) &+ p0
-        k   = if turbo then 500 else 100
-        t   = k * realToFrac dt
-        mx' = dmx + mx
-        my' = dmy + my
-        rm  = fromProjective $ rotationEuler $ Vec3 (mx' / 100) (my' / 100) 0
-        d   = trim $ rm *. d0 :: Vec3
-        u   = trim $ rm *. u0 :: Vec3
-        v   = normalize $ d &^ u
+    calcCam dt (dmx,dmy) (left,up,down,right,turbo) (p0,_,_,(mx,my)) =
+      let nil c n = if c then n else zero
+          p'  = nil left (v &* (-t)) &+ nil up (d &* t) &+ nil down (d &* (-t)) &+ nil right (v &* t) &+ p0
+          k   = if turbo then 500 else 100
+          t   = k * realToFrac dt
+          mx' = dmx + mx
+          my' = dmy + my
+          rm  = fromProjective $ rotationEuler $ Vec3 (mx' / 100) (my' / 100) 0
+          d   = trim $ rm *. d0 :: Vec3
+          u   = trim $ rm *. u0 :: Vec3
+          v   = normalize $ d &^ u
+      in case traceRay bsp p0 p' of
+        Nothing -> (p',p' &+ d,u,(mx',my'))
+        _ -> (p0,p0 &+ d,u,(mx',my'))
 
 rotationEuler :: Vec3 -> Proj4
 rotationEuler (Vec3 a b c) = orthogonal $ toOrthoUnsafe $ rotMatrixZ a .*. rotMatrixX b .*. rotMatrixY (-c)
