@@ -3,6 +3,7 @@ module Collision where
 {-
   Quake 3 BSP Collision Detection
   http://openzone.googlecode.com/git-history/f73bb8dfe8e6a16c13d39aba1c8f6537ee263d07/doc/Quake3BSP.html
+  https://github.com/JodiTheTigger/MessyBsp/blob/master/docs/section6.txt
 -}
 import Data.Vector ((!))
 import qualified Data.Vector as V

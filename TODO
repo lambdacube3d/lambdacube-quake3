@@ -21,10 +21,16 @@ rendering improvements:
 game engine:
   - level collision support (e.g. http://openzone.googlecode.com/git-history/f73bb8dfe8e6a16c13d39aba1c8f6537ee263d07/doc/Quake3BSP.html)
       done - trace collision function
-      - colliding camera
+      done - colliding camera
+      - fix collision with patches
+      - add remaining collision primitives (e.g. box, sphere)
+      - improve camera move
+      - optimize collision code, fix memory leak
       - colliding character
       - character <-> item collision (e.g. ammo)
   - attach weapon to character hand according tags
   - animate items (e.g. ammos and armors)
   - level sounds
   - simulate level actors (e.g. doors, jump pads)
+  - weapon and firing
+  - logic for items (e.g. armor, health, quad damage)
