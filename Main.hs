@@ -12,7 +12,7 @@ import Data.Attoparsec.ByteString.Char8
 import Data.ByteString.Char8 (ByteString)
 import Data.Char
 import Data.IORef
-import Data.List (isPrefixOf,partition)
+import Data.List (isPrefixOf,partition,isInfixOf)
 import Data.Maybe
 import Data.Trie (Trie)
 import Data.Vect
@@ -108,6 +108,12 @@ withFrameBuffer x y w h fn = allocaBytes (w*h*4) $ \p -> do
 captureRate :: Double
 captureRate = 30
 
+loadPK3 :: IO (Map String Entry)
+loadPK3 = do
+  let takeExtensionCI = map toLower . takeExtension
+      isPrefixOfCI a b = isPrefixOf a $ map toLower b
+  Map.unions <$> (mapM readArchive =<< filter (\n -> ".pk3" == takeExtensionCI n) <$> getDirectoryContents ".")
+
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
@@ -115,7 +121,6 @@ main = do
 #ifdef CAPTURE
     ilInit
 #endif
-    ar <- loadArchive
 
     let imageShader txName = defaultCommonAttrs {caStages = sa:saLM:[]}
           where
@@ -133,14 +138,16 @@ main = do
                 , saRGBGen  = RGB_IdentityLighting
                 }
 
+    pk3Data <- loadPK3
     args <- getArgs
-    let bspMap = T.fromList [(SB.pack $ takeBaseName n, decompress' e) | e <- ar, let n = eFilePath e, ".bsp" == takeExtensionCI n, isPrefixOfCI "maps" n]
-        bspName = case args of
-            []     -> head $ T.keys bspMap
-            (n:xs) -> SB.pack n
-        Just bspData = T.lookup bspName bspMap
-        bsp = readBSP bspData
-        maxMaterial = 50 -- TODO: remove if we will have fast reducer
+    let bspNames = [n | n <- Map.keys pk3Data, ".bsp" == takeExtension n]
+        fullBSPName = head $ case args of
+            []     -> bspNames
+            (n:xs) -> filter (isInfixOf n) bspNames
+        Just bspEntry = Map.lookup fullBSPName pk3Data
+        bspName = takeBaseName fullBSPName
+    bsp <- readBSP . LB.fromStrict <$> readEntry bspEntry
+    let maxMaterial = 50 -- TODO: remove if we will have fast reducer
         allShName = map shName $ V.toList $ blShaders bsp
         (selectedMaterials,ignoredMaterials) = partition (\n -> or $ True:[SB.isInfixOf k n | k <- ["floor","wall","door","trim","block"]]) allShName
         shNames = Set.fromList $ {-Prelude.take maxMaterial-} selectedMaterials
@@ -151,7 +158,11 @@ main = do
       hasShaderCache <- doesFileExist "q3shader.cache"
       case hasShaderCache of
         True -> putStrLn "load shader cache" >> decodeFile "q3shader.cache"
-        False -> let sm = shaderMap ar in putStrLn "create shader cache" >> encodeFile "q3shader.cache" sm >> return sm
+        False -> do
+                  putStrLn "create shader cache"
+                  sm <- shaderMap pk3Data
+                  encodeFile "q3shader.cache" sm
+                  return sm
     let (normalShNames,textureShNames) = partition (\n -> T.member n shMap') $ Set.toList shNames
         normalShNameSet     = Set.fromList normalShNames
         textureShNameSet    = Set.fromList textureShNames
@@ -187,7 +198,7 @@ main = do
         lcnet = PrjFrameBuffer "outFB" tix0 $ q3GFX $ T.toList shMap
         -}
         -- extract spawn points
-        ents = parseEntities (SB.unpack bspName) $ blEntities bsp
+        ents = parseEntities bspName $ blEntities bsp
         spawn e = case T.lookup "classname" e of
             Just "info_player_deathmatch"   -> True
             Just "info_player_start"        -> True
@@ -210,7 +221,7 @@ main = do
       , unlines . map ("  "++) . lines . ppShow . T.toList $ shMapTexSlot
       ]
     SB.putStrLn $ SB.unlines ignoredMaterials
-    let pplName = SB.unpack bspName ++ "_ppl.json"
+    let pplName = bspName ++ "_ppl.json"
     q3ppl <- compileQuake3GraphicsCached pplName
 
     win <- initWindow "LC DSL Quake 3 Demo" 800 600
@@ -266,19 +277,19 @@ main = do
 
     putStrLn "loading textures:"
     -- load textures
-    let archiveTrie     = T.fromList [(SB.pack $ eFilePath a,a) | a <- ar]
+    let --archiveTrie     = T.fromList [(SB.pack $ eFilePath a,a) | a <- ar]
         redBitmap x y   = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
 
     defaultTexture <- uploadTexture2DToGPU' False True False $ ImageRGB8 $ generateImage redBitmap 32 32
     animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ concatMap (\sh -> [(saTexture sa,saTextureUniform sa,caNoMipMaps sh) | sa <- caStages sh]) $ T.elems shMapTexSlot) $
       \(stageTex,texSlotName,noMip) -> do
         let texSetter = uniformFTexture2D texSlotName  slotU
-            setTex isClamped img = texSetter =<< loadQ3Texture (not noMip) isClamped defaultTexture archiveTrie img
+            setTex isClamped img = texSetter =<< loadQ3Texture (not noMip) isClamped defaultTexture pk3Data img
         case stageTex of
             ST_Map img          -> setTex False img >> return []
             ST_ClampMap img     -> setTex True img >> return []
             ST_AnimMap t imgs   -> do
-                txList <- mapM (loadQ3Texture (not noMip) False defaultTexture archiveTrie) imgs
+                txList <- mapM (loadQ3Texture (not noMip) False defaultTexture pk3Data) imgs
                 return [(1/t,cycle $ zip (repeat texSetter) txList)]
             _ -> return []
 
@@ -312,9 +323,12 @@ items =
 readMD3 :: LB.ByteString -> MD3Model
 -}
     -- load items
-    let itemModels = T.fromList [(SB.pack $ itClassName it, [ MD3.readMD3 $ decompress' e | n <- itWorldModel it
-                                                            , e <- maybeToList $ T.lookup (SB.pack n) archiveTrie
-                                                            ]) | it <- items]
+    itemModels <- mapM (mapM (\e -> MD3.readMD3 . LB.fromStrict <$> readEntry e)) $ T.fromList
+          [ (SB.pack $ itClassName it, [ e | n <- itWorldModel it
+                                       , e <- maybeToList $ Map.lookup n pk3Data
+                                       ])
+          | it <- items
+          ]
     {-
         "origin" "1012 2090 108"
         "angle" "180"
@@ -618,18 +632,14 @@ lookat pos target up = translateBefore4 (neg pos) (orthogonal $ toOrthoUnsafe r)
 takeExtensionCI = map toLower . takeExtension
 isPrefixOfCI a b = isPrefixOf a $ map toLower b
 
-loadArchive :: IO Archive
-loadArchive = concat <$> (mapM readArchive =<< filter (\n -> ".pk3" == takeExtensionCI n) <$> getDirectoryContents ".")
-
-shaderMap :: Archive -> T.Trie CommonAttrs
-shaderMap ar = T.fromList $ concat [eval n $ parse shaders d | (n,d) <- l]
-  where
-    l = [(n,decompress e) | e <- ar, let n = eFilePath e, ".shader" == takeExtensionCI n, isPrefixOfCI "scripts" n]
-    eval n f = case f of
+shaderMap :: Map String Entry -> IO (T.Trie CommonAttrs)
+shaderMap ar = do
+  let eval n f = case f of
         Done "" r   -> r
         Done rem r  -> error $ show (n,"Input is not consumed", rem, map fst r)
         Fail _ c _  -> error $ show (n,"Fail",c)
         Partial f'  -> eval n (f' "")
+  T.fromList . concat <$> forM [(n,e) | (n,e) <- Map.toList ar, ".shader" == takeExtension n, isPrefixOf "scripts" n] (\(n,e) -> eval n . parse shaders <$> readEntry e)
 
 parseEntities :: String -> SB.ByteString -> [T.Trie SB.ByteString]
 parseEntities n s = eval n $ parse entities s
@@ -642,21 +652,20 @@ parseEntities n s = eval n $ parse entities s
 
 
 
-loadQ3Texture :: Bool -> Bool -> TextureData -> Trie Entry -> ByteString -> IO TextureData
-loadQ3Texture isMip isClamped defaultTex ar name = do
-
-    let name' = SB.unpack name
-        n1 = SB.pack $ replaceExtension name' "tga"
-        n2 = SB.pack $ replaceExtension name' "jpg"
-        b0 = T.member name ar
-        b1 = T.member n1 ar
-        b2 = T.member n2 ar
+loadQ3Texture :: Bool -> Bool -> TextureData -> Map String Entry -> ByteString -> IO TextureData
+loadQ3Texture isMip isClamped defaultTex ar name' = do
+    let name = SB.unpack name'
+        n1 = replaceExtension name "tga"
+        n2 = replaceExtension name "jpg"
+        b0 = Map.member name ar
+        b1 = Map.member n1 ar
+        b2 = Map.member n2 ar
         fname   = if b0 then name else if b1 then n1 else n2
-    case T.lookup fname ar of
-        Nothing -> putStrLn ("    unknown: " ++ show fname) >> return defaultTex
-        Just d  -> do
-            let eimg = decodeImage $ decompress d
-            putStrLn $ "  load: " ++ SB.unpack fname
+    case Map.lookup fname ar of
+        Nothing -> putStrLn ("    unknown: " ++ fname) >> return defaultTex
+        Just entry  -> do
+            eimg <- decodeImage <$> readEntry entry
+            putStrLn $ "  load: " ++ fname
             case eimg of
                 Left msg    -> putStrLn ("    error: " ++ msg) >> return defaultTex
                 Right img   -> uploadTexture2DToGPU' True isMip isClamped img
