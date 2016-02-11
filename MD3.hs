@@ -6,6 +6,8 @@ import Control.Monad
 import Data.Int
 import Data.Word
 
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Binary as B
 import Data.Binary.Get as B
 import Data.Binary.IEEE754
@@ -51,7 +53,7 @@ data Surface
 data MD3Model
     = MD3Model
     { mdFrames      :: Vector Frame
-    , mdTags        :: Vector (Vector Tag)
+    , mdTags        :: Vector (Map SB.ByteString Tag)
     , mdSurfaces    :: Vector Surface
     } deriving Show
 
@@ -69,8 +71,7 @@ getInt      = fromIntegral <$> getInt' :: Get Int
     getInt' = fromIntegral <$> getWord32le :: Get Int32
 getInt3     = (,,) <$> getInt <*> getInt <*> getInt
 getAngle    = (\i -> fromIntegral i * 2 * pi / 255) <$> getUByte
-getV o n f dat              = runGet (V.replicateM n f) (LB.drop (fromIntegral o) dat)
-getVV o nOuter nInner f dat = V.generate nOuter (\i -> V.take nInner $ V.drop (nInner * i) $ getV o (nOuter*nInner) f dat)
+getV o n f dat = runGet (V.replicateM n f) (LB.drop (fromIntegral o) dat)
 
 getFrame    = Frame <$> getVec3 <*> getVec3 <*> getVec3 <*> getFloat <*> getString 64
 getTag      = Tag <$> getString 64 <*> getVec3 <*> getVec3 <*> getVec3 <*> getVec3
@@ -80,7 +81,7 @@ getXyzNormal = do
     v <- getVec3i16
     lat <- getAngle
     lng <- getAngle
-    return (v &* 64, Vec3 (cos lng * sin lat) (cos lat) (-sin lng * sin lat))
+    return (v &* (1/64), Vec3 (cos lat * sin lng) (sin lat * sin lng) (cos lng))
 
 getSurface = (\(o,v) -> skip o >> return v) =<< lookAhead getSurface'
   where
@@ -92,17 +93,22 @@ getSurface = (\(o,v) -> skip o >> return v) =<< lookAhead getSurface'
         [nFrames,nShaders,nVerts,nTris] <- replicateM 4 getInt
         [oTris,oShaders,oTexCoords,oXyzNormals,oEnd] <- replicateM 5 getInt
         return $ (oEnd,Surface name (getV oShaders nShaders getShader dat) (getV oTris nTris getInt3 dat)
-                                    (getV oTexCoords nVerts getVec2 dat) (getVV oXyzNormals nFrames nVerts getXyzNormal dat))
+                                    (getV oTexCoords nVerts getVec2 dat) (getV oXyzNormals nFrames (V.replicateM nVerts getXyzNormal) dat))
 
 getMD3Model = do
     dat <- lookAhead getRemainingLazyByteString
     "IDP3" <- getString 4
     version <- getInt
+    when (version /= 15) $ fail "unsupported md3 version"
     name <- getString 64
     flags <- getInt
     [nFrames,nTags,nSurfaces,nSkins] <- replicateM 4 getInt
-    [oFrames,oTags,oSurfaces,oSkins,oEnd] <- replicateM 5 getInt
-    return $ MD3Model (getV oFrames nFrames getFrame dat) (getVV oTags nFrames nTags getTag dat) (getV oSurfaces nSurfaces getSurface dat)
+    [oFrames,oTags,oSurfaces,oEnd] <- replicateM 4 getInt
+    return $ MD3Model
+      { mdFrames    = getV oFrames nFrames getFrame dat
+      , mdTags      = (\v -> Map.fromList [(tgName t,t) | t <- V.toList v]) <$> getV oTags nFrames (V.replicateM nTags getTag) dat
+      , mdSurfaces  = getV oSurfaces nSurfaces getSurface dat
+      }
 
 loadMD3 :: String -> IO MD3Model
 loadMD3 n = readMD3 <$> LB.readFile n

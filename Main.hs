@@ -1,4 +1,4 @@
-{-# LANGUAGE ViewPatterns, OverloadedStrings, PackageImports, CPP, LambdaCase #-}
+{-# LANGUAGE ViewPatterns, OverloadedStrings, PackageImports, CPP, LambdaCase, TupleSections, RecordWildCards #-}
 
 import System.IO
 import Data.Time.Clock
@@ -12,7 +12,7 @@ import Data.Attoparsec.ByteString.Char8
 import Data.ByteString.Char8 (ByteString)
 import Data.Char
 import Data.IORef
-import Data.List (isPrefixOf,partition,isInfixOf)
+import Data.List (isPrefixOf,partition,isInfixOf,elemIndex)
 import Data.Maybe
 import Data.Trie (Trie)
 import Data.Vect
@@ -55,6 +55,7 @@ import Material hiding (Vec3)
 import Render
 import ShaderParser
 import Zip
+import Character
 
 import Items
 import qualified MD3 as MD3
@@ -122,7 +123,7 @@ main = do
     ilInit
 #endif
 
-    let imageShader txName = defaultCommonAttrs {caStages = sa:saLM:[]}
+    let imageShader hasLightmap txName = defaultCommonAttrs {caStages = sa:if hasLightmap then saLM:[] else []}
           where
             sa = defaultStageAttrs
                 { saTexture     = ST_Map txName
@@ -141,16 +142,96 @@ main = do
     pk3Data <- loadPK3
     args <- getArgs
     let bspNames = [n | n <- Map.keys pk3Data, ".bsp" == takeExtension n]
-        fullBSPName = head $ case args of
-            []     -> bspNames
-            (n:xs) -> filter (isInfixOf n) bspNames
-        Just bspEntry = Map.lookup fullBSPName pk3Data
-        bspName = takeBaseName fullBSPName
+    fullBSPName <- head <$> case args of
+      (n:xs) -> return $ filter (isInfixOf n) bspNames
+      _ -> do
+            let maps = map takeBaseName bspNames
+            putStrLn $ "Available maps:"
+            putStrLn $ unwords maps
+            putStrLn "Enter map name:"
+            name <- getLine
+            return $ filter (isInfixOf name) bspNames
+    let bspName = takeBaseName fullBSPName
+        bspEntry = case Map.lookup fullBSPName pk3Data of
+            Nothing -> error "You need to put pk3 file into your current directory"
+            Just bspd -> bspd
+
     bsp <- readBSP . LB.fromStrict <$> readEntry bspEntry
-    let maxMaterial = 50 -- TODO: remove if we will have fast reducer
-        allShName = map shName $ V.toList $ blShaders bsp
-        (selectedMaterials,ignoredMaterials) = partition (\n -> or $ True:[SB.isInfixOf k n | k <- ["floor","wall","door","trim","block"]]) allShName
-        shNames = Set.fromList $ {-Prelude.take maxMaterial-} selectedMaterials
+
+    -- extract spawn points
+    let ents = parseEntities bspName $ blEntities bsp
+        spawnPoint e
+          | Just classname <- T.lookup "classname" e
+          , classname `elem` ["info_player_deathmatch", "info_player_start", "info_player_intermission"]
+          , Just origin <- T.lookup "origin" e
+          , [x,y,z] <- map read $ words $ SB.unpack origin = [Vec3 x y z]
+          | otherwise = []
+        spawnPoints = concatMap spawnPoint ents
+        p0 = head spawnPoints
+
+    -- MD3 related code
+    let itemMap = T.fromList [(SB.pack $ itClassName it,it) | it <- items]
+
+        characterNames = characterNamesFull -- characterNamesDemo
+          where
+            characterNamesFull = [ "anarki","biker","bitterman","bones","crash","doom","grunt","hunter","keel","klesk","lucy","major","mynx"
+                                 , "orbb","ranger","razor","sarge","slash","sorlag","tankjr","uriel","visor","xaero"
+                                 ]
+            characterNamesDemo = ["major","visor","sarge","grunt"]
+
+        readCharacterModelSkin name part = do
+          let fname = "models/players/" ++ name ++ "/" ++ part ++ "_default.skin"
+          txt <- case Map.lookup fname pk3Data of
+            Nothing -> fail $ "missing skin: " ++ fname
+            Just e -> readEntry e
+          return $ Map.fromList
+            [ (head k,head v)
+            | l <- lines $ SB.unpack txt
+            , i <- maybeToList $ elemIndex ',' l
+            , let (words . map toLower -> k,words . map toLower . tail -> v) = splitAt i l
+            , not . null $ k
+            , not . null $ v
+            ]
+    characterSkinMap <- Map.fromList <$> sequence
+      [ ((name,part),) <$> readCharacterModelSkin name part 
+      | name <- characterNames
+      , part <- ["head","upper","lower"]
+      ]
+    let mkWorldMat x y z = translation $ Vec3 x y z
+        characterModelSkin name part = case Map.lookup (name,part) characterSkinMap of
+          Nothing -> error $ unwords ["missing skin for", name, "body part", part]
+          Just skin -> skin
+
+        characterSkinMaterials = Set.fromList $ concat [map SB.pack . Map.elems $ characterModelSkin name part | name <- characterNames, part <- ["head","upper","lower"]]
+        characterObjs = [[(mkWorldMat x (y + 100 * fromIntegral i) z, m) | m <- ml] | (i,ml) <- zip [0..] characterModels]
+          where
+            Vec3 x y z = p0
+            characterModels = [[(characterModelSkin name part,"models/players/" ++ name ++ "/" ++ part ++ ".md3") | part <- ["head","upper","lower"]] | name <- characterNames]
+
+    characters <- sequence
+      [ parseCharacter fname <$> readEntry e
+      | name <- characterNames
+      , let fname = "models/players/" ++ name ++ "/animation.cfg"
+            e = maybe (error $ "missing " ++ fname) id $ Map.lookup fname pk3Data
+      ]
+
+    let collectObj e
+          | Just classname <- T.lookup "classname" e
+          , Just o <- T.lookup "origin" e
+          , [x,y,z] <- map (read :: String -> Float) $ words $ SB.unpack o = case T.lookup classname itemMap of
+            Just i -> [(mat, (mempty,m)) | m <- Prelude.take cnt $ itWorldModel i, let mat = mkWorldMat x y z]
+              where cnt = if itType i `elem` [IT_HEALTH, IT_POWERUP] then 2 else 1
+            Nothing -> case T.lookup "model2" e of
+              Just m -> [(mkWorldMat x y z, (mempty,SB.unpack m))]
+              Nothing -> []
+          | otherwise = []
+        md3Objs = concatMap collectObj ents
+    md3Map <- T.fromList <$> sequence
+      [ (\a -> (SB.pack n,MD3.readMD3 $ LB.fromStrict a)) <$> readEntry m
+      | n <- Set.toList . Set.fromList . map (snd . snd) $ md3Objs ++ concat characterObjs
+      , m <- maybeToList $ Map.lookup n pk3Data
+      ]
+    let md3Materials = Set.fromList . concatMap (concatMap (map MD3.shName . V.toList . MD3.srShaders) . V.toList . MD3.mdSurfaces) $ T.elems md3Map
 
     --putStrLn $ "level materials"
     --mapM_ SB.putStrLn $ map shName $ V.toList $ blShaders bsp
@@ -163,14 +244,22 @@ main = do
                   sm <- shaderMap pk3Data
                   encodeFile "q3shader.cache" sm
                   return sm
-    let (normalShNames,textureShNames) = partition (\n -> T.member n shMap') $ Set.toList shNames
-        normalShNameSet     = Set.fromList normalShNames
-        textureShNameSet    = Set.fromList textureShNames
-        normalShMap     = T.mapBy (\n sh -> if Set.member n normalShNameSet then Just sh else Nothing) shMap'
-        --textureShMap    = T.fromList [(n,defaultCommonAttrs {caStages = [defaultStageAttrs {saTexture = ST_Map n, saDepthWrite = True}]}) | n <- Set.toList textureShNameSet]
-        textureShMap    = T.fromList [(n,imageShader n) | n <- Set.toList textureShNameSet]
-        shMap = T.unionL normalShMap textureShMap
-        shMapTexSlot = mangleCA <$> shMap
+    let mkShader hasLightmap n = case T.lookup n shMap' of
+          Just s -> (n,s)
+          Nothing -> let alias = SB.pack . dropExtension . SB.unpack $ n in case T.lookup alias shMap' of
+            Just s -> (alias,s)
+            Nothing -> (n,imageShader hasLightmap n)
+
+        maxMaterial = 50 -- TODO: remove if we will have fast reducer
+        shNames = Set.fromList $ {-Prelude.take maxMaterial-} selectedMaterials
+        allShName = map shName $ V.toList $ blShaders bsp
+        (selectedMaterials,ignoredMaterials) = partition (\n -> or $ True:[SB.isInfixOf k n | k <- ["floor","wall","door","trim","block"]]) allShName
+
+        shMap = T.fromList [mkShader True n | n <- Set.toList shNames] `T.unionL`
+                T.fromList [mkShader False n | n <- Set.toList md3Materials] `T.unionL`
+                T.fromList [mkShader False n | n <- Set.toList characterSkinMaterials]
+
+    let shMapTexSlot = mangleCA <$> shMap
           where
             mangleStageTex stageTex = SB.pack $ "Tex_" ++ show (crc32 $ SB.pack $ show stageTex)
             mangleCA ca = ca {caStages = mangleSA <$> caStages ca}
@@ -186,28 +275,6 @@ main = do
               ST_Lightmap     -> ["LightMap"]
               ST_WhiteImage   -> []
             -}
-        -- create gfx network to render active materials
-        {-
-        TODO: gfx network should be created from shaderMap and bsp
-          shader data source
-            - shader descriptor
-            - image file: tga or jpg
-        -}
-        {-
-        lcnet :: Exp Obj (Image 1 V4F)
-        lcnet = PrjFrameBuffer "outFB" tix0 $ q3GFX $ T.toList shMap
-        -}
-        -- extract spawn points
-        ents = parseEntities bspName $ blEntities bsp
-        spawn e = case T.lookup "classname" e of
-            Just "info_player_deathmatch"   -> True
-            Just "info_player_start"        -> True
-            Just "info_player_intermission" -> True
-            _                               -> False
-        Just sp0 = T.lookup "origin" $ head $ filter spawn ents
-        [x0,y0,z0] = map read $ words $ SB.unpack sp0
-        p0 = Vec3 x0 y0 z0
-
 
     putStrLn $ "all materials:  " ++ show (T.size shMap')
     --putStrLn $ "used materials: " ++ show (T.size shMap)
@@ -277,8 +344,7 @@ main = do
 
     putStrLn "loading textures:"
     -- load textures
-    let --archiveTrie     = T.fromList [(SB.pack $ eFilePath a,a) | a <- ar]
-        redBitmap x y   = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
+    let redBitmap x y   = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
 
     defaultTexture <- uploadTexture2DToGPU' False True False $ ImageRGB8 $ generateImage redBitmap 32 32
     animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ concatMap (\sh -> [(saTexture sa,saTextureUniform sa,caNoMipMaps sh) | sa <- caStages sh]) $ T.elems shMapTexSlot) $
@@ -304,65 +370,26 @@ main = do
     uniformFTexture2D' "ScreenQuad" menuObjUnis $ snd $ head levelShots
 -}
     -- add entities
-{-
-data Item
-    = Item
-    { itClassName   :: String
-    , itPickupSound :: String
-    , itWorldModel  :: [String]
-    , itIcon        :: String
-    , itPickupName  :: String
-    , itQuantity    :: Int
-    , itType        :: ItemType
-    , itTag         :: Tag
-    , itPreCaches   :: String
-    , itSounds      :: String
-    } deriving Show
+    let addMD3Obj (mat,(skin,name)) = case T.lookup (SB.pack name) md3Map of
+          Nothing -> return []
+          Just md3 -> do
+                    putStrLn ("add model: " ++ name)
+                    lcmd3 <- addMD3 storage md3 skin ["worldMat"]
+                    return [(mat,lcmd3)]
 
-items =
-readMD3 :: LB.ByteString -> MD3Model
--}
-    -- load items
-    itemModels <- mapM (mapM (\e -> MD3.readMD3 . LB.fromStrict <$> readEntry e)) $ T.fromList
-          [ (SB.pack $ itClassName it, [ e | n <- itWorldModel it
-                                       , e <- maybeToList $ Map.lookup n pk3Data
-                                       ])
-          | it <- items
-          ]
-    {-
-        "origin" "1012 2090 108"
-        "angle" "180"
-        "model" "models/mapobjects/visor_posed.md3"
-        "classname" "misc_model"
-    -}
-    {-
-        {
-        "origin" "1120 2128 16"
-        "classname" "item_armor_shard"
-        }
-    -}
+    lcMD3Objs <- concat <$> forM md3Objs addMD3Obj
 
-    forM_ ents $ \e -> case T.lookup "classname" e of
-        Nothing -> return ()
-        Just k  -> case T.lookup k itemModels of
-            Just ml -> do
-                putStrLn $ "add model: " ++ SB.unpack k
-                let Just o = T.lookup "origin" e
-                    [x,y,z] = map read $ words $ SB.unpack o
-                    p = Vec3 x y z
-                forM_ ml $ \md3 -> do
-                    lcmd3 <- addMD3 storage md3 ["worldMat"]
-                    forM_ (lcmd3Object lcmd3) $ \obj -> do
-                        let unis    = objectUniformSetter $  obj
-                            woldMat = uniformM44F "worldMat" unis
-                            sm = fromProjective (scaling $ Vec3 s s s)
-                            s  = 0.005 / 64 * 2 -- FIXE: what is the correct value?
-                        woldMat $ mat4ToM44F $ sm .*. (fromProjective $ translation p)
-            Nothing -> when (k == "misc_model") $ case T.lookup "model" e of
-                Nothing -> return ()
-                Just m  -> do
-                    -- TODO
-                    return ()
+    -- add characters
+    lcCharacterObjs <- forM characterObjs
+      (\[(mat,(hSkin,hName)),(_,(uSkin,uName)),(_,(lSkin,lName))] -> do
+        let Just hMD3 = T.lookup (SB.pack hName) md3Map
+            Just uMD3 = T.lookup (SB.pack uName) md3Map
+            Just lMD3 = T.lookup (SB.pack lName) md3Map
+        hLC <- addMD3 storage hMD3 hSkin ["worldMat"]
+        uLC <- addMD3 storage uMD3 uSkin ["worldMat"]
+        lLC <- addMD3 storage lMD3 lSkin ["worldMat"]
+        return (mat,(hMD3,hLC),(uMD3,uLC),(lMD3,lLC))
+      )
 
     (mousePosition,mousePositionSink) <- external (0,0)
     (fblrPress,fblrPressSink) <- external (False,False,False,False,False)
@@ -375,7 +402,7 @@ readMD3 :: LB.ByteString -> MD3Model
     capRef <- newIORef False
     sc <- start $ do
         anim <- animateMaps animTex
-        u <- scene win bsp objs (setScreenSize storage) p0 slotU mousePosition fblrPress anim capturePress waypointPress capRef
+        u <- scene characters lcCharacterObjs lcMD3Objs win bsp objs (setScreenSize storage) p0 slotU mousePosition fblrPress anim capturePress waypointPress capRef
         return $ (draw <$> u)
     s <- fpsState
     setTime 0
@@ -398,7 +425,7 @@ animateMaps l0 = stateful l0 $ \dt l -> zipWith (f $ dt * timeScale) l timing
 
 edge :: Signal Bool -> SignalGen p (Signal Bool)
 edge s = transfer2 False (\_ cur prev _ -> cur && not prev) s =<< delay False s
-
+{-
 scene :: Window
       -> BSPLevel
       -> V.Vector Object
@@ -412,11 +439,12 @@ scene :: Window
       -> Signal [Bool]
       -> IORef Bool
       -> SignalGen Float (Signal (IO ()))
-scene win bsp objs setSize p0 slotU mousePosition fblrPress anim capturePress waypointPress capRef = do
+-}
+scene characters lcCharacterObjs lcMD3Objs win bsp objs setSize p0 slotU mousePosition fblrPress anim capturePress waypointPress capRef = do
     time <- stateful 0 (+)
     last2 <- transfer ((0,0),(0,0)) (\_ n (_,b) -> (b,n)) mousePosition
     let mouseMove = (\((ox,oy),(nx,ny)) -> (nx-ox,ny-oy)) <$> last2
-    controlledCamera <- userCamera p0 mouseMove fblrPress
+    controlledCamera <- userCamera bsp p0 mouseMove fblrPress
 
     frameCount <- stateful (0 :: Int) (\_ c -> c + 1)
     capture <- transfer2 False (\_ cap cap' on -> on /= (cap && not cap')) capturePress =<< delay False capturePress
@@ -439,18 +467,59 @@ scene win bsp objs setSize p0 slotU mousePosition fblrPress anim capturePress wa
         orientation = uniformM44F "orientation" slotU
         viewMat     = uniformM44F "viewMat" slotU
         timeSetter  = uniformFloat "time" slotU
-        setupGFX (camPos,camTarget,camUp) time (anim,capturing,frameCount) = do
+        setupGFX (camPos,camTarget,camUp) time (anim,capturing,frameCount,(legAnimType,torsoAnimType)) = do
             (w,h) <- getWindowSize win
             let cm = fromProjective (lookat camPos camTarget camUp)
-                pm = perspective 0.01 150 (pi/3) (fromIntegral w / fromIntegral h)
+                pm = perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h)
                 sm = fromProjective (scaling $ Vec3 s s s)
                 s  = 0.005
-                V4 orientA orientB orientC _ = mat4ToM44F $! cm .*. sm
+                --V4 orientA orientB orientC _ = mat4ToM44F $! cm .*. sm
                 Vec3 cx cy cz = camPos
-                near = 0.01/s
-                far  = 150/s
-                fovDeg = 90
+                near = 0.00001/s
+                far  = 100/s
+                fovDeg = 60
                 frust = frustum fovDeg (fromIntegral w / fromIntegral h) near far camPos camTarget camUp
+
+            forM_ lcMD3Objs $ \(mat,lcmd3) -> do
+              forM_ (lcmd3Object lcmd3) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ mat4ToM44F $ fromProjective $ (rotationEuler (Vec3 time 0 0) .*. mat)
+
+            forM_ (zip characters lcCharacterObjs) $ \(Character{..},(mat,(hMD3,hLC),(uMD3,uLC),(lMD3,lLC))) -> do
+              {-
+typedef struct {
+	vec3_t		origin;
+	vec3_t		axis[3];
+} orientation_t;
+
+void _VectorCopy( const vec3_t in, vec3_t out );
+void _VectorMA( const vec3_t veca, float scale, const vec3_t vecb, vec3_t vecc );
+  = vecc[i] = veca[i] + scale*vecb[i]; i={0,1,2}
+void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
+
+                -- entity, parent, parentModel, parent_tag_name
+                CG_PositionRotatedEntityOnTag( &torso, &legs, ci->legsModel, "tag_torso");
+                CG_PositionRotatedEntityOnTag( &head, &torso, ci->torsoModel, "tag_head");
+              -}
+              -- torso = upper
+              --  transform torso to legs
+              --  transform head to torso (and legs)
+              let t = floor $ time * 15
+                  legAnim = animationMap Map.! legAnimType
+                  legFrame = aFirstFrame legAnim + t `mod` aNumFrames legAnim
+                  torsoAnim = animationMap Map.! torsoAnimType
+                  torsoFrame = aFirstFrame torsoAnim + t `mod` aNumFrames torsoAnim
+
+                  tagToMat4 MD3.Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ Mat3 tgAxisX tgAxisY tgAxisZ)
+                  hMat = (tagToMat4 $ (MD3.mdTags uMD3 V.! torsoFrame) Map.! "tag_head") .*. uMat
+                  uMat = (tagToMat4 $ (MD3.mdTags lMD3 V.! legFrame) Map.! "tag_torso")
+                  lMat = one :: Proj4
+                  lcMat m = mat4ToM44F $ fromProjective $ m .*. rotationEuler (Vec3 time 0 0) .*. mat
+              forM_ (lcmd3Object hLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat hMat
+              forM_ (lcmd3Object uLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat uMat
+              forM_ (lcmd3Object lLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat lMat
+              --setMD3Frame hLC frame
+              setMD3Frame uLC torsoFrame
+              setMD3Frame lLC legFrame
+
             timeSetter $ time / 1
             --putStrLn $ "time: " ++ show time ++ " " ++ show capturing
             viewOrigin $ V3 cx cy cz
@@ -472,7 +541,8 @@ scene win bsp objs setSize p0 slotU mousePosition fblrPress anim capturePress wa
                 writeIORef capRef capturing
 #endif
                 return ()
-    r <- effectful3 setupGFX activeCamera time ((,,) <$> anim <*> capture <*> frameCount)
+    let characterAnim = return (LEGS_SWIM,TORSO_STAND2)
+    r <- effectful3 setupGFX activeCamera time ((,,,) <$> anim <*> capture <*> frameCount <*> characterAnim)
     return r
 
 --vec4ToV4F :: Vec4 -> V4F
@@ -572,28 +642,6 @@ updateFPS state t1 = do
     writeIORef tR 0
     writeIORef fR 0
 
-{-
--- Continuous camera state (rotated with mouse, moved with arrows)
-userCamera :: Real p => Vec3 -> Signal (Float, Float) -> Signal (Bool, Bool, Bool, Bool, Bool)
-           -> SignalGen p (Signal (Vec3, Vec3, Vec3))
-userCamera p mposs keyss = fmap (\(pos,target,up,_) -> (pos,target,up)) <$> transfer2 (p,zero,zero,(0,0)) calcCam mposs keyss
-  where
-    d0 = Vec4 0 (-1) 0 1
-    u0 = Vec4 0 0 (-1) 1
-    calcCam dt (dmx,dmy) (ka,kw,ks,kd,turbo) (p0,_,_,(mx,my)) = (p',p'+d,u,(mx',my'))
-      where
-        f0 c n = if c then (&+ n) else id
-        p'  = foldr1 (.) [f0 ka (v &* (-t)),f0 kw (d &* t),f0 ks (d &* (-t)),f0 kd (v &* t)] p0
-        k   = if turbo then 500 else 100
-        t   = k * realToFrac dt
-        mx' = dmx + mx
-        my' = dmy + my
-        rm  = fromProjective $ rotationEuler $ Vec3 (mx' / 100) (my' / 100) 0
-        d   = trim $ rm *. d0 :: Vec3
-        u   = trim $ rm *. u0 :: Vec3
-        v   = normalize $ d &^ u
--}
-
 -- | Perspective transformation matrix in row major order.
 perspective :: Float  -- ^ Near plane clipping distance (always positive).
             -> Float  -- ^ Far plane clipping distance (always positive).
@@ -610,10 +658,6 @@ perspective n f fovy aspect = transpose $
     b = -t
     r = aspect*t
     l = -r
-
--- | Pure orientation matrix defined by Euler angles.
-rotationEuler :: Vec3 -> Proj4
-rotationEuler (Vec3 a b c) = orthogonal $ toOrthoUnsafe $ rotMatrixZ a .*. rotMatrixX b .*. rotMatrixY (-c)
 
 -- | Camera transformation matrix.
 lookat :: Vec3   -- ^ Camera position.

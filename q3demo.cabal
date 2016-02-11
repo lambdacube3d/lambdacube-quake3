@@ -7,18 +7,20 @@ Description:
                TBD
 Author:        Csaba Hruska
 Maintainer:    csaba (dot) hruska (at) gmail (dot) com
-Copyright:     (c) 2011-2012, Csaba Hruska
-Homepage:      http://www.haskell.org/haskellwiki/LambdaCubeEngine
-Bug-Reports:   http://code.google.com/p/lambdacube/issues
+Copyright:     (c) 2011-2016, Csaba Hruska
+Homepage:      http://lambdacube3d.com
+Bug-Reports:   https://github.com/csabahruska/lambdacube-quake3
 License:       BSD3
 License-File:  LICENSE
 Stability:     experimental
 Build-Type:    Simple
 Extra-Source-Files:
   BSP.hs
+  Camera.hs
+  Character.hs
+  Collision.hs
   Items.hs
   MD3.hs
-  Main.hs
   Material.hs
   Q3Patch.hs
   Render.hs
@@ -51,13 +53,12 @@ Executable q3demo-dsl
                   data-binary-ieee754,
                   digest,
                   elerea,
-                  lambdacube-compiler == 0.5.*,
-                  lambdacube-gl == 0.5.*,
-                  lambdacube-ir == 0.3.*,
+                  lambdacube-compiler == 0.4.*,
+                  lambdacube-gl == 0.4.*,
+                  lambdacube-ir == 0.2.*,
                   deepseq,
                   aeson,
                   time,
-                  mmap,
                   vect,
                   zlib
 

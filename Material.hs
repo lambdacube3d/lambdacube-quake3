@@ -5,7 +5,6 @@ import Data.Binary
 import GHC.Generics (Generic)
 
 import qualified Data.ByteString.Char8 as SB
---import Data.Vect
 import LambdaCube.Linear
 
 type Vec3 = V3 Float
@@ -80,7 +79,7 @@ data CommonAttrs
     { caSkyParms        :: !() -- TODO
     , caFogParms        :: !() -- TODO
     , caPortal          :: !Bool
-    , caSort            :: !Int -- default: 3 or 6 depends on blend function
+    , caSort            :: !Float -- default: 3 or 6 depends on blend function
     , caEntityMergable  :: !Bool
     , caFogOnly         :: !Bool
     , caCull            :: !CullType -- default: front
@@ -161,13 +160,13 @@ data StageTexture
     | ST_AnimMap    !Float ![SB.ByteString]
     | ST_Lightmap
     | ST_WhiteImage
-    deriving (Show, Eq, Ord,Generic)
+    deriving (Show,Eq,Ord,Generic)
 
 data AlphaFunction
     = A_Gt0
     | A_Lt128
     | A_Ge128
-    deriving (Show, Eq, Ord,Generic)
+    deriving (Show,Eq,Ord,Generic)
 
 data DepthFunction
     = D_Equal
@@ -186,7 +185,7 @@ data Blending
     | B_SrcAlphaSaturate
     | B_SrcColor
     | B_Zero
-    deriving (Show, Eq,Generic)
+    deriving (Show,Eq,Generic)
 
 data StageAttrs
     = StageAttrs

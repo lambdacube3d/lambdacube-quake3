@@ -7,7 +7,6 @@ import Data.Attoparsec.ByteString.Char8
 import Data.ByteString.Char8 (ByteString)
 import Data.Char (toLower)
 import Data.List (foldl')
---import Data.Vect
 import LambdaCube.Linear
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Trie as T
@@ -59,7 +58,10 @@ float = (\_ c a -> c * read a) <$> skipSpace' <*> option 1 ((const 1 <$> char '+
     )
     
 int :: Parser Int
-int = skipSpace' *> decimal
+int = skipSpace' *> signed decimal
+
+nat :: Parser Int
+nat = skipSpace' *> decimal
 
 -- q3 entity description parser
 entities :: Parser [T.Trie ByteString]
@@ -245,7 +247,7 @@ sort = (\_ i ca -> ca {caSort = i}) <$> kw "sort" <*> (
     val 10 "additive"   <|>
     val 16 "nearest"    <|>
     val 8  "underwater" <|>
-    int)
+    float)
 
 --
 -- Stage Specific Keywords

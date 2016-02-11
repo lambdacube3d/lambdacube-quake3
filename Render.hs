@@ -1,8 +1,9 @@
-{-# LANGUAGE ViewPatterns, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards, ViewPatterns #-}
 module Render where
 
 import Control.Applicative
 import Control.Monad
+import Data.ByteString.Char8 (ByteString)
 import Data.Vect.Float
 import Data.List
 import Foreign
@@ -13,8 +14,9 @@ import qualified Data.Vector.Storable.Mutable as SMV
 import qualified Data.Vector.Storable as SV
 import qualified Data.ByteString as SB
 import qualified Data.ByteString.Char8 as SB8
-import Debug.Trace
 import Codec.Picture
+import Debug.Trace
+import System.FilePath
 
 import BSP
 import LambdaCube.GL
@@ -48,7 +50,11 @@ addObject' rndr name prim idx attrs unis = addObject rndr name' prim idx attrs' 
   where
     attrs'  = Map.filterWithKey (\n _ -> elem n renderAttrs) attrs
     setters = objectArrays . schema $ rndr
-    name'  = if Map.member name setters then name else "missing shader"
+    alias   = dropExtension name
+    name'
+      | Map.member name setters = name
+      | Map.member alias setters = alias
+      | otherwise = "missing shader"
     renderAttrs = Map.keys $ case Map.lookup name' setters of
         Just (ObjectArraySchema _ x)  -> x
         _           -> error $ "material not found: " ++ show name'
@@ -124,16 +130,19 @@ addBSP renderer bsp = do
 
 data LCMD3
     = LCMD3
-    { lcmd3Object   :: [Object]
+    { lcmd3Model    :: MD3Model
+    , lcmd3Object   :: [Object]
     , lcmd3Buffer   :: Buffer
     , lcmd3Frames   :: V.Vector [(Int,Array)]
     }
 
 setMD3Frame :: LCMD3 -> Int -> IO ()
-setMD3Frame (LCMD3 _ buf frames) idx = updateBuffer buf $ frames V.! idx
+setMD3Frame (LCMD3{..}) idx = updateBuffer lcmd3Buffer $ lcmd3Frames V.! idx
 
-addMD3 :: GLStorage -> MD3Model -> [String] -> IO LCMD3
-addMD3 r model unis = do
+type MD3Skin = Map String String
+
+addMD3 :: GLStorage -> MD3Model -> MD3Skin -> [String] -> IO LCMD3
+addMD3 r model skin unis = do
     let cvtSurface :: MD3.Surface -> (Array,Array,V.Vector (Array,Array))
         cvtSurface sf = ( Array ArrWord16 (SV.length indices) (withV indices)
                         , Array ArrFloat (2 * SV.length texcoords) (withV texcoords)
@@ -161,17 +170,32 @@ addMD3 r model unis = do
                 (p,n) = V.unzip pn
             posNorms = V.map cvtPosNorm $ MD3.srXyzNormal sf
 
-        addSurface (il,tl,pl,nl,pnl) sf = (i:il,t:tl,p:pl,n:nl,pn:pnl)
+        addSurface sf (il,tl,pl,nl,pnl) = (i:il,t:tl,p:pl,n:nl,pn:pnl)
           where
             (i,t,pn) = cvtSurface sf
             (p,n)    = V.head pn
-        addFrame f (idx,pn) = V.zipWith (\l (p,n) -> (2 * numSurfaces + idx,p):(3 * numSurfaces + idx,n):l) f pn
-        (il,tl,pl,nl,pnl)   = V.foldl' addSurface ([],[],[],[],[]) surfaces
+        (il,tl,pl,nl,pnl)   = V.foldr addSurface ([],[],[],[],[]) surfaces
         surfaces            = MD3.mdSurfaces model
         numSurfaces         = V.length surfaces
-        frames              = foldl' addFrame (V.replicate (V.length $ MD3.mdFrames model) []) $ zip [0..] pnl
+        frames              = foldr addSurfaceFrames emptyFrame $ zip [0..] pnl
+          where
+            emptyFrame = V.replicate (V.length $ MD3.mdFrames model) []
+            -- TODO: ????
+            addSurfaceFrames (idx,pn) f = V.zipWith (\l (p,n) -> (2 * numSurfaces + idx,p):(3 * numSurfaces + idx,n):l) f pn
 
-    buffer <- compileBuffer $ concat [reverse il,reverse tl,reverse pl,reverse nl]
+    {-
+        buffer layout
+          index arrays for surfaces         [index array of surface 0,          index array of surface 1,         ...]
+          texture coord arrays for surfaces [texture coord array of surface 0,  texture coord array of surface 1, ...]
+          position arrays for surfaces      [position array of surface 0,       position array of surface 1,      ...]
+          normal arrays for surfaces        [normal array of surface 0,         normal array of surface 1,        ...]
+        in short: [ surf1_idx..surfN_idx
+                  , surf1_tex..surfN_tex
+                  , surf1_pos..surfN_pos
+                  , surf1_norm..surfN_norm
+                  ]
+    -}
+    buffer <- compileBuffer $ concat [il,tl,pl,nl]
 
     objs <- forM (zip [0..] $ V.toList surfaces) $ \(idx,sf) -> do
         let countV = V.length $ MD3.srTexCoords sf
@@ -180,15 +204,19 @@ addMD3 r model unis = do
                 [ ("diffuseUV",     Stream Attribute_V2F buffer (1 * numSurfaces + idx) 0 countV)
                 , ("position",      Stream Attribute_V3F buffer (2 * numSurfaces + idx) 0 countV)
                 , ("normal",        Stream Attribute_V3F buffer (3 * numSurfaces + idx) 0 countV)
-                , ("color",         ConstV4F (V4 0.5 0 0 1))
+                , ("color",         ConstV4F (V4 1 1 1 1))
                 , ("lightmapUV",    ConstV2F (V2 0 0))
                 ]
             index = IndexStream buffer idx 0 countI
-        addObject' r "missing shader" TriangleList (Just index) attrs ["worldMat"]
+            materialName s = case Map.lookup (SB8.unpack $ MD3.srName sf) skin of
+              Nothing -> SB8.unpack $ MD3.shName s
+              Just a  -> a
+        forM (V.toList $ MD3.srShaders sf) $ \s -> addObject' r (materialName s) TriangleList (Just index) attrs ["worldMat"]
     -- question: how will be the referred shaders loaded?
     --           general problem: should the gfx network contain all passes (every possible materials)?
     return $ LCMD3
-        { lcmd3Object   = objs
+        { lcmd3Model    = model
+        , lcmd3Object   = concat objs
         , lcmd3Buffer   = buffer
         , lcmd3Frames   = frames
         }
