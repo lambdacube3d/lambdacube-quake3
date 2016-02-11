@@ -176,8 +176,9 @@ readCharacters pk3Data p0 = do
         Just skin -> skin
 
       characterSkinMaterials = Set.fromList $ concat [map SB.pack . Map.elems $ characterModelSkin name part | name <- characterNames, part <- ["head","upper","lower"]]
-      characterObjs = [[(mkWorldMat x (y + 100 * fromIntegral i) z, m) | m <- ml] | (i,ml) <- zip [0..] characterModels]
+      characterObjs = [[(mkWorldMat (x + 200 * sin (angle i)) (y + 200 * cos (angle i)) z, m) | m <- ml] | (i,ml) <- zip [0..] characterModels]
         where
+          angle i = fromIntegral i / 24 * pi * 2
           Vec3 x y z = p0
           characterModels = [[(characterModelSkin name part,"models/players/" ++ name ++ "/" ++ part ++ ".md3") | part <- ["head","upper","lower"]] | name <- characterNames]
 
