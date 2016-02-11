@@ -115,6 +115,30 @@ loadPK3 = do
       isPrefixOfCI a b = isPrefixOf a $ map toLower b
   Map.unions <$> (mapM readArchive =<< filter (\n -> ".pk3" == takeExtensionCI n) <$> getDirectoryContents ".")
 
+createLoadingScreen = do
+  -- storage
+  storage <- allocStorage $ makeSchema $ do
+    defUniforms $ do
+      "LoadingImage" @: FTexture2D
+  -- pipeline
+  pipelineDesc <- compileMain ["."] OpenGL33 "Loading" >>= \case
+    Left err  -> fail $ "compile error:\n" ++ err
+    Right pd  -> return pd
+  renderer <- allocRenderer pipelineDesc
+  -- connect them
+  setStorage renderer storage >>= \case -- check schema compatibility
+    Just err -> fail err
+    Nothing  -> return (storage,renderer)
+
+drawLoadingScreen win defaultTexture (storage,renderer) pk3Data bspName = do
+    textureData <- loadQ3Texture True True defaultTexture pk3Data (SB.pack $ "levelshots/" ++ bspName)
+    (w,h) <- getWindowSize win
+    setScreenSize storage (fromIntegral w) (fromIntegral h)
+    updateUniforms storage $ do
+      "LoadingImage" @= return textureData
+    renderFrame renderer
+    swapBuffers win
+
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
@@ -156,6 +180,16 @@ main = do
             Nothing -> error "You need to put pk3 file into your current directory"
             Just bspd -> bspd
 
+    win <- initWindow "LC DSL Quake 3 Demo" 800 600
+    -- default texture
+    let redBitmap x y   = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
+    defaultTexture <- uploadTexture2DToGPU' False True False $ ImageRGB8 $ generateImage redBitmap 32 32
+
+    -- loading screen
+    loadingScreen <- createLoadingScreen
+    drawLoadingScreen win defaultTexture loadingScreen pk3Data bspName
+
+    -- load bsp data
     bsp <- readBSP . LB.fromStrict <$> readEntry bspEntry
 
     -- extract spawn points
@@ -291,7 +325,6 @@ main = do
     let pplName = bspName ++ "_ppl.json"
     q3ppl <- compileQuake3GraphicsCached pplName
 
-    win <- initWindow "LC DSL Quake 3 Demo" 800 600
     let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
 
     -- CommonAttrs
@@ -321,6 +354,7 @@ main = do
                                     , ("SawToothTable",        FTexture2D)
                                     , ("InverseSawToothTable", FTexture2D)
                                     , ("TriangleTable",        FTexture2D)
+                                    , ("LoadingImage",  FTexture2D)
                                     ] ++ zip textureUniforms (repeat FTexture2D)
           }
     storage <- allocStorage inputSchema
@@ -344,9 +378,6 @@ main = do
 
     putStrLn "loading textures:"
     -- load textures
-    let redBitmap x y   = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
-
-    defaultTexture <- uploadTexture2DToGPU' False True False $ ImageRGB8 $ generateImage redBitmap 32 32
     animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ concatMap (\sh -> [(saTexture sa,saTextureUniform sa,caNoMipMaps sh) | sa <- caStages sh]) $ T.elems shMapTexSlot) $
       \(stageTex,texSlotName,noMip) -> do
         let texSetter = uniformFTexture2D texSlotName  slotU
