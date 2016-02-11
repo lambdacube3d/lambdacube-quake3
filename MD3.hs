@@ -43,18 +43,18 @@ data Shader
 
 data Surface
     = Surface
-    { srName        :: SB.ByteString
-    , srShaders     :: Vector Shader
-    , srTriangles   :: Vector (Int,Int,Int)
-    , srTexCoords   :: Vector Vec2
-    , srXyzNormal   :: Vector (Vector (Vec3,Vec3))
+    { srName        :: !SB.ByteString
+    , srShaders     :: !(Vector Shader)
+    , srTriangles   :: !(Vector (Int,Int,Int))
+    , srTexCoords   :: !(Vector Vec2)
+    , srXyzNormal   :: !(Vector (Vector (Vec3,Vec3)))
     } deriving Show
 
 data MD3Model
     = MD3Model
-    { mdFrames      :: Vector Frame
-    , mdTags        :: Vector (Map SB.ByteString Tag)
-    , mdSurfaces    :: Vector Surface
+    { mdFrames      :: !(Vector Frame)
+    , mdTags        :: !(Vector (Map SB.ByteString Tag))
+    , mdSurfaces    :: !(Vector Surface)
     } deriving Show
 
 getString   = fmap (SB.takeWhile (/= '\0')) . getByteString

@@ -24,13 +24,13 @@ import ShaderParser (val,kw,float,int,nat,skip)
 -}
 data Animation
   = Animation
-  { aFirstFrame :: Int
-  , aNumFrames  :: Int
-  , aLoopFrames :: Int  -- 0 to numFrames
-  , aFrameLerp  :: Int  -- msec between frames
-  , aIntialLerp :: Int  -- msec to get to first frame
-  , aReversed   :: Bool -- true if animation is reversed
-  , aFlipFlop   :: Bool -- true if animation should flipflop back to base
+  { aFirstFrame :: !Int
+  , aNumFrames  :: !Int
+  , aLoopFrames :: !Int  -- 0 to numFrames
+  , aFrameLerp  :: !Int  -- msec between frames
+  , aIntialLerp :: !Int  -- msec to get to first frame
+  , aReversed   :: !Bool -- true if animation is reversed
+  , aFlipFlop   :: !Bool -- true if animation should flipflop back to base
   }
   deriving (Show, Eq, Ord)
 
@@ -102,12 +102,12 @@ data AnimationType
 
 data Character
   = Character
-  { animationMap  :: Map AnimationType Animation
-  , gender        :: Gender
-  , footStep      :: FootStep
-  , headOffset    :: V3 Float
-  , fixedLegs     :: Bool
-  , fixedTorso    :: Bool
+  { animationMap  :: !(Map AnimationType Animation)
+  , gender        :: !Gender
+  , footStep      :: !FootStep
+  , headOffset    :: !(V3 Float)
+  , fixedLegs     :: !Bool
+  , fixedTorso    :: !Bool
   }
   deriving (Show, Eq, Ord)
 

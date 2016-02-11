@@ -36,7 +36,7 @@ import qualified Data.Vector.Storable as SV
 import Debug.Trace
 import Text.Show.Pretty
 
-import Graphics.GL.Core32
+import Graphics.GL.Core33
 
 import Data.Digest.CRC32
 import Codec.Picture
@@ -46,7 +46,9 @@ import LambdaCube.GL.Mesh
 --import IR as IR
 import LambdaCube.Compiler hiding (ppShow)
 
---import Effect
+import Control.Exception (evaluate)
+import Control.DeepSeq
+import GHC.Generics
 
 import BSP
 import Camera
@@ -139,6 +141,76 @@ drawLoadingScreen win defaultTexture (storage,renderer) pk3Data bspName = do
     renderFrame renderer
     swapBuffers win
 
+mkWorldMat x y z = translation $ Vec3 x y z
+
+readCharacters pk3Data p0 = do
+  let characterNames = characterNamesFull -- characterNamesDemo
+        where
+          characterNamesFull = [ "anarki","biker","bitterman","bones","crash","doom","grunt","hunter","keel","klesk","lucy","major","mynx"
+                               , "orbb","ranger","razor","sarge","slash","sorlag","tankjr","uriel","visor","xaero"
+                               ]
+          characterNamesDemo = ["major","visor","sarge","grunt"]
+
+      readCharacterModelSkin name part = do
+        let fname = "models/players/" ++ name ++ "/" ++ part ++ "_default.skin"
+        txt <- case Map.lookup fname pk3Data of
+          Nothing -> fail $ "missing skin: " ++ fname
+          Just e -> readEntry e
+        return $ Map.fromList
+          [ (head k,head v)
+          | l <- lines $ SB.unpack txt
+          , i <- maybeToList $ elemIndex ',' l
+          , let (words . map toLower -> k,words . map toLower . tail -> v) = splitAt i l
+          , not . null $ k
+          , not . null $ v
+          ]
+
+  characterSkinMap <- evaluate =<< (force . Map.fromList <$> sequence
+    [ ((name,part),) <$> readCharacterModelSkin name part 
+    | name <- characterNames
+    , part <- ["head","upper","lower"]
+    ])
+
+  let characterModelSkin name part = case Map.lookup (name,part) characterSkinMap of
+        Nothing -> error $ unwords ["missing skin for", name, "body part", part]
+        Just skin -> skin
+
+      characterSkinMaterials = Set.fromList $ concat [map SB.pack . Map.elems $ characterModelSkin name part | name <- characterNames, part <- ["head","upper","lower"]]
+      characterObjs = [[(mkWorldMat x (y + 100 * fromIntegral i) z, m) | m <- ml] | (i,ml) <- zip [0..] characterModels]
+        where
+          Vec3 x y z = p0
+          characterModels = [[(characterModelSkin name part,"models/players/" ++ name ++ "/" ++ part ++ ".md3") | part <- ["head","upper","lower"]] | name <- characterNames]
+
+  characters <- sequence
+    [ parseCharacter fname <$> readEntry e
+    | name <- characterNames
+    , let fname = "models/players/" ++ name ++ "/animation.cfg"
+          e = maybe (error $ "missing " ++ fname) id $ Map.lookup fname pk3Data
+    ]
+  return (characterSkinMaterials,characterObjs,characters)
+
+readMD3Objects characterObjs ents pk3Data = do
+    let itemMap = T.fromList [(SB.pack $ itClassName it,it) | it <- items]
+        collectObj e
+          | Just classname <- T.lookup "classname" e
+          , Just o <- T.lookup "origin" e
+          , [x,y,z] <- map (read :: String -> Float) $ words $ SB.unpack o = case T.lookup classname itemMap of
+            Just i -> [(mat, (mempty,m)) | m <- Prelude.take cnt $ itWorldModel i, let mat = mkWorldMat x y z]
+              where cnt = if itType i `elem` [IT_HEALTH, IT_POWERUP] then 2 else 1
+            Nothing -> case T.lookup "model2" e of
+              Just m -> [(mkWorldMat x y z, (mempty,SB.unpack m))]
+              Nothing -> []
+          | otherwise = []
+        md3Objs = concatMap collectObj ents
+    md3Map <- T.fromList <$> sequence
+      [ (\a -> (SB.pack n,MD3.readMD3 $ LB.fromStrict a)) <$> readEntry m
+      | n <- Set.toList . Set.fromList . map (snd . snd) $ md3Objs ++ concat characterObjs
+      , m <- maybeToList $ Map.lookup n pk3Data
+      ]
+    let md3Materials = Set.fromList . concatMap (concatMap (map MD3.shName . V.toList . MD3.srShaders) . V.toList . MD3.mdSurfaces) $ T.elems md3Map
+
+    return (md3Materials,md3Map,md3Objs)
+
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
@@ -204,69 +276,8 @@ main = do
         p0 = head spawnPoints
 
     -- MD3 related code
-    let itemMap = T.fromList [(SB.pack $ itClassName it,it) | it <- items]
-
-        characterNames = characterNamesFull -- characterNamesDemo
-          where
-            characterNamesFull = [ "anarki","biker","bitterman","bones","crash","doom","grunt","hunter","keel","klesk","lucy","major","mynx"
-                                 , "orbb","ranger","razor","sarge","slash","sorlag","tankjr","uriel","visor","xaero"
-                                 ]
-            characterNamesDemo = ["major","visor","sarge","grunt"]
-
-        readCharacterModelSkin name part = do
-          let fname = "models/players/" ++ name ++ "/" ++ part ++ "_default.skin"
-          txt <- case Map.lookup fname pk3Data of
-            Nothing -> fail $ "missing skin: " ++ fname
-            Just e -> readEntry e
-          return $ Map.fromList
-            [ (head k,head v)
-            | l <- lines $ SB.unpack txt
-            , i <- maybeToList $ elemIndex ',' l
-            , let (words . map toLower -> k,words . map toLower . tail -> v) = splitAt i l
-            , not . null $ k
-            , not . null $ v
-            ]
-    characterSkinMap <- Map.fromList <$> sequence
-      [ ((name,part),) <$> readCharacterModelSkin name part 
-      | name <- characterNames
-      , part <- ["head","upper","lower"]
-      ]
-    let mkWorldMat x y z = translation $ Vec3 x y z
-        characterModelSkin name part = case Map.lookup (name,part) characterSkinMap of
-          Nothing -> error $ unwords ["missing skin for", name, "body part", part]
-          Just skin -> skin
-
-        characterSkinMaterials = Set.fromList $ concat [map SB.pack . Map.elems $ characterModelSkin name part | name <- characterNames, part <- ["head","upper","lower"]]
-        characterObjs = [[(mkWorldMat x (y + 100 * fromIntegral i) z, m) | m <- ml] | (i,ml) <- zip [0..] characterModels]
-          where
-            Vec3 x y z = p0
-            characterModels = [[(characterModelSkin name part,"models/players/" ++ name ++ "/" ++ part ++ ".md3") | part <- ["head","upper","lower"]] | name <- characterNames]
-
-    characters <- sequence
-      [ parseCharacter fname <$> readEntry e
-      | name <- characterNames
-      , let fname = "models/players/" ++ name ++ "/animation.cfg"
-            e = maybe (error $ "missing " ++ fname) id $ Map.lookup fname pk3Data
-      ]
-
-    let collectObj e
-          | Just classname <- T.lookup "classname" e
-          , Just o <- T.lookup "origin" e
-          , [x,y,z] <- map (read :: String -> Float) $ words $ SB.unpack o = case T.lookup classname itemMap of
-            Just i -> [(mat, (mempty,m)) | m <- Prelude.take cnt $ itWorldModel i, let mat = mkWorldMat x y z]
-              where cnt = if itType i `elem` [IT_HEALTH, IT_POWERUP] then 2 else 1
-            Nothing -> case T.lookup "model2" e of
-              Just m -> [(mkWorldMat x y z, (mempty,SB.unpack m))]
-              Nothing -> []
-          | otherwise = []
-        md3Objs = concatMap collectObj ents
-    md3Map <- T.fromList <$> sequence
-      [ (\a -> (SB.pack n,MD3.readMD3 $ LB.fromStrict a)) <$> readEntry m
-      | n <- Set.toList . Set.fromList . map (snd . snd) $ md3Objs ++ concat characterObjs
-      , m <- maybeToList $ Map.lookup n pk3Data
-      ]
-    let md3Materials = Set.fromList . concatMap (concatMap (map MD3.shName . V.toList . MD3.srShaders) . V.toList . MD3.mdSurfaces) $ T.elems md3Map
-
+    (characterSkinMaterials,characterObjs,characters) <- readCharacters pk3Data p0
+    (md3Materials,md3Map,md3Objs) <- readMD3Objects characterObjs ents pk3Data
     --putStrLn $ "level materials"
     --mapM_ SB.putStrLn $ map shName $ V.toList $ blShaders bsp
     shMap' <- do
@@ -354,7 +365,6 @@ main = do
                                     , ("SawToothTable",        FTexture2D)
                                     , ("InverseSawToothTable", FTexture2D)
                                     , ("TriangleTable",        FTexture2D)
-                                    , ("LoadingImage",  FTexture2D)
                                     ] ++ zip textureUniforms (repeat FTexture2D)
           }
     storage <- allocStorage inputSchema
@@ -392,14 +402,7 @@ main = do
 
     putStrLn $ "loading: " ++ show bspName
     objs <- addBSP storage bsp
-{-
-    -- setup menu
-    levelShots <- sequence [(n,) <$> loadQ3Texture True True defaultTexture archiveTrie (SB.append "levelshots/" n) | n <- T.keys bspMap]
-    menuObj <- addMesh menuRenderer "postSlot" compiledQuad ["ScreenQuad"]
-    let menuObjUnis = objectUniformSetter menuObj
-    --uniformFTexture2D' "ScreenQuad" menuObjUnis defaultTexture
-    uniformFTexture2D' "ScreenQuad" menuObjUnis $ snd $ head levelShots
--}
+
     -- add entities
     let addMD3Obj (mat,(skin,name)) = case T.lookup (SB.pack name) md3Map of
           Nothing -> return []
