@@ -130,8 +130,7 @@ addBSP renderer bsp = do
 
 data LCMD3
     = LCMD3
-    { lcmd3Model    :: MD3Model
-    , lcmd3Object   :: [Object]
+    { lcmd3Object   :: [Object]
     , lcmd3Buffer   :: Buffer
     , lcmd3Frames   :: V.Vector [(Int,Array)]
     }
@@ -144,13 +143,15 @@ type MD3Skin = Map String String
 addMD3 :: GLStorage -> MD3Model -> MD3Skin -> [String] -> IO LCMD3
 addMD3 r model skin unis = do
     let cvtSurface :: MD3.Surface -> (Array,Array,V.Vector (Array,Array))
-        cvtSurface sf = ( Array ArrWord16 (SV.length indices) (withV indices)
+        cvtSurface sf = ( Array ArrWord32 (SV.length indices) (withV indices)
                         , Array ArrFloat (2 * SV.length texcoords) (withV texcoords)
                         , posNorms
                         )
           where
             withV a f = SV.unsafeWith a (\p -> f $ castPtr p)
             tris = MD3.srTriangles sf
+            indices = tris
+            {-
             intToWord16 :: Int -> Word16
             intToWord16 = fromIntegral
             addIndex v i (a,b,c) = do
@@ -162,12 +163,13 @@ addMD3 r model skin unis = do
                 v <- SMV.new $ 3 * V.length tris
                 V.foldM_ (addIndex v) 0 tris
                 return v
-            texcoords = SV.convert $ MD3.srTexCoords sf :: SV.Vector Vec2
-            cvtPosNorm pn = (f p, f n)
+            -}
+            texcoords = MD3.srTexCoords sf
+            cvtPosNorm (p,n) = (f p, f n)
               where
-                f :: V.Vector Vec3 -> Array
-                f v = Array ArrFloat (3 * V.length v) $ withV $ SV.convert v
-                (p,n) = V.unzip pn
+                --f :: V.Vector Vec3 -> Array
+                f sv = Array ArrFloat (3 * SV.length sv) $ withV sv
+                --(p,n) = V.unzip pn
             posNorms = V.map cvtPosNorm $ MD3.srXyzNormal sf
 
         addSurface sf (il,tl,pl,nl,pnl) = (i:il,t:tl,p:pl,n:nl,pn:pnl)
@@ -198,8 +200,8 @@ addMD3 r model skin unis = do
     buffer <- compileBuffer $ concat [il,tl,pl,nl]
 
     objs <- forM (zip [0..] $ V.toList surfaces) $ \(idx,sf) -> do
-        let countV = V.length $ MD3.srTexCoords sf
-            countI = 3 * V.length (MD3.srTriangles sf)
+        let countV = SV.length $ MD3.srTexCoords sf
+            countI = SV.length (MD3.srTriangles sf)
             attrs = Map.fromList $
                 [ ("diffuseUV",     Stream Attribute_V2F buffer (1 * numSurfaces + idx) 0 countV)
                 , ("position",      Stream Attribute_V3F buffer (2 * numSurfaces + idx) 0 countV)
@@ -215,8 +217,7 @@ addMD3 r model skin unis = do
     -- question: how will be the referred shaders loaded?
     --           general problem: should the gfx network contain all passes (every possible materials)?
     return $ LCMD3
-        { lcmd3Model    = model
-        , lcmd3Object   = concat objs
+        { lcmd3Object   = concat objs
         , lcmd3Buffer   = buffer
         , lcmd3Frames   = frames
         }

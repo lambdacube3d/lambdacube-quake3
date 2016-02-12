@@ -16,6 +16,7 @@ import Data.Vector (Vector)
 import qualified Data.ByteString.Char8 as SB
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Vector as V
+import qualified Data.Vector.Storable as SV
 
 data Frame
     = Frame
@@ -45,9 +46,9 @@ data Surface
     = Surface
     { srName        :: !SB.ByteString
     , srShaders     :: !(Vector Shader)
-    , srTriangles   :: !(Vector (Int,Int,Int))
-    , srTexCoords   :: !(Vector Vec2)
-    , srXyzNormal   :: !(Vector (Vector (Vec3,Vec3)))
+    , srTriangles   :: !(SV.Vector Int32)
+    , srTexCoords   :: !(SV.Vector Vec2)
+    , srXyzNormal   :: !(Vector (SV.Vector Vec3,SV.Vector Vec3))
     } deriving Show
 
 data MD3Model
@@ -72,6 +73,7 @@ getInt      = fromIntegral <$> getInt' :: Get Int
 getInt3     = (,,) <$> getInt <*> getInt <*> getInt
 getAngle    = (\i -> fromIntegral i * 2 * pi / 255) <$> getUByte
 getV o n f dat = runGet (V.replicateM n f) (LB.drop (fromIntegral o) dat)
+getSV o n f dat = runGet (SV.replicateM n f) (LB.drop (fromIntegral o) dat)
 
 getFrame    = Frame <$> getVec3 <*> getVec3 <*> getVec3 <*> getFloat <*> getString 64
 getTag      = Tag <$> getString 64 <*> getVec3 <*> getVec3 <*> getVec3 <*> getVec3
@@ -92,8 +94,11 @@ getSurface = (\(o,v) -> skip o >> return v) =<< lookAhead getSurface'
         flags <- getInt
         [nFrames,nShaders,nVerts,nTris] <- replicateM 4 getInt
         [oTris,oShaders,oTexCoords,oXyzNormals,oEnd] <- replicateM 5 getInt
-        return $ (oEnd,Surface name (getV oShaders nShaders getShader dat) (getV oTris nTris getInt3 dat)
-                                    (getV oTexCoords nVerts getVec2 dat) (getV oXyzNormals nFrames (V.replicateM nVerts getXyzNormal) dat))
+        return $ (oEnd,Surface name
+          (getV oShaders nShaders getShader dat)
+          (getSV oTris (3*nTris) getInt32le dat)
+          (getSV oTexCoords nVerts getVec2 dat)
+          (getV oXyzNormals nFrames ((\(p,n) -> (SV.fromList p,SV.fromList n)) . unzip <$> replicateM nVerts getXyzNormal) dat))
 
 getMD3Model = do
     dat <- lookAhead getRemainingLazyByteString
