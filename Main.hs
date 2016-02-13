@@ -78,7 +78,7 @@ tableTexture t n s = do
         bitmap x y  = let a = floor $ min 255 $ max 0 $ 128 + 128 * v V.! x in PixelRGB8 a a a
         texture     = uniformFTexture2D n s
 
-    tex <- uploadTexture2DToGPU' False False False $ ImageRGB8 $ generateImage bitmap width 1
+    tex <- uploadTexture2DToGPU' True False False False $ ImageRGB8 $ generateImage bitmap width 1
     texture tex
 
 setupTables :: Map GLUniformName InputSetter -> IO ()
@@ -144,12 +144,13 @@ drawLoadingScreen win defaultTexture (storage,renderer) pk3Data bspName = do
 mkWorldMat x y z = translation $ Vec3 x y z
 
 readCharacters pk3Data p0 = do
-  let characterNames = characterNamesFull -- characterNamesDemo
-        where
-          characterNamesFull = [ "anarki","biker","bitterman","bones","crash","doom","grunt","hunter","keel","klesk","lucy","major","mynx"
-                               , "orbb","ranger","razor","sarge","slash","sorlag","tankjr","uriel","visor","xaero"
-                               ]
-          characterNamesDemo = ["major","visor","sarge","grunt"]
+  let --characterNames = characterNamesFull
+      characterNames = characterNamesDemo
+
+      characterNamesFull = [ "anarki","biker","bitterman","bones","crash","doom","grunt","hunter","keel","klesk","lucy","major","mynx"
+                           , "orbb","ranger","razor","sarge","slash","sorlag","tankjr","uriel","visor","xaero"
+                           ]
+      characterNamesDemo = ["major","visor","sarge","grunt"]
 
       readCharacterModelSkin name part = do
         let fname = "models/players/" ++ name ++ "/" ++ part ++ "_default.skin"
@@ -240,7 +241,7 @@ main = do
     args <- getArgs
     let bspNames = [n | n <- Map.keys pk3Data, ".bsp" == takeExtension n]
     fullBSPName <- head <$> case args of
-      (n:xs) -> return $ filter (isInfixOf n) bspNames
+      (n:xs) -> return $ filter ((== n) . takeBaseName) bspNames
       _ -> do
             let maps = map takeBaseName bspNames
             putStrLn $ "Available maps:"
@@ -254,9 +255,10 @@ main = do
             Just bspd -> bspd
 
     win <- initWindow "LC DSL Quake 3 Demo" 800 600
+
     -- default texture
-    let redBitmap x y   = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
-    defaultTexture <- uploadTexture2DToGPU' False True False $ ImageRGB8 $ generateImage redBitmap 32 32
+    let redBitmap x y = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
+    defaultTexture <- uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage redBitmap 2 2
 
     -- loading screen
     loadingScreen <- createLoadingScreen
@@ -296,10 +298,10 @@ main = do
             Just s -> (alias,s)
             Nothing -> (n,imageShader hasLightmap n)
 
-        maxMaterial = 50 -- TODO: remove if we will have fast reducer
-        shNames = Set.fromList $ {-Prelude.take maxMaterial-} selectedMaterials
+        maxMaterial = 20 -- TODO: remove if we will have fast reducer
+        shNames = Set.fromList $ Prelude.take maxMaterial selectedMaterials
         allShName = map shName $ V.toList $ blShaders bsp
-        (selectedMaterials,ignoredMaterials) = partition (\n -> or $ True:[SB.isInfixOf k n | k <- ["floor","wall","door","trim","block"]]) allShName
+        (selectedMaterials,ignoredMaterials) = partition (\n -> or $ [SB.isInfixOf k n | k <- ["floor","wall","door","trim","block"]]) allShName
 
         shMap = T.fromList [mkShader True n | n <- Set.toList shNames] `T.unionL`
                 T.fromList [mkShader False n | n <- Set.toList md3Materials] `T.unionL`
@@ -747,7 +749,7 @@ loadQ3Texture isMip isClamped defaultTex ar name' = do
             putStrLn $ "  load: " ++ fname
             case eimg of
                 Left msg    -> putStrLn ("    error: " ++ msg) >> return defaultTex
-                Right img   -> uploadTexture2DToGPU' True isMip isClamped img
+                Right img   -> uploadTexture2DToGPU' True True isMip isClamped img
 
 showTime delta
     | t > 1e-1  = printf "%.3fs" t

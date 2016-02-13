@@ -64,8 +64,8 @@ addBSP renderer bsp = do
     let byteStringToVector :: SB.ByteString -> SV.Vector Word8
         byteStringToVector = SV.fromList . SB.unpack
     lightMapTextures <- fmap V.fromList $ forM (V.toList $ blLightmaps bsp) $ \(Lightmap d) -> do
-        uploadTexture2DToGPU' False True True $ ImageRGB8 $ Image 128 128 $ byteStringToVector d
-    whiteTex <- uploadTexture2DToGPU' False False False $ ImageRGB8 $ generateImage (\_ _ -> PixelRGB8 255 255 255) 128 128
+        uploadTexture2DToGPU' True False True True $ ImageRGB8 $ Image 128 128 $ byteStringToVector d
+    whiteTex <- uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage (\_ _ -> PixelRGB8 255 255 255) 1 1
 
     let lightMapTexturesSize = V.length lightMapTextures
         shaders = blShaders bsp

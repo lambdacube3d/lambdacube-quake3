@@ -96,7 +96,7 @@ getSurface = (\(o,v) -> skip o >> return v) =<< lookAhead getSurface'
         [oTris,oShaders,oTexCoords,oXyzNormals,oEnd] <- replicateM 5 getInt
         return $ (oEnd,Surface name
           (getV oShaders nShaders getShader dat)
-          (getSV oTris (3*nTris) getInt32le dat)
+          (getSV oTris (3*nTris) (fromIntegral <$> getWord32le) dat)
           (getSV oTexCoords nVerts getVec2 dat)
           (getV oXyzNormals nFrames ((\(p,n) -> (SV.fromList p,SV.fromList n)) . unzip <$> replicateM nVerts getXyzNormal) dat))
 
