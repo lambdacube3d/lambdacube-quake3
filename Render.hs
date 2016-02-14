@@ -46,7 +46,7 @@ tessellatePatch drawV sf level = (V.concat vl,V.concat il)
     (vl,il)     = unzip $ reverse $ snd $ foldl' (\(o,l) (v,i) -> (o+V.length v, (v,V.map (+o) i):l)) (0,[]) patches
 
 addObject' :: GLStorage -> String -> Primitive -> Maybe (IndexStream Buffer) -> Map String (Stream Buffer) -> [String] -> IO Object
-addObject' rndr name prim idx attrs unis = addObject rndr "LightMapOnly" prim idx attrs' unis >> addObject rndr name' prim idx attrs' unis
+addObject' rndr name prim idx attrs unis = addObject rndr name' prim idx attrs' unis
   where
     attrs'  = Map.filterWithKey (\n _ -> elem n renderAttrs) attrs
     setters = objectArrays . schema $ rndr
@@ -115,7 +115,8 @@ addBSP renderer bsp = do
                 index = IndexStream indexBuffer 0 startI countI
                 isValidIdx i = i >= 0 && i < lightMapTexturesSize
             o <- addObject' renderer name prim (Just index) attrs ["LightMap"]
-            let lightMap = uniformFTexture2D "LightMap" $ objectUniformSetter o
+            o1 <- addObject renderer "LightMapOnly" prim (Just index) attrs ["LightMap"]
+            let lightMap a = forM_ [o,o1] $ \b -> uniformFTexture2D "LightMap" (objectUniformSetter b) a
             {-
                 #define LIGHTMAP_2D			-4		// shader is for 2D rendering
                 #define LIGHTMAP_BY_VERTEX	-3		// pre-lit triangle models
@@ -213,7 +214,10 @@ addMD3 r model skin unis = do
             materialName s = case Map.lookup (SB8.unpack $ MD3.srName sf) skin of
               Nothing -> SB8.unpack $ MD3.shName s
               Just a  -> a
-        forM (V.toList $ MD3.srShaders sf) $ \s -> addObject' r (materialName s) TriangleList (Just index) attrs ["worldMat"]
+        concat <$> forM (V.toList $ MD3.srShaders sf) (\s -> do
+          a <- addObject' r (materialName s) TriangleList (Just index) attrs ["worldMat"]
+          b <- addObject r "LightMapOnly" TriangleList (Just index) attrs ["worldMat"]
+          return [a,b])
     -- question: how will be the referred shaders loaded?
     --           general problem: should the gfx network contain all passes (every possible materials)?
     return $ LCMD3
