@@ -34,7 +34,7 @@ Flag Capture
 Executable q3demo-dsl
   HS-Source-Dirs: .
   Main-IS:        Main.hs
-  GHC-Options:    -Wall -fno-warn-unused-do-bind -fno-warn-name-shadowing -O1 -fspec-constr-count=6 -rtsopts
+  GHC-Options:    -Wall -fno-warn-unused-do-bind -fno-warn-name-shadowing -threaded
   -- -prof -auto-all -caf-all
   Build-Depends:  base >= 4 && < 5,
                   binary,
@@ -43,6 +43,7 @@ Executable q3demo-dsl
                   directory,
                   filepath,
                   vector,
+                  process,
 
                   pretty-show,
                   GLFW-b >= 1.4.6,

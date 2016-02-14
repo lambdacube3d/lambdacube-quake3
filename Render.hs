@@ -46,7 +46,7 @@ tessellatePatch drawV sf level = (V.concat vl,V.concat il)
     (vl,il)     = unzip $ reverse $ snd $ foldl' (\(o,l) (v,i) -> (o+V.length v, (v,V.map (+o) i):l)) (0,[]) patches
 
 addObject' :: GLStorage -> String -> Primitive -> Maybe (IndexStream Buffer) -> Map String (Stream Buffer) -> [String] -> IO Object
-addObject' rndr name prim idx attrs unis = addObject rndr name' prim idx attrs' unis
+addObject' rndr name prim idx attrs unis = addObject rndr "LightMapOnly" prim idx attrs' unis >> addObject rndr name' prim idx attrs' unis
   where
     attrs'  = Map.filterWithKey (\n _ -> elem n renderAttrs) attrs
     setters = objectArrays . schema $ rndr

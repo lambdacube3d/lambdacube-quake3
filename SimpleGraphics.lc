@@ -1,0 +1,32 @@
+module LightMap where
+
+makeFrame (worldMat :: Mat 4 4 Float)
+          (viewProj :: Mat 4 4 Float)
+--          (vertexstream :: PrimitiveStream Triangle (Vec 4 Float, Vec 4 Float))
+          (vertexstream :: PrimitiveStream Triangle (Vec 4 Float, Vec 2 Float))
+
+          = imageFrame (emptyDepthImage 1, emptyColorImage navy)
+  `overlay` fragments
+  `overlay` fragmentsWired
+  where
+    sampler = Sampler LinearFilter ClampToEdge $ Texture2DSlot "LightMap"
+    fragments =
+          vertexstream
+        & mapPrimitives (\(p,uv) -> (viewProj *. (worldMat *. V4 p%x p%y p%z 1), uv))
+        & rasterizePrimitives (TriangleCtx CullNone PolygonFill NoOffset LastVertex) Smooth
+        & mapFragments (texture2D sampler)
+        & accumulateWith (DepthOp Less True, ColorOp NoBlending (V4 True True True True))
+
+    offset  = Offset (0) (-10)
+    fragmentsWired =
+          vertexstream
+        & mapPrimitives (\(p,uv) -> (viewProj *. (worldMat *. V4 p%x p%y p%z 1), uv))
+        & rasterizePrimitives (TriangleCtx CullNone (PolygonLine 1) offset LastVertex) Smooth
+        & mapFragments (\_ -> green)
+        & accumulateWith (DepthOp Less True, ColorOp NoBlending (V4 True True True True))
+
+main = renderFrame $
+   makeFrame (Uniform "worldMat")
+             (Uniform "viewProj")
+             (fetch_ "LightMapOnly" (Attribute "position", Attribute "lightmapUV"))
+--             (fetch_ "LightMapOnly" (Attribute "position", Attribute "color"))

@@ -8,6 +8,7 @@ import Data.Aeson (encode,eitherDecode)
 import "GLFW-b" Graphics.UI.GLFW as GLFW
 import Control.Applicative hiding (Const)
 import Control.Monad
+import Control.Concurrent
 import Data.Attoparsec.ByteString.Char8
 import Data.ByteString.Char8 (ByteString)
 import Data.Char
@@ -24,6 +25,9 @@ import FRP.Elerea.Param
 import System.Directory
 import System.Environment
 import System.FilePath
+import System.Process
+import System.Exit
+
 import Data.Binary (encodeFile,decodeFile)
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteString.Char8 as SB
@@ -249,7 +253,7 @@ main = do
             putStrLn $ unwords maps
             putStrLn "Enter map name:"
             name <- getLine
-            return $ filter (isInfixOf name) bspNames
+            return $ filter ((name ==) . takeBaseName) bspNames
     let bspName = takeBaseName fullBSPName
         bspEntry = case Map.lookup fullBSPName pk3Data of
             Nothing -> error "You need to put pk3 file into your current directory"
@@ -338,7 +342,21 @@ main = do
       ]
     SB.putStrLn $ SB.unlines ignoredMaterials
     let pplName = bspName ++ "_ppl.json"
-    q3ppl <- compileQuake3GraphicsCached pplName
+
+    -- compiler thread
+    compileRequest <- newIORef False
+    compileReady <- newIORef False
+    _ <- forkIO $ forever $ do
+      putStrLn "start to compile"
+      writeIORef compileRequest False
+      writeIORef compileReady False
+      compileQuake3GraphicsCached pplName >>= writeIORef compileReady
+      putStrLn "compile finished"
+      let loop = do
+            req <- readIORef compileRequest
+            threadDelay 100000 -- 10 / sec
+            unless req loop
+      loop
 
     let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
 
@@ -353,23 +371,23 @@ main = do
             ]
         inputSchema = {-TODO-}
           PipelineSchema
-          { objectArrays = Map.fromList $ zip ("missing shader" : map SB.unpack (T.keys shMap)) (repeat quake3SlotSchema)
-          , uniforms = Map.fromList $ [ ("viewProj",    M44F)
-                                    , ("worldMat",      M44F)
-                                    , ("viewMat",       M44F)
-                                    , ("orientation",   M44F)
-                                    , ("viewOrigin",    V3F)
-                                    , ("entityRGB",     V3F)
-                                    , ("entityAlpha",   GL.Float)
-                                    , ("identityLight", GL.Float)
-                                    , ("time",          GL.Float)
-                                    , ("LightMap",      FTexture2D)
-                                    , ("SinTable",             FTexture2D)
-                                    , ("SquareTable",          FTexture2D)
-                                    , ("SawToothTable",        FTexture2D)
-                                    , ("InverseSawToothTable", FTexture2D)
-                                    , ("TriangleTable",        FTexture2D)
-                                    ] ++ zip textureUniforms (repeat FTexture2D)
+          { objectArrays = Map.fromList $ zip ("LightMapOnly":"missing shader":map SB.unpack (T.keys shMap)) (repeat quake3SlotSchema)
+          , uniforms = Map.fromList $ [ ("viewProj",      M44F)
+                                      , ("worldMat",      M44F)
+                                      , ("viewMat",       M44F)
+                                      , ("orientation",   M44F)
+                                      , ("viewOrigin",    V3F)
+                                      , ("entityRGB",     V3F)
+                                      , ("entityAlpha",   GL.Float)
+                                      , ("identityLight", GL.Float)
+                                      , ("time",          GL.Float)
+                                      , ("LightMap",      FTexture2D)
+                                      , ("SinTable",             FTexture2D)
+                                      , ("SquareTable",          FTexture2D)
+                                      , ("SawToothTable",        FTexture2D)
+                                      , ("InverseSawToothTable", FTexture2D)
+                                      , ("TriangleTable",        FTexture2D)
+                                      ] ++ zip textureUniforms (repeat FTexture2D)
           }
     storage <- allocStorage inputSchema
     putStrLn "storage created"
@@ -429,11 +447,12 @@ main = do
         return (mat,(hMD3,hLC),(uMD3,uLC),(lMD3,lLC))
       )
 
+    rendererRef <- newIORef =<< fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
+
     (mousePosition,mousePositionSink) <- external (0,0)
     (fblrPress,fblrPressSink) <- external (False,False,False,False,False)
     (capturePress,capturePressSink) <- external False
     (waypointPress,waypointPressSink) <- external []
-    rendererRef <- newIORef =<< fromJust <$> loadQuake3Graphics storage q3ppl
 
     let draw captureA = readIORef rendererRef >>= renderFrame >> captureA >> swapBuffers win >> pollEvents
 
@@ -444,7 +463,7 @@ main = do
         return $ (draw <$> u)
     s <- fpsState
     setTime 0
-    driveNetwork sc (readInput pplName rendererRef storage win s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
+    driveNetwork sc (readInput compileRequest compileReady pplName rendererRef storage win s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
 
     disposeRenderer =<< readIORef rendererRef
     putStrLn "storage destroyed"
@@ -588,7 +607,7 @@ vec4ToV4F (Vec4 x y z w) = V4 x y z w
 
 --mat4ToM44F :: Mat4 -> M44F
 mat4ToM44F (Mat4 a b c d) = V4 (vec4ToV4F a) (vec4ToV4F b) (vec4ToV4F c) (vec4ToV4F d)
-
+{-
 readInput :: String
           -> IORef GLRenderer
           -> GLStorage
@@ -600,7 +619,8 @@ readInput :: String
           -> Sink [Bool]
           -> IORef Bool
           -> IO (Maybe Float)
-readInput pplName rendererRef storage win s mousePos fblrPress capturePress waypointPress capRef = do
+-}
+readInput compileRequest compileReady pplName rendererRef storage win s mousePos fblrPress capturePress waypointPress capRef = do
     let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
     t <- maybe 0 id <$> getTime
     setTime 0
@@ -616,15 +636,16 @@ readInput pplName rendererRef storage win s mousePos fblrPress capturePress wayp
     let dt = if isCapturing then recip captureRate else realToFrac t
 
     reload <- keyIsPressed Key'L
-    when reload $ do
-      -- TODO: multi threaded reloading (compile in a new thread and switch when it is ready)
-      r <- loadQuake3Graphics storage =<< compileQuake3Graphics pplName
-      case r of
-        Nothing -> return ()
-        Just a  -> do
-          readIORef rendererRef >>= disposeRenderer
-          writeIORef rendererRef a
-
+    when reload $ writeIORef compileRequest True
+    readIORef compileReady >>= \case
+      False -> return ()
+      True -> do
+        writeIORef compileReady False
+        loadQuake3Graphics storage pplName >>= \case
+          Nothing -> return ()
+          Just a  -> do
+            readIORef rendererRef >>= disposeRenderer
+            writeIORef rendererRef a
     updateFPS s dt
     k <- keyIsPressed Key'Escape
     return $ if k then Nothing else Just (realToFrac dt)
@@ -771,17 +792,19 @@ printTimeDiff s a = do
   return r
 
 compileQuake3GraphicsCached name = doesFileExist name >>= \case
-  True -> putStrLn "use cached pipeline" >> return (Just name)
+  True -> putStrLn "use cached pipeline" >> return True
   False -> compileQuake3Graphics name
 
 compileQuake3Graphics name = printTimeDiff "compile quake3 graphics pipeline..." $ do
+  {-
   compileMain ["."] OpenGL33 "Graphics" >>= \case 
-    Left err -> putStrLn ("error: " ++ err) >> return Nothing
-    Right ppl -> LB.writeFile name (encode ppl) >> return (Just name)
+    Left err -> putStrLn ("error: " ++ err) >> return False
+    Right ppl -> LB.writeFile name (encode ppl) >> return True
+  -}
+  (exitCode,_,_) <- readProcessWithExitCode "lc" ["Graphics.lc","-o" ++ name] ""
+  return $ ExitSuccess == exitCode
 
-loadQuake3Graphics storage = \case
-  Nothing -> return Nothing
-  Just name -> do
+loadQuake3Graphics storage name = do
     putStrLn $ "load " ++ name
     renderer <- printTimeDiff "allocate pipeline..." $ do
       eitherDecode <$> LB.readFile name >>= \case
