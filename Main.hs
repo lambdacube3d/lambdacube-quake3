@@ -341,22 +341,6 @@ main = do
       , unlines . map ("  "++) . lines . ppShow . T.toList $ shMapTexSlot
       ]
     SB.putStrLn $ SB.unlines ignoredMaterials
-    let pplName = bspName ++ "_ppl.json"
-
-    -- compiler thread
-    compileRequest <- newIORef False
-    compileReady <- newIORef False
-    _ <- forkIO $ forever $ do
-      putStrLn "start to compile"
-      writeIORef compileRequest False
-      writeIORef compileReady False
-      compileQuake3GraphicsCached pplName >>= writeIORef compileReady
-      putStrLn "compile finished"
-      let loop = do
-            req <- readIORef compileRequest
-            threadDelay 100000 -- 10 / sec
-            unless req loop
-      loop
 
     let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
 
@@ -448,6 +432,22 @@ main = do
       )
 
     rendererRef <- newIORef =<< fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
+
+    let pplName = bspName ++ "_ppl.json"
+    -- compiler thread
+    compileRequest <- newIORef False
+    compileReady <- newIORef False
+    _ <- forkIO $ forever $ do
+      putStrLn "start to compile"
+      writeIORef compileRequest False
+      writeIORef compileReady False
+      compileQuake3GraphicsCached pplName >>= writeIORef compileReady
+      putStrLn "compile finished"
+      let loop = do
+            req <- readIORef compileRequest
+            threadDelay 100000 -- 10 / sec
+            unless req loop
+      loop
 
     (mousePosition,mousePositionSink) <- external (0,0)
     (fblrPress,fblrPressSink) <- external (False,False,False,False,False)
