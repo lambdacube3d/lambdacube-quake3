@@ -189,15 +189,15 @@ main = do
               Nothing -> []
           | otherwise = []
         md3Materials = Set.fromList . concatMap (concatMap (map MD3.shName . V.toList . MD3.srShaders) . V.toList . MD3.mdSurfaces) $ T.elems md3Map
-        shNames = Set.fromList $ map shName (V.toList $ blShaders bsp)
-        shMap = T.fromList [mkShader True n | n <- Set.toList shNames] `T.unionL`
-                T.fromList [mkShader False n | n <- Set.toList md3Materials] `T.unionL`
-                T.fromList [mkShader False n | n <- Set.toList characterSkinMaterials]
         mkShader hasLightmap n = case T.lookup n shMap' of
           Just s -> (n,s)
           Nothing -> let alias = SB.pack . dropExtension . SB.unpack $ n in case T.lookup alias shMap' of
             Just s -> (alias,s)
             Nothing -> (n,imageShader hasLightmap n)
+        shNames = Set.fromList $ map shName (V.toList $ blShaders bsp)
+        shMap = T.fromList [mkShader True n | n <- Set.toList shNames] `T.unionL`
+                T.fromList [mkShader False n | n <- Set.toList md3Materials] `T.unionL`
+                T.fromList [mkShader False n | n <- Set.toList characterSkinMaterials]
         -- create gfx network to render active materials
         {-
         TODO: gfx network should be created from shaderMap and bsp
