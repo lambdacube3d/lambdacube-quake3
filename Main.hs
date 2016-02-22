@@ -48,7 +48,7 @@ import Codec.Picture
 import LambdaCube.GL as GL
 import LambdaCube.GL.Mesh
 --import IR as IR
-import LambdaCube.Compiler hiding (ppShow)
+--import LambdaCube.Compiler hiding (ppShow)
 
 import Control.Exception (evaluate)
 import Control.DeepSeq
@@ -127,10 +127,9 @@ createLoadingScreen = do
     defUniforms $ do
       "LoadingImage" @: FTexture2D
   -- pipeline
-  pipelineDesc <- compileMain ["."] OpenGL33 "Loading" >>= \case
-    Left err  -> fail $ "compile error:\n" ++ err
-    Right pd  -> return pd
-  renderer <- allocRenderer pipelineDesc
+  renderer <- eitherDecode <$> LB.readFile "Loading.json" >>= \case
+        Left err -> fail err
+        Right ppl -> allocRenderer ppl
   -- connect them
   setStorage renderer storage >>= \case -- check schema compatibility
     Just err -> fail err
