@@ -36,3 +36,19 @@ game engine:
   - logic for items (e.g. armor, health, quad damage)
 
 networking: http://www.gdcvault.com/play/1022195/Physics-for-Game-Programmers-Networking
+
+----
+separate graphics and collision code
+  server side:
+    bsp load
+    md3 load
+    collision
+    entity handling - data for game rules
+
+  client side:
+    rendering
+
+milestone 1:
+  client - server
+  spectator camera with collision
+
