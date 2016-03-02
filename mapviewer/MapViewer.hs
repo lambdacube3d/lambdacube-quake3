@@ -37,30 +37,6 @@ withFrameBuffer x y w h fn = allocaBytes (w*h*4) $ \p -> do
 captureRate :: Double
 captureRate = 30
 
-{-
-graphics level:
-  loadGameDataSet -- result: data cache (shader and pk3)
-
-  createLoadingScreen (graphics related)
-  setupLoadingScreen
-
-  loadLevelData -- result: internal level data
-  loadLevelGraphics -- result: storage + level pipeline (IORef)
-
-engine level:
-  level simulation (collision, items, weapons, moving characters, jump pads, doors)
-  level visualization: levelData + levelGraphics + gameState -> image
-
-ideas:
-  guiding rules: transparent and modularized
-
-  rendering layer
-  game engine layer
-  ------
-  game and application logic layer
--}
-
-
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
@@ -252,13 +228,13 @@ fpsState = State <$> newIORef 0 <*> newIORef 0
 
 updateFPS :: State -> Double -> IO ()
 updateFPS state t1 = do
-    let t = 1000*t1
-        fR = frames state
-        tR = t0 state
-    modifyIORef fR (+1)
-    t0' <- readIORef tR
-    writeIORef tR $ t0' + t
-    when (t + t0' >= 5000) $ do
+  let t = 1000*t1
+      fR = frames state
+      tR = t0 state
+  modifyIORef fR (+1)
+  t0' <- readIORef tR
+  writeIORef tR $ t0' + t
+  when (t + t0' >= 5000) $ do
     f <- readIORef fR
     let seconds = (t + t0') / 1000
         fps = fromIntegral f / seconds
