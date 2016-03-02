@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module BSP where
+module GameEngine.BSP where
 
 import Control.Applicative
 import Control.Monad

@@ -1,6 +1,6 @@
 -- http://graphics.cs.brown.edu/games/quake/quake3.html#RenderPatch
 
-module Q3Patch where
+module GameEngine.Q3Patch where
 
 import Control.Monad
 import Data.Vect.Float hiding (Vector)
@@ -9,7 +9,7 @@ import Data.Vector (Vector,(!))
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
 
-import BSP
+import GameEngine.BSP
 
 tessellate :: Vector DrawVertex -> Int -> (Vector DrawVertex,Vector Int)
 tessellate controls level = (v,stripsI)

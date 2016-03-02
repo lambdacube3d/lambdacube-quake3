@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards, ViewPatterns #-}
-module Render where
+module GameEngine.Render where
 
 import Control.Applicative
 import Control.Monad
@@ -18,11 +18,11 @@ import Codec.Picture
 import Debug.Trace
 import System.FilePath
 
-import BSP
 import LambdaCube.GL
-import MD3 (MD3Model)
-import qualified MD3 as MD3
-import Q3Patch
+import GameEngine.BSP
+import GameEngine.MD3 (MD3Model)
+import qualified GameEngine.MD3 as MD3
+import GameEngine.Q3Patch
 
 {-
     plans:

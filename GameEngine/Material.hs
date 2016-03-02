@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveGeneric, StandaloneDeriving, TypeSynonymInstances, FlexibleInstances #-}
-module Material where
+module GameEngine.Material where
 
 import Data.Binary
 import GHC.Generics (Generic)

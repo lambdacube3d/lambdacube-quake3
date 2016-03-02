@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module MD3 where
+module GameEngine.MD3 where
 
 import Control.Applicative
 import Control.Monad

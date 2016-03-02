@@ -1,5 +1,5 @@
 {-# LANGUAGE RecordWildCards, ViewPatterns #-}
-module Collision where
+module GameEngine.Collision where
 {-
   Quake 3 BSP Collision Detection
   http://openzone.googlecode.com/git-history/f73bb8dfe8e6a16c13d39aba1c8f6537ee263d07/doc/Quake3BSP.html
@@ -10,7 +10,7 @@ import qualified Data.Vector as V
 import Data.Vect.Float
 import Data.Vect.Float.Instances
 import Data.Bits ((.&.))
-import BSP
+import GameEngine.BSP
 
 data TraceHit
   = TraceHit

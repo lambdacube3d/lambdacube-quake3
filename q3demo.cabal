@@ -17,6 +17,7 @@ Build-Type:    Simple
 Extra-Source-Files:
   BSP.hs
   Camera.hs
+  Engine.hs
   Character.hs
   Collision.hs
   Items.hs

@@ -1,4 +1,4 @@
-module Items where
+module GameEngine.Items where
 
 data Tag
     = TG_NONE
