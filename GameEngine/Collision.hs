@@ -62,8 +62,8 @@ checkNode bsp@BSPLevel{..} inputStart inputEnd nodeIndex startFraction endFracti
             | otherwise = (False,1,0)
           middleFraction1 = startFraction + (endFraction - startFraction) * fraction1
           middleFraction2 = startFraction + (endFraction - startFraction) * fraction2
-          middle1 = start + fraction1 *& (end - start);
-          middle2 = start + fraction2 *& (end - start);
+          middle1 = start + fraction1 *& (end - start)
+          middle2 = start + fraction2 *& (end - start)
           selectChildren b = if b then snd ndChildren else fst ndChildren
       in checkNode bsp inputStart inputEnd (selectChildren side) startFraction middleFraction1 start middle1 `mappend`
          checkNode bsp inputStart inputEnd (selectChildren $ not side) middleFraction2 endFraction middle2 end
