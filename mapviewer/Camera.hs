@@ -8,13 +8,16 @@ import FRP.Elerea.Param
 import GameEngine.Collision
 import GameEngine.BSP (BSPLevel)
 
-userCamera :: BSPLevel -> Vec3 -> Signal (Float, Float) -> Signal (Bool, Bool, Bool, Bool, Bool)
+userCamera :: BSPLevel -> Vec3 -> Signal (Float, Float) -> Signal (Bool, Bool, Bool, Bool, Bool, Bool)
            -> SignalGen Float (Signal (Vec3, Vec3, Vec3))
-userCamera bsp p mposs keyss = fmap (\(pos,target,up,_) -> (pos,target,up)) <$> transfer2 (p,zero,zero,(0,0)) calcCam mposs keyss
+userCamera bsp p mposs keyss = fmap (\(pos,target,up,_) -> (pos,target,up)) <$> transfer2 (p,zero,zero,(0,0,0)) calcCam mposs keyss
   where
     d0 = Vec4 0 (-1) 0 1
     u0 = Vec4 0 0 (-1) 1
-    calcCam dt (dmx,dmy) (left,up,down,right,turbo) (p0,_,_,(mx,my)) =
+    gravity = 9.80665 * 10
+    jumpSpeed0 = 40
+    height = 22
+    calcCam dt (dmx,dmy) (left,up,down,right,turbo,jump) (p0,_,_,(mx,my,fallingSpeed)) =
       let nil c n = if c then n else zero
           p'  = nil left (v &* (-t)) &+ nil up (d &* t) &+ nil down (d &* (-t)) &+ nil right (v &* t) &+ p0
           k   = if turbo then 500 else 100
@@ -25,9 +28,15 @@ userCamera bsp p mposs keyss = fmap (\(pos,target,up,_) -> (pos,target,up)) <$> 
           d   = trim $ rm *. d0 :: Vec3
           u   = trim $ rm *. u0 :: Vec3
           v   = normalize $ d &^ u
-      in case traceRay bsp p0 p' of
-        Nothing -> (p',p' &+ d,u,(mx',my'))
-        _ -> (p0,p0 &+ d,u,(mx',my'))
+          jumpSpeed' = if jump then jumpSpeed0 else 0
+          fallingVec = Vec3 0 0 (fallingSpeed * dt)
+          dontMove = (p0,p0 &+ d,u,(mx',my',jumpSpeed'))
+      in case traceRay bsp p' (p' &- Vec3 0 0 height) of
+          Just (hit,_) -> let p'' = hit &+ Vec3 0 0 height
+                          in (p'',p'' &+ d,u,(mx',my',jumpSpeed'))
+          Nothing -> case traceSphere 15 bsp p0 (p' &+ fallingVec) of
+            Nothing -> (p' &+ fallingVec,p' &+ d &+ fallingVec,u,(mx',my',fallingSpeed - dt*gravity + jumpSpeed'))
+            _ -> dontMove
 
 rotationEuler :: Vec3 -> Proj4
 rotationEuler (Vec3 a b c) = orthogonal $ toOrthoUnsafe $ rotMatrixZ a .*. rotMatrixX b .*. rotMatrixY (-c)

@@ -332,9 +332,14 @@ engineInit pk3Data fullBSPName = do
             , ("position",    Attribute_V3F)
             , ("lightmapUV",  Attribute_V2F)
             ]
+        debugSlotSchema =
+          ObjectArraySchema Triangles $ Map.fromList
+            [ ("position",    Attribute_V3F)
+            , ("color",       Attribute_V4F)
+            ]
         inputSchema = {-TODO-}
           PipelineSchema
-          { objectArrays = Map.fromList $ zip ("LightMapOnly":"missing shader":map SB.unpack (T.keys shMap)) (repeat quake3SlotSchema)
+          { objectArrays = Map.fromList $ ("CollisionShape",debugSlotSchema) : zip ("LightMapOnly":"missing shader":map SB.unpack (T.keys shMap)) (repeat quake3SlotSchema)
           , uniforms = Map.fromList $ [ ("viewProj",      M44F)
                                       , ("worldMat",      M44F)
                                       , ("viewMat",       M44F)
@@ -350,6 +355,7 @@ engineInit pk3Data fullBSPName = do
                                       , ("SawToothTable",        FTexture2D)
                                       , ("InverseSawToothTable", FTexture2D)
                                       , ("TriangleTable",        FTexture2D)
+                                      , ("origin",    V3F)
                                       ] ++ zip textureUniforms (repeat FTexture2D)
           }
     return (inputSchema,(bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints))

@@ -23,8 +23,10 @@ game engine:
       done - trace collision function
       done - colliding camera
       done - add remaining collision primitives (e.g. box, sphere)
-      - render bounding box
-      - render bounding sphere
+      done - render bounding box
+      done - render bounding sphere
+      - ray, sphere, box collision with each other
+          required for e.g.: bullet - model, player - ammo collision
       - collision for md3 models
 
       - character <-> item collision (e.g. ammo)

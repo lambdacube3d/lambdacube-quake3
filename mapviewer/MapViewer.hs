@@ -86,7 +86,7 @@ main = do
       putStrLn "start to compile"
       writeIORef compileRequest False
       writeIORef compileReady False
-      compileQuake3GraphicsCached pplName >>= writeIORef compileReady
+      -- compileQuake3GraphicsCached pplName >>= writeIORef compileReady
       putStrLn "compile finished"
       let loop = do
             req <- readIORef compileRequest
@@ -95,7 +95,7 @@ main = do
       loop
 
     (mousePosition,mousePositionSink) <- external (0,0)
-    (fblrPress,fblrPressSink) <- external (False,False,False,False,False)
+    (fblrPress,fblrPressSink) <- external (False,False,False,False,False,False)
     (capturePress,capturePressSink) <- external False
     (waypointPress,waypointPressSink) <- external []
 
@@ -170,7 +170,8 @@ readInput compileRequest compileReady pplName rendererRef storage win s mousePos
     (x,y) <- getCursorPos win
     mousePos (realToFrac x,realToFrac y)
 
-    fblrPress =<< ((,,,,) <$> keyIsPressed Key'Left <*> keyIsPressed Key'Up <*> keyIsPressed Key'Down <*> keyIsPressed Key'Right <*> keyIsPressed Key'RightShift)
+    fblrPress =<< ((,,,,,) <$> keyIsPressed Key'Left <*> keyIsPressed Key'Up <*> keyIsPressed Key'Down <*> keyIsPressed Key'Right
+                           <*> keyIsPressed Key'RightShift <*> keyIsPressed Key'Space)
     capturePress =<< keyIsPressed Key'P
     waypointPress =<< mapM keyIsPressed [Key'R,Key'E,Key'1,Key'2,Key'F,Key'G]
 

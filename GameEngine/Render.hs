@@ -19,6 +19,7 @@ import Debug.Trace
 import System.FilePath
 
 import LambdaCube.GL
+import LambdaCube.GL.Mesh
 import GameEngine.BSP
 import GameEngine.MD3 (MD3Model)
 import qualified GameEngine.MD3 as MD3
@@ -214,10 +215,26 @@ addMD3 r model skin unis = do
             materialName s = case Map.lookup (SB8.unpack $ MD3.srName sf) skin of
               Nothing -> SB8.unpack $ MD3.shName s
               Just a  -> a
-        concat <$> forM (V.toList $ MD3.srShaders sf) (\s -> do
+        objList <- concat <$> forM (V.toList $ MD3.srShaders sf) (\s -> do
           a <- addObject' r (materialName s) TriangleList (Just index) attrs ["worldMat"]
           b <- addObject r "LightMapOnly" TriangleList (Just index) attrs ["worldMat"]
           return [a,b])
+
+        -- add collision geometry
+        collisionObjs <- case V.toList $ MD3.mdFrames model of
+          (MD3.Frame{..}:_) -> do
+            sphereObj <- uploadMeshToGPU (sphere (V4 1 0 0 1) 4 frRadius) >>= addMeshToObjectArray r "CollisionShape" ["worldMat","origin"]
+            boxObj <- uploadMeshToGPU (bbox (V4 0 0 1 1) frMins frMaxs) >>= addMeshToObjectArray r "CollisionShape" ["worldMat","origin"]
+            when (frOrigin /= zero) $ putStrLn $ "frOrigin: " ++ show frOrigin
+            return [sphereObj,boxObj]
+          _ -> return []
+        {-
+          uploadMeshToGPU
+          addMeshToObjectArray
+          updateMesh :: GPUMesh -> [(String,MeshAttribute)] -> Maybe MeshPrimitive -> IO ()
+        -}
+        
+        return $ objList ++ collisionObjs
     -- question: how will be the referred shaders loaded?
     --           general problem: should the gfx network contain all passes (every possible materials)?
     return $ LCMD3
@@ -321,3 +338,34 @@ frustum angle ratio nearD farD p l u = Frustum [ (pl ntr ntl ftl)
     ftr = fc + m fh y + m fw x
     fbl = fc - m fh y - m fw x
     fbr = fc - m fh y + m fw x
+
+-- utility
+sphere :: V4 Float -> Int -> Float -> Mesh
+sphere color n radius = Mesh
+    { mAttributes = Map.fromList [("position", A_V3F vertices), ("normal", A_V3F normals), ("color", A_V4F $ V.replicate (V.length vertices) color)]
+    , mPrimitive = P_TrianglesI indices
+    }
+  where
+    m = pi / fromIntegral n
+    vertices = V.map (\(V3 x y z) -> V3 (radius * x) (radius * y) (radius * z)) normals
+    normals = V.fromList [V3 (sin a * cos b) (cos a) (sin a * sin b) | i <- [0..n], j <- [0..2 * n - 1],
+                          let a = fromIntegral i * m, let b = fromIntegral j * m]
+    indices = V.fromList $ concat [[ix i j, ix i' j, ix i' j', ix i' j', ix i j', ix i j] | i <- [0..n - 1], j <- [0..2 * n - 1],
+                                   let i' = i + 1, let j' = (j + 1) `mod` (2 * n)]
+    ix i j = fromIntegral (i * 2 * n + j)
+
+bbox :: V4 Float -> Vec3 -> Vec3 -> Mesh
+bbox color (Vec3 minX minY minZ) (Vec3 maxX maxY maxZ) = Mesh
+    { mAttributes = Map.fromList [("position", A_V3F vertices), ("color", A_V4F $ V.replicate (V.length vertices) color)]
+    , mPrimitive = P_Triangles
+    }
+  where
+    quads = [[6, 2, 3, 7], [5, 1, 0, 4], [7, 3, 1, 5], [4, 0, 2, 6], [3, 2, 0, 1], [6, 7, 5, 4]]
+    indices = V.fromList $ concat [[a, b, c, c, d, a] | [d, c, b, a] <- quads]
+    vertices = V.backpermute (V.generate 8 mkVertex) indices
+
+    mkVertex n = V3 x y z
+      where
+        x = if testBit n 2 then maxX else minX
+        y = if testBit n 1 then maxY else minY
+        z = if testBit n 0 then maxZ else minZ
