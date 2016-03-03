@@ -33,6 +33,13 @@ instance Monoid TraceHit where
 epsilon = 1/32
 clamp = max 0 . min 1
 
+{-
+  TODO:
+    TraceRay
+    TraceSphere
+    TraceBox
+-}
+
 traceRay :: BSPLevel -> Vec3 -> Vec3 -> Maybe (Vec3,TraceHit)
 traceRay bsp inputStart inputEnd
   | outputFraction == 1 = Nothing 
