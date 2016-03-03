@@ -22,7 +22,7 @@ game engine:
   - level collision support (e.g. http://openzone.googlecode.com/git-history/f73bb8dfe8e6a16c13d39aba1c8f6537ee263d07/doc/Quake3BSP.html)
       done - trace collision function
       done - colliding camera
-      - add remaining collision primitives (e.g. box, sphere)
+      done - add remaining collision primitives (e.g. box, sphere)
       - render bounding box
       - render bounding sphere
       - collision for md3 models
