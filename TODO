@@ -28,6 +28,13 @@ game engine:
       - ray, sphere, box collision with each other
           required for e.g.: bullet - model, player - ammo collision
       - collision for md3 models
+      - implement q3 entity system
+          - items
+          - spawns
+          - generic entity collision shape (bsp inline model) trigger support
+          questions:
+            how does bsp surface and bsd inline model rendering work?
+            are the doors inline bsp models? how are they moved?
 
       - character <-> item collision (e.g. ammo)
       - fix collision with patches

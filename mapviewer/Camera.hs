@@ -14,9 +14,9 @@ userCamera bsp p mposs keyss = fmap (\(pos,target,up,_) -> (pos,target,up)) <$> 
   where
     d0 = Vec4 0 (-1) 0 1
     u0 = Vec4 0 0 (-1) 1
-    gravity = 9.80665 * 10
-    jumpSpeed0 = 40
-    height = 22
+    gravity = 8000
+    jumpSpeed0 = 800
+    height = 42
     calcCam dt (dmx,dmy) (left,up,down,right,turbo,jump) (p0,_,_,(mx,my,fallingSpeed)) =
       let nil c n = if c then n else zero
           p'  = nil left (v &* (-t)) &+ nil up (d &* t) &+ nil down (d &* (-t)) &+ nil right (v &* t) &+ p0
@@ -31,11 +31,12 @@ userCamera bsp p mposs keyss = fmap (\(pos,target,up,_) -> (pos,target,up)) <$> 
           jumpSpeed' = if jump then jumpSpeed0 else 0
           fallingVec = Vec3 0 0 (fallingSpeed * dt)
           dontMove = (p0,p0 &+ d,u,(mx',my',jumpSpeed'))
-      in case traceRay bsp p' (p' &- Vec3 0 0 height) of
+          p'2 = p' &+ fallingVec
+      in case traceRay bsp p'2 (p'2 &- Vec3 0 0 (height+1)) of
           Just (hit,_) -> let p'' = hit &+ Vec3 0 0 height
                           in (p'',p'' &+ d,u,(mx',my',jumpSpeed'))
           Nothing -> case traceSphere 15 bsp p0 (p' &+ fallingVec) of
-            Nothing -> (p' &+ fallingVec,p' &+ d &+ fallingVec,u,(mx',my',fallingSpeed - dt*gravity + jumpSpeed'))
+            Nothing -> (p' &+ fallingVec,p' &+ d &+ fallingVec,u,(mx',my',fallingSpeed - dt*gravity))
             _ -> dontMove
 
 rotationEuler :: Vec3 -> Proj4

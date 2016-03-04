@@ -254,11 +254,13 @@ engineInit pk3Data fullBSPName = do
     -- load bsp data
     bsp <- readBSP . LB.fromStrict <$> readEntry bspEntry
 
+    SB.writeFile (bspName ++ ".entities") $ blEntities bsp
+
     -- extract spawn points
     let ents = parseEntities bspName $ blEntities bsp
         spawnPoint e
           | Just classname <- T.lookup "classname" e
-          , classname `elem` ["info_player_deathmatch", "info_player_start", "info_player_intermission"]
+          , classname `elem` ["info_player_deathmatch"]
           , Just origin <- T.lookup "origin" e
           , [x,y,z] <- map read $ words $ SB.unpack origin = [Vec3 x y z]
           | otherwise = []
