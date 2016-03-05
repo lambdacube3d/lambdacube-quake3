@@ -21,9 +21,10 @@ import GameEngine.BSP
 
 data TraceHit
   = TraceHit
-  { outputFraction  :: !Float
-  , outputStartsOut :: !Bool
-  , outputAllSolid  :: !Bool
+  { outputFraction    :: !Float
+  , outputStartsOut   :: !Bool
+  , outputAllSolid    :: !Bool
+  , outputBrushIndex  :: ![Int]
   }
   deriving Show
 
@@ -49,7 +50,7 @@ traceHit traceType bsp inputStart inputEnd
   | outputFraction == 1 = Nothing 
   | otherwise = Just (outputEnd,th)
  where
-    th@TraceHit{..} = checkNode traceType bsp inputStart inputEnd 0 0 1 inputStart inputEnd
+    th@TraceHit{..} = checkNode True traceType bsp inputStart inputEnd 0 0 1 inputStart inputEnd
     outputEnd = inputStart + outputFraction *& (inputEnd - inputStart)
 
 {-
@@ -60,25 +61,26 @@ boolean outputAllSolid;  -- mappend: or
 -}
 
 instance Monoid TraceHit where
-  mempty = TraceHit 1 True False
-  (TraceHit a1 b1 c1) `mappend` (TraceHit a2 b2 c2) = TraceHit (min a1 a2) (b1 && b2) (c1 || c2)
+  mempty = TraceHit 1 True False []
+  (TraceHit a1 b1 c1 d1) `mappend` (TraceHit a2 b2 c2 d2) = TraceHit (min a1 a2) (b1 && b2) (c1 || c2) (d1 `mappend` d2)
 
 epsilon = 1/32
 clamp = max 0 . min 1
 
-checkNode traceType bsp@BSPLevel{..} inputStart inputEnd nodeIndex startFraction endFraction start end
+checkNode noCull traceType bsp@BSPLevel{..} inputStart inputEnd nodeIndex startFraction endFraction start end
   -- leaf
-  | nodeIndex < 0 = let Leaf{..} = blLeaves ! (-(nodeIndex + 1))
-                        leafBrushes = V.take lfNumLeafBrushes $ V.drop lfFirstLeafBrush blLeafBrushes
-                    in mconcat [ checkBrush traceType bsp inputStart inputEnd brush
-                               | brushIndex <- V.toList leafBrushes
-                               , let brush@Brush{..} = blBrushes ! brushIndex
-                               , brNumSides > 0
-                               , shContentFlags (blShaders ! brShaderNum) .&. 1 == 1
-                               ]
+  | nodeIndex < 0 || noCull =
+      let Leaf{..} = blLeaves ! (-(nodeIndex + 1))
+          leafBrushes = V.take lfNumLeafBrushes $ V.drop lfFirstLeafBrush blLeafBrushes
+      in mconcat [ checkBrush traceType bsp inputStart inputEnd brushIndex brush
+                 | brushIndex <- if noCull then [0..V.length blBrushes-1] else V.toList $ leafBrushes
+                 , let brush@Brush{..} = blBrushes ! brushIndex
+                 , brNumSides > 0
+                 , shContentFlags (blShaders ! brShaderNum) .&. 1 == 1
+                 ]
   -- node
-  | startDistance >= offset && endDistance >= offset = checkNode traceType bsp inputStart inputEnd (fst ndChildren) startFraction endFraction start end
-  | startDistance < -offset && endDistance < -offset = checkNode traceType bsp inputStart inputEnd (snd ndChildren) startFraction endFraction start end
+  | startDistance >= offset && endDistance >= offset = checkNode noCull traceType bsp inputStart inputEnd (fst ndChildren) startFraction endFraction start end
+  | startDistance < -offset && endDistance < -offset = checkNode noCull traceType bsp inputStart inputEnd (snd ndChildren) startFraction endFraction start end
   | otherwise =
       let inverseDistance = 1 / (startDistance - endDistance)
           (side,clamp -> fraction1,clamp -> fraction2)
@@ -90,8 +92,8 @@ checkNode traceType bsp@BSPLevel{..} inputStart inputEnd nodeIndex startFraction
           middle1 = start + fraction1 *& (end - start)
           middle2 = start + fraction2 *& (end - start)
           selectChildren b = if b then snd ndChildren else fst ndChildren
-      in checkNode traceType bsp inputStart inputEnd (selectChildren side) startFraction middleFraction1 start middle1 `mappend`
-         checkNode traceType bsp inputStart inputEnd (selectChildren $ not side) middleFraction2 endFraction middle2 end
+      in checkNode noCull traceType bsp inputStart inputEnd (selectChildren side) startFraction middleFraction1 start middle1 `mappend`
+         checkNode noCull traceType bsp inputStart inputEnd (selectChildren $ not side) middleFraction2 endFraction middle2 end
  where
   Node{..}  = blNodes ! nodeIndex
   Plane{..} = blPlanes ! ndPlaneNum
@@ -102,7 +104,7 @@ checkNode traceType bsp@BSPLevel{..} inputStart inputEnd nodeIndex startFraction
     TraceSphere radius -> radius
     TraceBox _ _ (Vec3 x y z) -> let Vec3 px py pz = plNormal in abs (x * px) + abs (y * py) + abs (z * pz)
 
-checkBrush traceType BSPLevel{..} inputStart inputEnd Brush{..} =
+checkBrush traceType BSPLevel{..} inputStart inputEnd brushIndex Brush{..} =
   let brushPlanes = fmap ((blPlanes !) . bsPlaneNum) $ V.take brNumSides . V.drop brFirstSide $ blBrushSides
       startEndDistances = case traceType of
         TraceRay -> [(inputStart `dotprod` plNormal - plDist, inputEnd `dotprod` plNormal - plDist) | Plane{..} <- V.toList brushPlanes]
@@ -126,7 +128,7 @@ checkBrush traceType BSPLevel{..} inputStart inputEnd Brush{..} =
                       in  eval (startFraction, min fraction endFraction,startsOut || startDistance > 0,endsOut || endDistance > 0) xs
   in case eval (-1,1,False,False) startEndDistances of
       Just (startFraction,endFraction,startsOut,endsOut)
-        | startsOut == False    -> TraceHit 1 False (not endsOut)
+        | startsOut == False    -> TraceHit 1 False (not endsOut) mempty
         | startFraction < endFraction
-          && startFraction > -1 -> TraceHit (max startFraction 0) True False
+          && startFraction > -1 -> TraceHit (max startFraction 0) True False [brushIndex]
       _ -> mempty

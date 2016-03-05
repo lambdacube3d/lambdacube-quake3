@@ -30,6 +30,7 @@ library
                        GameEngine.Character
                        GameEngine.Collision
                        GameEngine.Engine
+                       GameEngine.Entity
                        GameEngine.Items
                        GameEngine.Material
                        GameEngine.MD3

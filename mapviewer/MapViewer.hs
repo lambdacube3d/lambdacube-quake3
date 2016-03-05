@@ -127,30 +127,33 @@ scene win levelData graphicsData mousePosition fblrPress capturePress waypointPr
     let mouseMove = (\((ox,oy),(nx,ny)) -> (nx-ox,ny-oy)) <$> last2
         bsp = getBSP levelData
         p0 = head . drop 1 . cycle $ getSpawnPoints levelData
-    controlledCamera <- userCamera bsp p0 mouseMove fblrPress
+    controlledCamera <- userCamera (getTeleportFun levelData) bsp p0 mouseMove fblrPress
 
     frameCount <- stateful (0 :: Int) (\_ c -> c + 1)
     capture <- transfer2 False (\_ cap cap' on -> on /= (cap && not cap')) capturePress =<< delay False capturePress
     
+    {-
     [clearWaypoints, setWaypoint, stopPlayback, startPlayback, incPlaybackSpeed, decPlaybackSpeed] <-
         forM (zip [edge, edge, edge, edge, return, return] [0..]) $ \(process, i) -> process (fmap (!! i) waypointPress)
 
-    waypoints <- recordSignalSamples setWaypoint clearWaypoints ((\(camPos, targetPos, _) -> (camPos, targetPos)) <$> controlledCamera)
+    waypoints <- recordSignalSamples setWaypoint clearWaypoints ((\(camPos, targetPos, _, _) -> (camPos, targetPos)) <$> controlledCamera)
     playbackSpeed <- transfer2 100 (\dt inc dec speed -> speed + 10*dt*(if inc then 1 else if dec then -1 else 0)) incPlaybackSpeed decPlaybackSpeed
     splineCamera <- playbackCamera startPlayback stopPlayback playbackSpeed waypoints
-    
     let activeCamera = do
             camData <- splineCamera
             case camData of
                 Nothing -> controlledCamera
                 Just camData -> return camData
-
-    let setupGFX cam@(camPos,camTarget,camUp) time (capturing,frameCount) = do
+    -}
+    let activeCamera = controlledCamera
+    let setupGFX (camPos,camTarget,camUp,brushIndex) time (capturing,frameCount) = do
             (w,h) <- getWindowSize win
             -- hack
             let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
             noBSPCull <- keyIsPressed (Key'S)
-            updateRenderInput graphicsData cam w h time noBSPCull
+            updateRenderInput graphicsData (camPos,camTarget,camUp) w h time noBSPCull
+            when (not $ null brushIndex) $ do
+              putStrLn $ "brush collision: " ++ show (map (getModelIndexFromBrushIndex levelData) brushIndex)
             return $ do
 #ifdef CAPTURE
                 when capturing $ do

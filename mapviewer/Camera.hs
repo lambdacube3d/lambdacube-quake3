@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 module Camera where
 
 import Control.Applicative
@@ -8,16 +9,16 @@ import FRP.Elerea.Param
 import GameEngine.Collision
 import GameEngine.BSP (BSPLevel)
 
-userCamera :: BSPLevel -> Vec3 -> Signal (Float, Float) -> Signal (Bool, Bool, Bool, Bool, Bool, Bool)
-           -> SignalGen Float (Signal (Vec3, Vec3, Vec3))
-userCamera bsp p mposs keyss = fmap (\(pos,target,up,_) -> (pos,target,up)) <$> transfer2 (p,zero,zero,(0,0,0)) calcCam mposs keyss
+userCamera :: ([Int] -> Vec3 -> Vec3) -> BSPLevel -> Vec3 -> Signal (Float, Float) -> Signal (Bool, Bool, Bool, Bool, Bool, Bool)
+           -> SignalGen Float (Signal (Vec3, Vec3, Vec3, [Int]))
+userCamera camTr bsp p mposs keyss = fmap (\(pos,target,up,i,_) -> (pos,target,up,i)) <$> transfer2 (p,zero,zero,[],(0,0,0)) calcCam mposs keyss
   where
     d0 = Vec4 0 (-1) 0 1
     u0 = Vec4 0 0 (-1) 1
-    gravity = 8000
+    gravity = 1000
     jumpSpeed0 = 800
     height = 42
-    calcCam dt (dmx,dmy) (left,up,down,right,turbo,jump) (p0,_,_,(mx,my,fallingSpeed)) =
+    calcCam dt (dmx,dmy) (left,up,down,right,turbo,jump) (p0,_,_,bIdx0,(mx,my,fallingSpeed)) =
       let nil c n = if c then n else zero
           p'  = nil left (v &* (-t)) &+ nil up (d &* t) &+ nil down (d &* (-t)) &+ nil right (v &* t) &+ p0
           k   = if turbo then 500 else 100
@@ -30,14 +31,14 @@ userCamera bsp p mposs keyss = fmap (\(pos,target,up,_) -> (pos,target,up)) <$> 
           v   = normalize $ d &^ u
           jumpSpeed' = if jump then jumpSpeed0 else 0
           fallingVec = Vec3 0 0 (fallingSpeed * dt)
-          dontMove = (p0,p0 &+ d,u,(mx',my',jumpSpeed'))
           p'2 = p' &+ fallingVec
       in case traceRay bsp p'2 (p'2 &- Vec3 0 0 (height+1)) of
-          Just (hit,_) -> let p'' = hit &+ Vec3 0 0 height
-                          in (p'',p'' &+ d,u,(mx',my',jumpSpeed'))
+          Just (hit,TraceHit{..}) ->
+                          let p'' = camTr bIdx0 $ hit &+ Vec3 0 0 height
+                          in (p'',p'' &+ d,u,outputBrushIndex,(mx',my',jumpSpeed'))
           Nothing -> case traceSphere 15 bsp p0 (p' &+ fallingVec) of
-            Nothing -> (p' &+ fallingVec,p' &+ d &+ fallingVec,u,(mx',my',fallingSpeed - dt*gravity))
-            _ -> dontMove
+            Nothing -> (p' &+ fallingVec,p' &+ d &+ fallingVec,u,[],(mx',my',fallingSpeed - dt*gravity))
+            Just (_,TraceHit{..}) -> (p0,p0 &+ d,u,outputBrushIndex,(mx',my',jumpSpeed'))
 
 rotationEuler :: Vec3 -> Proj4
 rotationEuler (Vec3 a b c) = orthogonal $ toOrthoUnsafe $ rotMatrixZ a .*. rotMatrixX b .*. rotMatrixY (-c)

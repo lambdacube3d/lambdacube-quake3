@@ -9,6 +9,7 @@ import Data.List
 import Foreign
 import Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable.Mutable as SMV
 import qualified Data.Vector.Storable as SV
@@ -60,23 +61,23 @@ addObject' rndr name prim idx attrs unis = addObject rndr name' prim idx attrs' 
         Just (ObjectArraySchema _ x)  -> x
         _           -> error $ "material not found: " ++ show name'
 
-addBSP :: GLStorage -> BSPLevel -> IO (V.Vector Object)
-addBSP renderer bsp = do
+addBSP :: GLStorage -> BSPLevel -> IO (V.Vector [Object])
+addBSP renderer BSPLevel{..} = do
     let byteStringToVector :: SB.ByteString -> SV.Vector Word8
         byteStringToVector = SV.fromList . SB.unpack
-    lightMapTextures <- fmap V.fromList $ forM (V.toList $ blLightmaps bsp) $ \(Lightmap d) -> do
+    lightMapTextures <- fmap V.fromList $ forM (V.toList blLightmaps) $ \(Lightmap d) -> do
         uploadTexture2DToGPU' True False True True $ ImageRGB8 $ Image 128 128 $ byteStringToVector d
     whiteTex <- uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage (\_ _ -> PixelRGB8 255 255 255) 1 1
 
+    -- construct vertex and index buffer
     let lightMapTexturesSize = V.length lightMapTextures
-        shaders = blShaders bsp
         convertSurface (objs,lenV,arrV,lenI,arrI) sf = if noDraw then skip else case srSurfaceType sf of
             Planar          -> objs'
             TriangleSoup    -> objs'
             -- tessellate, concatenate vertex and index data to fixed vertex and index buffer
             Patch           -> ((lmIdx, lenV, lenV', lenI, lenI', TriangleStrip, name):objs, lenV+lenV', v:arrV, lenI+lenI', i:arrI)
               where
-                (v,i) = tessellatePatch drawV sf 5
+                (v,i) = tessellatePatch blDrawVertices sf 5
                 lenV' = V.length v
                 lenI' = V.length i
             Flare           -> skip
@@ -84,11 +85,9 @@ addBSP renderer bsp = do
             lmIdx = srLightmapNum sf
             skip  = ((lmIdx,srFirstVertex sf, srNumVertices sf, srFirstIndex sf, 0, TriangleList, name):objs, lenV, arrV, lenI, arrI)
             objs' = ((lmIdx,srFirstVertex sf, srNumVertices sf, srFirstIndex sf, srNumIndices sf, TriangleList, name):objs, lenV, arrV, lenI, arrI)
-            Shader name sfFlags _ = shaders V.! (srShaderNum sf)
+            Shader name sfFlags _ = blShaders V.! (srShaderNum sf)
             noDraw = sfFlags .&. 0x80 /= 0
-        drawV = blDrawVertices bsp
-        drawI = blDrawIndices bsp
-        (objs,_,drawVl,_,drawIl) = V.foldl' convertSurface ([],V.length drawV,[drawV],V.length drawI,[drawI]) $! blSurfaces bsp
+        (objs,_,drawVl,_,drawIl) = V.foldl' convertSurface ([],V.length blDrawVertices,[blDrawVertices],V.length blDrawIndices,[blDrawIndices]) blSurfaces
         drawV' = V.concat $ reverse drawVl
         drawI' = V.concat $ reverse drawIl
 
@@ -105,7 +104,8 @@ addBSP renderer bsp = do
         , Array ArrFloat (4 * vertexCount) $ attribute dvColor
         ]
     indexBuffer <- compileBuffer [Array ArrWord32 (SV.length indices) $ withV SV.unsafeWith indices]
-    let obj (lmIdx,startV,countV,startI,countI,prim,SB8.unpack -> name) = do
+    -- add to storage
+    let obj surfaceIdx (lmIdx,startV,countV,startI,countI,prim,SB8.unpack -> name) = do
             let attrs = Map.fromList $
                     [ ("position",      Stream Attribute_V3F vertexBuffer 0 startV countV)
                     , ("diffuseUV",     Stream Attribute_V2F vertexBuffer 1 startV countV)
@@ -115,8 +115,9 @@ addBSP renderer bsp = do
                     ]
                 index = IndexStream indexBuffer 0 startI countI
                 isValidIdx i = i >= 0 && i < lightMapTexturesSize
-            o <- addObject' renderer name prim (Just index) attrs ["LightMap"]
-            o1 <- addObject renderer "LightMapOnly" prim (Just index) attrs ["LightMap"]
+                objUnis = ["LightMap","worldMat"]
+            o <- addObject' renderer name prim (Just index) attrs objUnis
+            o1 <- addObject renderer "LightMapOnly" prim (Just index) attrs objUnis
             let lightMap a = forM_ [o,o1] $ \b -> uniformFTexture2D "LightMap" (objectUniformSetter b) a
             {-
                 #define LIGHTMAP_2D			-4		// shader is for 2D rendering
@@ -127,8 +128,8 @@ addBSP renderer bsp = do
             case isValidIdx lmIdx of
                 False   -> lightMap whiteTex
                 True    -> lightMap $ lightMapTextures V.! lmIdx
-            return o
-    V.mapM obj $ V.fromList $ reverse objs
+            return [o,o1]
+    V.imapM obj $ V.fromList $ reverse objs
 
 data LCMD3
     = LCMD3
@@ -261,9 +262,9 @@ findLeafIdx bl camPos i
     plane   = blPlanes bl V.! ndPlaneNum node
     dist    = plNormal plane `dotprod` camPos - plDist plane
 
-cullSurfaces :: BSPLevel -> Vec3 -> Frustum -> V.Vector Object -> IO ()
+cullSurfaces :: BSPLevel -> Vec3 -> Frustum -> V.Vector [Object] -> IO ()
 cullSurfaces bsp cam frust objs = case leafIdx < 0 || leafIdx >= V.length leaves of
-    True    -> {-trace "findLeafIdx error" $ -}V.forM_ objs $ \obj -> enableObject obj True
+    True    -> {-trace "findLeafIdx error" $ -}V.forM_ objs $ \objList -> forM_ objList $ \obj -> enableObject obj True
     False   -> {-trace ("findLeafIdx ok " ++ show leafIdx ++ " " ++ show camCluster) -}surfaceMask
   where
     leafIdx = findLeafIdx bsp cam 0
@@ -272,10 +273,10 @@ cullSurfaces bsp cam frust objs = case leafIdx < 0 || leafIdx >= V.length leaves
     visibleLeafs = V.filter (\a -> (isClusterVisible bsp camCluster $ lfCluster a) && inFrustum a) leaves
     surfaceMask = do
         let leafSurfaces = blLeafSurfaces bsp
-        V.forM_ objs $ \obj -> enableObject obj False
+        V.forM_ objs $ \objList -> forM_ objList $ \obj -> enableObject obj False
         V.forM_ visibleLeafs $ \l ->
             V.forM_ (V.slice (lfFirstLeafSurface l) (lfNumLeafSurfaces l) leafSurfaces) $ \i ->
-                enableObject (objs V.! i) True
+                forM_ (objs V.! i) $ \obj -> enableObject obj True
     inFrustum a = boxInFrustum (lfMaxs a) (lfMins a) frust
 
 data Frustum

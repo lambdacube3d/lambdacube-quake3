@@ -11,7 +11,11 @@ module GameEngine.Engine
   , compileQuake3GraphicsCached
   , getSpawnPoints
   , getBSP
+  , getModelIndexFromBrushIndex
+  , getTeleportFun
   ) where
+
+import Debug.Trace
 
 import Control.Monad
 import Data.Time.Clock
@@ -64,6 +68,7 @@ import GameEngine.ShaderParser
 import GameEngine.Zip
 import GameEngine.Character
 import GameEngine.Items
+import GameEngine.Entity
 import qualified GameEngine.MD3 as MD3
 
 {-
@@ -156,15 +161,6 @@ readMD3Objects characterObjs ents pk3Data = do
 
 takeExtensionCI = map toLower . takeExtension
 isPrefixOfCI a b = isPrefixOf a $ map toLower b
-
-parseEntities :: String -> SB.ByteString -> [T.Trie SB.ByteString]
-parseEntities n s = eval n $ parse entities s
-  where
-    eval n f = case f of
-        Done "" r   -> r
-        Done rem r  -> error $ show (n,"Input is not consumed", rem, r)
-        Fail _ c _  -> error $ show (n,"Fail",c)
-        Partial f'  -> eval n (f' "")
 
 -----------
 -- Graphics
@@ -266,6 +262,7 @@ engineInit pk3Data fullBSPName = do
           | otherwise = []
         spawnPoints = concatMap spawnPoint ents
         p0 = head spawnPoints
+        teleportData = loadTeleports ents
 
     -- MD3 related code
     (characterSkinMaterials,characterObjs,characters) <- readCharacters pk3Data p0
@@ -360,12 +357,22 @@ engineInit pk3Data fullBSPName = do
                                       , ("origin",    V3F)
                                       ] ++ zip textureUniforms (repeat FTexture2D)
           }
-    return (inputSchema,(bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints))
+    let brushModelMapping = V.replicate (V.length $ blBrushes bsp) (-1) V.//
+          (concat $ V.toList $ V.imap (\i Model{..} -> [(n,i) | n <- [mdFirstBrush..mdFirstBrush+mdNumBrushes-1]]) (blModels bsp))
+    putStrLn $ "bsp model count: " ++ show (V.length $ blModels bsp)
+    print brushModelMapping
+    print teleportData
+    return (inputSchema,(bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,teleportData))
 
-getBSP (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints) = bsp
-getSpawnPoints (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints) = spawnPoints
+getModelIndexFromBrushIndex (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,teleportData) brushIndex = brushModelMapping V.! brushIndex
+getBSP (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,teleportData) = bsp
+getSpawnPoints (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,teleportData) = spawnPoints
+getTeleportFun levelData@(bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,(teleport,teleportTarget)) brushIndex p =
+  let models = map (getModelIndexFromBrushIndex levelData) brushIndex
+      hitModels = [tp | TriggerTeleport target model <- teleport, model `elem` models, TargetPosition _ tp <- maybeToList $ T.lookup target teleportTarget]
+  in head $ trace (show ("hitModels",hitModels,models)) hitModels ++ [p]
 
-setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_) storage = do
+setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_,_,_) storage = do
     let slotU           = uniformSetter storage
         entityRGB       = uniformV3F "entityRGB" slotU
         entityAlpha     = uniformFloat "entityAlpha" slotU
@@ -397,7 +404,7 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
                 return [(1/t,cycle $ zip (repeat texSetter) txList)]
             _ -> return []
 
-    objs <- addBSP storage bsp
+    surfaceObjs <- addBSP storage bsp
 
     -- add entities
     let addMD3Obj (mat,(skin,name)) = case T.lookup (SB.pack name) md3Map of
@@ -420,7 +427,7 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
         lLC <- addMD3 storage lMD3 lSkin ["worldMat"]
         return (mat,(hMD3,hLC),(uMD3,uLC),(lMD3,lLC))
       )
-    return (storage,lcMD3Objs,characters,lcCharacterObjs,objs,bsp)
+    return (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp)
 {-
 animateMaps :: [(Float, [(SetterFun TextureData, TextureData)])] -> SignalGen Float (Signal [(Float, [(SetterFun TextureData, TextureData)])])
 animateMaps l0 = stateful l0 $ \dt l -> zipWith (f $ dt * timeScale) l timing
@@ -433,7 +440,7 @@ animateMaps l0 = stateful l0 $ \dt l -> zipWith (f $ dt * timeScale) l timing
         | otherwise     = (t-dt,a)
 -}
 -- TODO
-updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,objs,bsp) (camPos,camTarget,camUp) w h time noBSPCull = do
+updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp) (camPos,camTarget,camUp) w h time noBSPCull = do
             let slotU = uniformSetter storage
 
             let legAnimType = LEGS_SWIM
@@ -504,9 +511,12 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
             matSetter $! mat4ToM44F $! cm .*. sm .*. pm
             --TODO: forM_ anim $ \(_,a) -> let (s,t) = head a in s t
             setScreenSize storage (fromIntegral w) (fromIntegral h)
+            -- TODO
+            let idmtx = V4 (V4 1 0 0 0) (V4 0 1 0 0) (V4 0 0 1 0) (V4 0 0 0 1)
+            V.forM_ surfaceObjs $ \objs -> forM_ objs $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) idmtx
             case noBSPCull of
-              True  -> V.forM_ objs $ \obj -> enableObject obj True
-              False -> cullSurfaces bsp camPos frust objs
+              True  -> V.forM_ surfaceObjs $ \objs -> forM_ objs $ \obj -> enableObject obj True
+              False -> cullSurfaces bsp camPos frust surfaceObjs
             return ()
 
 compileQuake3GraphicsCached name = doesFileExist name >>= \case
