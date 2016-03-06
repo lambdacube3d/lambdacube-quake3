@@ -28,6 +28,8 @@ game engine:
       - ray, sphere, box collision with each other
           required for e.g.: bullet - model, player - ammo collision
       - collision for md3 models
+      - fix teleport collision
+      - implement item collision
       - implement q3 entity system
           - items
           - spawns
