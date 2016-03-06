@@ -30,6 +30,7 @@ game engine:
       - collision for md3 models
       - fix teleport collision
       - implement item collision
+      - door opening/closing
       - implement q3 entity system
           - items
           - spawns
