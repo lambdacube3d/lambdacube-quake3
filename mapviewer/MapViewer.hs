@@ -121,13 +121,19 @@ main = do
 edge :: Signal Bool -> SignalGen p (Signal Bool)
 edge s = transfer2 False (\_ cur prev _ -> cur && not prev) s =<< delay False s
 
+upEdge :: Signal Bool -> SignalGen p (Signal Bool)
+upEdge s = transfer2 False (\_ cur prev _ -> cur && prev == False) s =<< delay False s
+
 scene win levelData graphicsData mousePosition fblrPress capturePress waypointPress capRef = do
     time <- stateful 0 (+)
     last2 <- transfer ((0,0),(0,0)) (\_ n (_,b) -> (b,n)) mousePosition
     let mouseMove = (\((ox,oy),(nx,ny)) -> (nx-ox,ny-oy)) <$> last2
         bsp = getBSP levelData
         p0 = head . drop 1 . cycle $ getSpawnPoints levelData
-    controlledCamera <- userCamera (getTeleportFun levelData) bsp p0 mouseMove fblrPress
+    fblrPress' <- do
+      j' <- upEdge $ (\(w,a,s,d,t,j) -> j) <$> fblrPress
+      return $ (\(w,a,s,d,t,_) j' -> (w,a,s,d,t,j')) <$> fblrPress <*> j'
+    controlledCamera <- userCamera (getTeleportFun levelData) bsp p0 mouseMove fblrPress'
 
     frameCount <- stateful (0 :: Int) (\_ c -> c + 1)
     capture <- transfer2 False (\_ cap cap' on -> on /= (cap && not cap')) capturePress =<< delay False capturePress

@@ -32,13 +32,14 @@ userCamera camTr bsp p mposs keyss = fmap (\(pos,target,up,i,_) -> (pos,target,u
           jumpSpeed' = if jump then jumpSpeed0 else 0
           fallingVec = Vec3 0 0 (fallingSpeed * dt)
           p'2 = p' &+ fallingVec
-      in case traceRay bsp p'2 (p'2 &- Vec3 0 0 (height+1)) of
+          (p'3,bIdx'1) = case traceSphere 15 bsp p0 p'2 of
+            Nothing -> (p'2,[])
+            Just (hit,TraceHit{..}) -> (p0 &+ fallingVec,outputBrushIndex)
+      in case traceRay bsp p'3 (p'3 &- Vec3 0 0 (height+1)) of
           Just (hit,TraceHit{..}) ->
-                          let p'' = camTr bIdx0 $ hit &+ Vec3 0 0 height
-                          in (p'',p'' &+ d,u,outputBrushIndex,(mx',my',jumpSpeed'))
-          Nothing -> case traceSphere 15 bsp p0 (p' &+ fallingVec) of
-            Nothing -> (p' &+ fallingVec,p' &+ d &+ fallingVec,u,[],(mx',my',fallingSpeed - dt*gravity))
-            Just (_,TraceHit{..}) -> (p0,p0 &+ d,u,outputBrushIndex,(mx',my',jumpSpeed'))
+                          let p'4 = camTr bIdx0 $ hit &+ Vec3 0 0 height
+                          in (p'4,p'4 &+ d,u,outputBrushIndex ++ bIdx'1,(mx',my',jumpSpeed'))
+          Nothing -> (p'3,p'3 &+ d,u,bIdx'1,(mx',my',fallingSpeed - dt*gravity + jumpSpeed'))
 
 rotationEuler :: Vec3 -> Proj4
 rotationEuler (Vec3 a b c) = orthogonal $ toOrthoUnsafe $ rotMatrixZ a .*. rotMatrixX b .*. rotMatrixY (-c)
