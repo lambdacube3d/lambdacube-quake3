@@ -86,7 +86,7 @@ main = do
       putStrLn "start to compile"
       writeIORef compileRequest False
       writeIORef compileReady False
-      -- compileQuake3GraphicsCached pplName >>= writeIORef compileReady
+      compileQuake3GraphicsCached pplName >>= writeIORef compileReady
       putStrLn "compile finished"
       let loop = do
             req <- readIORef compileRequest

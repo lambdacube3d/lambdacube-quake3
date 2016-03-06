@@ -32,7 +32,7 @@ userCamera camTr bsp p mposs keyss = fmap (\(pos,target,up,i,_) -> (pos,target,u
           jumpSpeed' = if jump then jumpSpeed0 else 0
           fallingVec = Vec3 0 0 (fallingSpeed * dt)
           p'2 = p' &+ fallingVec
-          (p'3,bIdx'1) = case traceSphere 15 bsp p0 p'2 of
+          (p'3,bIdx'1) = case traceSphere (height / 2) bsp p0 p'2 of
             Nothing -> (p'2,[])
             Just (hit,TraceHit{..}) -> (p0 &+ fallingVec,outputBrushIndex)
       in case traceRay bsp p'3 (p'3 &- Vec3 0 0 (height+1)) of

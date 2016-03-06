@@ -10,41 +10,6 @@ import Data.Maybe
 import GameEngine.ShaderParser
 import GameEngine.Items
 
-{-
-
-{
-"classname" "item_health"
-"origin" "232 -344 -240"
-}
-
-{
-"classname" "info_player_deathmatch"
-"angle" "90"
-"origin" "-384 944 -232"
-}
-
-{
-"model" "*3"
-"target" "t8"
-"classname" "trigger_teleport"
-}
-
-{
-"origin" "-192 -384 -168"
-"targetname" "t8"
-"angle" "90"
-"spawnflags" "4"
-"classname" "misc_teleporter_dest"
-}
-
-{
-"targetname" "t187"
-"origin" "-524 -212 380"
-"classname" "target_position"
-"angle" "90"
-}
-
--}
 data Entity
   = TriggerTeleport     SB.ByteString Int
   | TargetPosition      SB.ByteString Vec3
