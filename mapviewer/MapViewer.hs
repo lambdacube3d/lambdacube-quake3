@@ -152,8 +152,10 @@ scene win levelData graphicsData mousePosition fblrPress capturePress waypointPr
             let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
             noBSPCull <- keyIsPressed (Key'S)
             updateRenderInput graphicsData (camPos,camTarget,camUp) w h time noBSPCull
+            {-
             when (not $ null brushIndex) $ do
               putStrLn $ "brush collision: " ++ show (map (getModelIndexFromBrushIndex levelData) brushIndex)
+            -}
             return $ do
 #ifdef CAPTURE
                 when capturing $ do

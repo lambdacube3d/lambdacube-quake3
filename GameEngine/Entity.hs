@@ -68,7 +68,7 @@ loadTeleports t =
   [ (targetName,TargetPosition targetName (Vec3 x y z))
   | e <- t
   , className <- maybeToList $ T.lookup "classname" e
-  , className `elem` ["target_position","misc_teleporter_dest"]
+  , className `elem` ["target_position","misc_teleporter_dest","info_notnull"]
   , targetName <- maybeToList $ T.lookup "targetname" e
   , origin <- maybeToList $ T.lookup "origin" e
   , let [x,y,z] = map read $ words $ SB.unpack origin

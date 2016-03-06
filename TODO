@@ -34,11 +34,12 @@ game engine:
           - generic entity collision shape (bsp inline model) trigger support
           questions:
             how does bsp surface and bsd inline model rendering work?
-            are the doors inline bsp models? how are they moved?
+            are the doors inline bsp models? yes. how are they moved? per object worldMat.
 
       - character <-> item collision (e.g. ammo)
       - fix collision with patches
       - improve camera move
+        - swim in water
       - optimize collision code, fix memory leak
   - spectator camera
   - character camera with gravity and collision

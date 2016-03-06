@@ -370,7 +370,8 @@ getSpawnPoints (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPo
 getTeleportFun levelData@(bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,(teleport,teleportTarget)) brushIndex p =
   let models = map (getModelIndexFromBrushIndex levelData) brushIndex
       hitModels = [tp | TriggerTeleport target model <- teleport, model `elem` models, TargetPosition _ tp <- maybeToList $ T.lookup target teleportTarget]
-  in head $ trace (show ("hitModels",hitModels,models)) hitModels ++ [p]
+  --in head $ trace (show ("hitModels",hitModels,models)) hitModels ++ [p]
+  in head $ hitModels ++ [p]
 
 setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_,_,_) storage = do
     let slotU           = uniformSetter storage
