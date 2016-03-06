@@ -137,6 +137,8 @@ readCharacters pk3Data p0 = do
     ]
   return (characterSkinMaterials,characterObjs,characters)
 
+handWeapon = "models/weapons2/plasma/plasma.md3"
+
 readMD3Objects characterObjs ents pk3Data = do
     let itemMap = T.fromList [(SB.pack $ itClassName it,it) | it <- items]
         collectObj e
@@ -152,7 +154,7 @@ readMD3Objects characterObjs ents pk3Data = do
         md3Objs = concatMap collectObj ents
     md3Map <- T.fromList <$> sequence
       [ (\a -> (SB.pack n,MD3.readMD3 $ LB.fromStrict a)) <$> readEntry m
-      | n <- Set.toList . Set.fromList . map (snd . snd) $ md3Objs ++ concat characterObjs
+      | n <- Set.toList . Set.fromList . map (snd . snd) $ md3Objs ++ concat characterObjs ++ [(mkWorldMat 0 0 0,(mempty,handWeapon))]
       , m <- maybeToList $ Map.lookup n pk3Data
       ]
     let md3Materials = Set.fromList . concatMap (concatMap (map MD3.shName . V.toList . MD3.srShaders) . V.toList . MD3.mdSurfaces) $ T.elems md3Map
@@ -417,6 +419,8 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
 
     lcMD3Objs <- concat <$> forM md3Objs addMD3Obj
 
+    lcMD3Weapon <- addMD3 storage (fromJust $ T.lookup (SB.pack handWeapon) md3Map) mempty ["worldMat","viewProj"]
+
     -- add characters
     lcCharacterObjs <- forM characterObjs
       (\[(mat,(hSkin,hName)),(_,(uSkin,uName)),(_,(lSkin,lName))] -> do
@@ -428,7 +432,7 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
         lLC <- addMD3 storage lMD3 lSkin ["worldMat"]
         return (mat,(hMD3,hLC),(uMD3,uLC),(lMD3,lLC))
       )
-    return (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp)
+    return (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon)
 {-
 animateMaps :: [(Float, [(SetterFun TextureData, TextureData)])] -> SignalGen Float (Signal [(Float, [(SetterFun TextureData, TextureData)])])
 animateMaps l0 = stateful l0 $ \dt l -> zipWith (f $ dt * timeScale) l timing
@@ -441,7 +445,7 @@ animateMaps l0 = stateful l0 $ \dt l -> zipWith (f $ dt * timeScale) l timing
         | otherwise     = (t-dt,a)
 -}
 -- TODO
-updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp) (camPos,camTarget,camUp) w h time noBSPCull = do
+updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon) (camPos,camTarget,camUp) w h time noBSPCull = do
             let slotU = uniformSetter storage
 
             let legAnimType = LEGS_SWIM
@@ -464,6 +468,20 @@ updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp)
                 fovDeg = 60
                 frust = frustum fovDeg (fromIntegral w / fromIntegral h) near far camPos camTarget camUp
 
+            -- set uniforms
+            timeSetter $ time / 1
+            --putStrLn $ "time: " ++ show time ++ " " ++ show capturing
+            viewOrigin $ V3 cx cy cz
+            viewMat $ mat4ToM44F cm
+            --orientation $ V4 orientA orientB orientC $ V4 0 0 0 1
+            matSetter $! mat4ToM44F $! cm .*. sm .*. pm
+
+            let invCM = mat4ToM44F $ idmtx -- inverse cm .*. (fromProjective $ translation (Vec3 0 (0) (-30)))
+                --rot = fromProjective $ rotationEuler (Vec3 (-pi/2+30/pi*2) (pi/2) (-pi))
+                rot = fromProjective $ orthogonal $ toOrthoUnsafe $ rotMatrixX (-pi/2) .*. rotMatrixY (pi/2) .*. rotMatrixX (10/pi*2)
+            forM_ (lcmd3Object lcMD3Weapon) $ \obj -> do
+              uniformM44F "viewProj" (objectUniformSetter obj) $ mat4ToM44F $! rot .*. (fromProjective $ translation (Vec3 3 (-10) (-5))) .*. sm .*. pm
+              uniformM44F "worldMat" (objectUniformSetter obj) invCM
             forM_ lcMD3Objs $ \(mat,lcmd3) -> do
               forM_ (lcmd3Object lcmd3) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ mat4ToM44F $ fromProjective $ (rotationEuler (Vec3 time 0 0) .*. mat)
 
@@ -504,12 +522,6 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
               setMD3Frame uLC torsoFrame
               setMD3Frame lLC legFrame
 
-            timeSetter $ time / 1
-            --putStrLn $ "time: " ++ show time ++ " " ++ show capturing
-            viewOrigin $ V3 cx cy cz
-            viewMat $ mat4ToM44F cm
-            --orientation $ V4 orientA orientB orientC $ V4 0 0 0 1
-            matSetter $! mat4ToM44F $! cm .*. sm .*. pm
             --TODO: forM_ anim $ \(_,a) -> let (s,t) = head a in s t
             setScreenSize storage (fromIntegral w) (fromIntegral h)
             -- TODO
