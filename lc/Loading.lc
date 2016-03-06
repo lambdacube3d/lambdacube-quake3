@@ -8,7 +8,7 @@ quadUV =
   , V2 1 0, V2 0 1, V2 0 0
   ]
 
-quadStream = fetchArrays Triangle (quadPosition,quadUV)
+quadStream = fetchArrays (quadPosition,quadUV)
 
 makeFrame (texture :: Texture)
           (prims :: PrimitiveStream Triangle (Vec 2 Float,Vec 2 Float))
