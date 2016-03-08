@@ -137,7 +137,9 @@ readCharacters pk3Data p0 = do
     ]
   return (characterSkinMaterials,characterObjs,characters)
 
-handWeapon = "models/weapons2/plasma/plasma.md3"
+handWeapon = head $ drop 6 ["models/weapons2/" ++ n ++ "/"++ n ++ ".md3" | n <- weapons]
+  where
+    weapons = ["bfg","gauntlet","grapple","grenadel","lightning","machinegun","plasma","railgun","rocketl","shells","shotgun"]
 
 readMD3Objects characterObjs ents pk3Data = do
     let itemMap = T.fromList [(SB.pack $ itClassName it,it) | it <- items]

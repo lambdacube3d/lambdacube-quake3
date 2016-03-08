@@ -76,6 +76,8 @@ main = do
     graphicsData <- setupStorage pk3Data levelData storage
     putStrLn "storage created"
 
+    simpleRenderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
+    setStorage simpleRenderer storage
     rendererRef <- newIORef =<< fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
 
     let pplName = bspName ++ "_ppl.json"
@@ -99,8 +101,10 @@ main = do
     (capturePress,capturePressSink) <- external False
     (waypointPress,waypointPressSink) <- external []
 
-    let draw captureA = do
-          readIORef rendererRef >>= renderFrame
+    let draw (captureA,debugRender) = do
+          if debugRender
+            then renderFrame simpleRenderer
+            else readIORef rendererRef >>= renderFrame
           captureA
           swapBuffers win
           pollEvents
@@ -157,19 +161,21 @@ scene win levelData graphicsData mousePosition fblrPress capturePress waypointPr
             -- hack
             let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
             noBSPCull <- keyIsPressed (Key'S)
+            debugRender <- keyIsPressed (Key'C)
             updateRenderInput graphicsData (camPos,camTarget,camUp) w h time noBSPCull
             {-
             when (not $ null brushIndex) $ do
               putStrLn $ "brush collision: " ++ show (map (getModelIndexFromBrushIndex levelData) brushIndex)
             -}
-            return $ do
+            let captureA = do
 #ifdef CAPTURE
-                when capturing $ do
-                    glFinish
-                    withFrameBuffer 0 0 w h $ \p -> writeImageFromPtr (printf "frame%08d.jpg" frameCount) (h,w) p
-                writeIORef capRef capturing
+                  when capturing $ do
+                      glFinish
+                      withFrameBuffer 0 0 w h $ \p -> writeImageFromPtr (printf "frame%08d.jpg" frameCount) (h,w) p
+                  writeIORef capRef capturing
 #endif
-                return ()
+                  return ()
+            return (captureA,debugRender)
     r <- effectful3 setupGFX activeCamera time ((,) <$> capture <*> frameCount)
     return r
 
