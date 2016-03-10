@@ -13,6 +13,7 @@ module GameEngine.Engine
   , getBSP
   , getModelIndexFromBrushIndex
   , getTeleportFun
+  , getMusicFile
   ) where
 
 import Debug.Trace
@@ -260,13 +261,14 @@ engineInit pk3Data fullBSPName = do
     let ents = parseEntities bspName $ blEntities bsp
         spawnPoint e
           | Just classname <- T.lookup "classname" e
-          , classname `elem` ["info_player_deathmatch"]
+          , classname `elem` ["info_player_deathmatch","info_player_start","team_CTF_bluespawn","team_CTF_redspawn","team_CTF_blueplayer","team_CTF_redplayer"]
           , Just origin <- T.lookup "origin" e
           , [x,y,z] <- map read $ words $ SB.unpack origin = [Vec3 x y z]
           | otherwise = []
         spawnPoints = concatMap spawnPoint ents
         p0 = head spawnPoints
         teleportData = loadTeleports ents
+        music = T.lookup "music" $ head ents
 
     -- MD3 related code
     (characterSkinMaterials,characterObjs,characters) <- readCharacters pk3Data p0
@@ -289,7 +291,7 @@ engineInit pk3Data fullBSPName = do
             Nothing -> (n,imageShader hasLightmap n)
 
         maxMaterial = 20 -- TODO: remove if we will have fast reducer
-        shNames = Set.fromList $ Prelude.take maxMaterial selectedMaterials
+        shNames = Set.fromList $ Prelude.take maxMaterial $ selectedMaterials ++ ignoredMaterials
         allShName = map shName $ V.toList $ blShaders bsp
         (selectedMaterials,ignoredMaterials) = partition (\n -> or $ [SB.isInfixOf k n | k <- ["floor","wall","door","trim","block"]]) allShName
 
@@ -366,18 +368,19 @@ engineInit pk3Data fullBSPName = do
     putStrLn $ "bsp model count: " ++ show (V.length $ blModels bsp)
     print brushModelMapping
     print teleportData
-    return (inputSchema,(bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,teleportData))
+    return (inputSchema,(bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,teleportData,music))
 
-getModelIndexFromBrushIndex (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,teleportData) brushIndex = brushModelMapping V.! brushIndex
-getBSP (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,teleportData) = bsp
-getSpawnPoints (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,teleportData) = spawnPoints
-getTeleportFun levelData@(bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,(teleport,teleportTarget)) brushIndex p =
+getMusicFile (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,teleportData,music) = music
+getModelIndexFromBrushIndex (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,teleportData,music) brushIndex = brushModelMapping V.! brushIndex
+getBSP (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,teleportData,music) = bsp
+getSpawnPoints (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,teleportData,music) = spawnPoints
+getTeleportFun levelData@(bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,(teleport,teleportTarget),music) brushIndex p =
   let models = map (getModelIndexFromBrushIndex levelData) brushIndex
       hitModels = [tp | TriggerTeleport target model <- teleport, model `elem` models, TargetPosition _ tp <- maybeToList $ T.lookup target teleportTarget]
   --in head $ trace (show ("hitModels",hitModels,models)) hitModels ++ [p]
   in head $ hitModels ++ [p]
 
-setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_,_,_) storage = do
+setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_,_,_,_) storage = do
     let slotU           = uniformSetter storage
         entityRGB       = uniformV3F "entityRGB" slotU
         entityAlpha     = uniformFloat "entityAlpha" slotU

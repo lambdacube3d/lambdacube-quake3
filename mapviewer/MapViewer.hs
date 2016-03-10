@@ -15,8 +15,13 @@ import Graphics.GL.Core33
 import FRP.Elerea.Param
 import LambdaCube.GL as GL
 
+import Sound.ProteaAudio
+
 import Camera
 import GameEngine.Engine
+import GameEngine.Zip
+import qualified Data.ByteString.Char8 as SB8
+
 
 #ifdef CAPTURE
 import Codec.Image.DevIL
@@ -67,7 +72,25 @@ main = do
     drawLoadingScreen w h loadingScreen pk3Data bspName
     swapBuffers win
 
+    initAudio 64 44100 1024
+
     (inputSchema,levelData) <- engineInit pk3Data fullBSPName
+
+    -- play level music
+    case getMusicFile levelData of
+      Nothing -> return ()
+      Just musicFName' -> let musicFName = map f $ SB8.unpack musicFName'
+                              f '\\' = '/'
+                              f c = c
+                          in case Map.lookup musicFName pk3Data of
+        Nothing -> return ()
+        Just e -> do
+          buf <- readEntry e
+          -- load from memory buffer
+          smp' <- case takeExtension musicFName of
+           ".ogg" -> SB8.useAsCStringLen buf $ \(p,i) -> sampleFromMemoryOgg p i 1
+           ".wav" -> SB8.useAsCStringLen buf $ \(p,i) -> sampleFromMemoryWav p i 1
+          soundPlay smp' 1 1 0 1
 
     let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
 
@@ -120,6 +143,7 @@ main = do
     disposeRenderer =<< readIORef rendererRef
     putStrLn "storage destroyed"
 
+    finishAudio
     destroyWindow win
 
 edge :: Signal Bool -> SignalGen p (Signal Bool)
