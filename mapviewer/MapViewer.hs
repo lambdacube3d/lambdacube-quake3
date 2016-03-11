@@ -76,22 +76,6 @@ main = do
 
     (inputSchema,levelData) <- engineInit pk3Data fullBSPName
 
-    -- play level music
-    case getMusicFile levelData of
-      Nothing -> return ()
-      Just musicFName' -> let musicFName = map f $ SB8.unpack musicFName'
-                              f '\\' = '/'
-                              f c = c
-                          in case Map.lookup musicFName pk3Data of
-        Nothing -> return ()
-        Just e -> do
-          buf <- readEntry e
-          -- load from memory buffer
-          smp' <- case takeExtension musicFName of
-           ".ogg" -> SB8.useAsCStringLen buf $ \(p,i) -> sampleFromMemoryOgg p i 1
-           ".wav" -> SB8.useAsCStringLen buf $ \(p,i) -> sampleFromMemoryWav p i 1
-          soundPlay smp' 1 1 0 1
-
     let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
 
     -- CommonAttrs
@@ -118,6 +102,22 @@ main = do
             threadDelay 100000 -- 10 / sec
             unless req loop
       loop
+
+    -- play level music
+    case getMusicFile levelData of
+      Nothing -> return ()
+      Just musicFName' -> let musicFName = map f $ SB8.unpack musicFName'
+                              f '\\' = '/'
+                              f c = c
+                          in case Map.lookup musicFName pk3Data of
+        Nothing -> return ()
+        Just e -> do
+          buf <- readEntry e
+          -- load from memory buffer
+          smp' <- case takeExtension musicFName of
+           ".ogg" -> SB8.useAsCStringLen buf $ \(p,i) -> sampleFromMemoryOgg p i 1
+           ".wav" -> SB8.useAsCStringLen buf $ \(p,i) -> sampleFromMemoryWav p i 1
+          soundPlay smp' 1 1 0 1
 
     (mousePosition,mousePositionSink) <- external (0,0)
     (fblrPress,fblrPressSink) <- external (False,False,False,False,False,False)

@@ -12,6 +12,8 @@ module GameEngine.Collision
   https://github.com/JodiTheTigger/MessyBsp/blob/master/docs/section6.txt
 -}
 
+-- TODO - for box-box, etc collision see: code/qcommon/cm_trace.c
+
 import Data.Vector ((!))
 import qualified Data.Vector as V
 import Data.Vect.Float

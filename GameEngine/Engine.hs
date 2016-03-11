@@ -268,7 +268,7 @@ engineInit pk3Data fullBSPName = do
         spawnPoints = concatMap spawnPoint ents
         p0 = head spawnPoints
         teleportData = loadTeleports ents
-        music = T.lookup "music" $ head ents
+        music = (head . SB.words) <$> (T.lookup "music" $ head ents)
 
     -- MD3 related code
     (characterSkinMaterials,characterObjs,characters) <- readCharacters pk3Data p0
