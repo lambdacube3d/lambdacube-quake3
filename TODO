@@ -18,6 +18,14 @@ rendering improvements:
   - deferred rendering
   - autosprite support
 
+debug rendering:
+  - color bsp models
+  - draw brushes
+  - draw model's min/max box
+  - draw bsp leaf min/max box
+  - color surfaces (with same material)
+  - draw collision rays
+
 game engine:
   - level collision support (e.g. http://openzone.googlecode.com/git-history/f73bb8dfe8e6a16c13d39aba1c8f6537ee263d07/doc/Quake3BSP.html)
       done - trace collision function
