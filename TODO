@@ -33,6 +33,7 @@ game engine:
       done - add remaining collision primitives (e.g. box, sphere)
       done - render bounding box
       done - render bounding sphere
+      - generate collision geometry for bezier sufraces
       - ray, sphere, box collision with each other
           required for e.g.: bullet - model, player - ammo collision
       - collision for md3 models
