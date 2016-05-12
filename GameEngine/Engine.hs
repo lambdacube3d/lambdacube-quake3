@@ -291,7 +291,7 @@ engineInit pk3Data fullBSPName = do
             Nothing -> (n,imageShader hasLightmap n)
 
         maxMaterial = 20 -- TODO: remove if we will have fast reducer
-        shNames = Set.fromList $ Prelude.take maxMaterial $ selectedMaterials ++ ignoredMaterials
+        shNames = Set.fromList $ {-Prelude.take maxMaterial $ -}selectedMaterials ++ ignoredMaterials
         allShName = map shName $ V.toList $ blShaders bsp
         (selectedMaterials,ignoredMaterials) = partition (\n -> or $ [SB.isInfixOf k n | k <- ["floor","wall","door","trim","block"]]) allShName
 

@@ -71,6 +71,7 @@ main = do
     (w,h) <- getWindowSize win
     drawLoadingScreen w h loadingScreen pk3Data bspName
     swapBuffers win
+    pollEvents
 
     initAudio 64 44100 1024
 
