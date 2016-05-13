@@ -18,7 +18,7 @@ import Data.Vector ((!))
 import qualified Data.Vector as V
 import Data.Vect.Float
 import Data.Vect.Float.Instances
-import Data.Bits ((.&.))
+import Data.Bits
 import GameEngine.BSP
 
 data TraceHit
@@ -78,7 +78,7 @@ checkNode noCull traceType bsp@BSPLevel{..} inputStart inputEnd nodeIndex startF
                  | brushIndex <- if noCull then [0..V.length blBrushes-1] else V.toList $ leafBrushes
                  , let brush@Brush{..} = blBrushes ! brushIndex
                  , brNumSides > 0
-                 , shContentFlags (blShaders ! brShaderNum) .&. 1 == 1
+                 , shContentFlags (blShaders ! brShaderNum) .&. (0x2000000 .|. 0x10000 .|. 1) /= 0 -- CONTENTS_BODY, CONTENTS_PLAYERCLIP, CONTENTS_SOLID
                  ]
   -- node
   | startDistance >= offset && endDistance >= offset = checkNode noCull traceType bsp inputStart inputEnd (fst ndChildren) startFraction endFraction start end

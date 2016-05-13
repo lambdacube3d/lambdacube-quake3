@@ -33,13 +33,10 @@ game engine:
       done - add remaining collision primitives (e.g. box, sphere)
       done - render bounding box
       done - render bounding sphere
-      - generate collision geometry for bezier sufraces
       - ray, sphere, box collision with each other
           required for e.g.: bullet - model, player - ammo collision
       - collision for md3 models
       - fix teleport collision
-      - implement item collision
-      - door opening/closing
       - implement q3 entity system
           - items
           - spawns
@@ -54,14 +51,20 @@ game engine:
         - swim in water
       - optimize collision code, fix memory leak
   - spectator camera
-  - character camera with gravity and collision
+  done - character camera with gravity and collision
   - third person character camera
   - attach weapon to character hand according tags
   - animate items (e.g. ammos and armors)
-  - level sounds
+  done - level sounds
   - simulate level actors (e.g. doors, jump pads)
+
+quake sprint May 12-23:
+  - door opening/closing
+  - implement item entity handling (placement + spawn)
+  - implement item collision
   - weapon and firing
   - logic for items (e.g. armor, health, quad damage)
+  - generate collision geometry for bezier sufraces
 
 networking: http://www.gdcvault.com/play/1022195/Physics-for-Game-Programmers-Networking
 
