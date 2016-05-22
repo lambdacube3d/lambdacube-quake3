@@ -83,3 +83,8 @@ milestone 1:
   client - server
   spectator camera with collision
 
+documentation:
+  http://wiki.ioquake3.org/Entities
+  http://fabiensanglard.net/quake3/
+  http://caia.swin.edu.au/reports/110209A/CAIA-TR-110209A.pdf
+  
