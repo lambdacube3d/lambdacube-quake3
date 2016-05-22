@@ -210,8 +210,8 @@ setupTables s = do
     tableTexture inverseSawToothTexture "InverseSawToothTable" s
     tableTexture triangleTexture "TriangleTable" s
 
-loadQ3Texture :: Bool -> Bool -> TextureData -> Map String Entry -> ByteString -> IO TextureData
-loadQ3Texture isMip isClamped defaultTex ar name' = do
+loadQ3Texture :: Bool -> Bool -> TextureData -> Map String Entry -> ByteString -> ByteString -> IO TextureData
+loadQ3Texture isMip isClamped defaultTex ar shName name' = do
     let name = SB.unpack name'
         n1 = replaceExtension name "tga"
         n2 = replaceExtension name "jpg"
@@ -220,7 +220,7 @@ loadQ3Texture isMip isClamped defaultTex ar name' = do
         b2 = Map.member n2 ar
         fname   = if b0 then name else if b1 then n1 else n2
     case Map.lookup fname ar of
-        Nothing -> putStrLn ("    unknown: " ++ fname) >> return defaultTex
+        Nothing -> putStrLn ("    unknown texure: " ++ fname ++ " in shader: " ++ SB.unpack shName) >> return defaultTex
         Just entry  -> do
             eimg <- decodeImage <$> readEntry entry
             putStrLn $ "  load: " ++ fname
@@ -400,16 +400,17 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
 
     putStrLn "loading textures:"
     -- load textures
-    animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ concatMap (\sh -> [(saTexture sa,saTextureUniform sa,caNoMipMaps sh) | sa <- caStages sh]) $ T.elems shMapTexSlot) $
-      \(stageTex,texSlotName,noMip) -> do
+    animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ concatMap (\(shName,sh) -> [(shName,saTexture sa,saTextureUniform sa,caNoMipMaps sh) | sa <- caStages sh]) $ T.toList shMapTexSlot) $
+      \(shName,stageTex,texSlotName,noMip) -> do
         let texSetter = uniformFTexture2D texSlotName  slotU
-            setTex isClamped img = texSetter =<< loadQ3Texture (not noMip) isClamped defaultTexture pk3Data img
+            setTex isClamped img = texSetter =<< loadQ3Texture (not noMip) isClamped defaultTexture pk3Data shName img
         case stageTex of
             ST_Map img          -> setTex False img >> return []
             ST_ClampMap img     -> setTex True img >> return []
-            ST_AnimMap t imgs   -> do
-                txList <- mapM (loadQ3Texture (not noMip) False defaultTexture pk3Data) imgs
-                return [(1/t,cycle $ zip (repeat texSetter) txList)]
+            ST_AnimMap freq imgs   -> do
+                txList <- mapM (loadQ3Texture (not noMip) False defaultTexture pk3Data shName) imgs
+                let txVector = V.fromList txList
+                return [(fromIntegral (V.length txVector) / freq,texSetter,txVector)]
             _ -> return []
 
     surfaceObjs <- addBSP storage bsp
@@ -437,20 +438,10 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
         lLC <- addMD3 storage lMD3 lSkin ["worldMat"]
         return (mat,(hMD3,hLC),(uMD3,uLC),(lMD3,lLC))
       )
-    return (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon)
-{-
-animateMaps :: [(Float, [(SetterFun TextureData, TextureData)])] -> SignalGen Float (Signal [(Float, [(SetterFun TextureData, TextureData)])])
-animateMaps l0 = stateful l0 $ \dt l -> zipWith (f $ dt * timeScale) l timing
-  where
-    timeScale = 1
-    timing  = map fst l0
-    f :: Float -> (Float,[(SetterFun TextureData,TextureData)]) -> Float -> (Float,[(SetterFun TextureData,TextureData)])
-    f dt (t,a) t0
-        | t - dt <= 0   = (t-dt+t0,tail a)
-        | otherwise     = (t-dt,a)
--}
+    return (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon,animTex)
+
 -- TODO
-updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon) (camPos,camTarget,camUp) w h time noBSPCull = do
+updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon,animTex) (camPos,camTarget,camUp) w h time noBSPCull = do
             let slotU = uniformSetter storage
 
             let legAnimType = LEGS_SWIM
@@ -527,7 +518,10 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
               setMD3Frame uLC torsoFrame
               setMD3Frame lLC legFrame
 
-            --TODO: forM_ anim $ \(_,a) -> let (s,t) = head a in s t
+            forM_ animTex $ \(animTime,texSetter,v) -> do
+              let (_,i) = properFraction (time / animTime)
+                  idx = floor $ i * fromIntegral (V.length v)
+              texSetter $ v V.! idx
             setScreenSize storage (fromIntegral w) (fromIntegral h)
             -- TODO
             let idmtx = V4 (V4 1 0 0 0) (V4 0 1 0 0) (V4 0 0 1 0) (V4 0 0 0 1)
@@ -578,7 +572,7 @@ createLoadingScreen = do
     Nothing  -> return (storage,renderer,defaultTexture)
 
 drawLoadingScreen w h (storage,renderer,defaultTexture) pk3Data bspName = do
-    textureData <- loadQ3Texture True True defaultTexture pk3Data (SB.pack $ "levelshots/" ++ bspName)
+    textureData <- loadQ3Texture True True defaultTexture pk3Data mempty (SB.pack $ "levelshots/" ++ bspName)
     setScreenSize storage (fromIntegral w) (fromIntegral h)
     updateUniforms storage $ do
       "LoadingImage" @= return textureData
