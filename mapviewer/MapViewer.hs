@@ -185,7 +185,7 @@ scene win levelData graphicsData mousePosition fblrPress capturePress waypointPr
             (w,h) <- getWindowSize win
             -- hack
             let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
-            noBSPCull <- keyIsPressed (Key'S)
+            noBSPCull <- keyIsPressed (Key'X)
             debugRender <- keyIsPressed (Key'C)
             updateRenderInput graphicsData (camPos,camTarget,camUp) w h time noBSPCull
             {-
@@ -212,7 +212,7 @@ readInput compileRequest compileReady pplName rendererRef storage win s mousePos
     (x,y) <- getCursorPos win
     mousePos (realToFrac x,realToFrac y)
 
-    fblrPress =<< ((,,,,,) <$> keyIsPressed Key'Left <*> keyIsPressed Key'Up <*> keyIsPressed Key'Down <*> keyIsPressed Key'Right
+    fblrPress =<< ((,,,,,) <$> keyIsPressed Key'A <*> keyIsPressed Key'W <*> keyIsPressed Key'S <*> keyIsPressed Key'D
                            <*> keyIsPressed Key'RightShift <*> keyIsPressed Key'Space)
     capturePress =<< keyIsPressed Key'P
     waypointPress =<< mapM keyIsPressed [Key'R,Key'E,Key'1,Key'2,Key'F,Key'G]
