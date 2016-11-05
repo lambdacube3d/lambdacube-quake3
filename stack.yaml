@@ -1,0 +1,12 @@
+resolver: lts-6.23
+
+packages:
+- .
+
+extra-deps:
+- elerea-2.8.0
+- proteaaudio-0.6.4
+
+flags:
+  lambdacube-quake3:
+    mapviewer: true
