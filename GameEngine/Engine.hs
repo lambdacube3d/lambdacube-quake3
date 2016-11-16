@@ -80,7 +80,7 @@ import Paths_lambdacube_quake3
     remove elerea dep from anim map
 -}
 
-lc_q3_cache = "lc_q3.cache" -- local cache: generated files, compiled pipelines are stored here
+lc_q3_cache = ".lc_q3.cache" -- local cache: generated files, compiled pipelines are stored here
 q3shader_cache = lc_q3_cache </> "q3shader.cache"
 ------------
 -- Game data
