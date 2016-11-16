@@ -23,7 +23,7 @@ Data-Files:
 
 Flag mapviewer
   Description: Q3 map viewer application
-  Default: False
+  Default: True
 
 library
   exposed-modules:     GameEngine.BSP
@@ -60,6 +60,7 @@ library
                        digest >=0.0 && <0.1,
                        JuicyPixels >=3.2 && <3.3,
                        zlib >=0.6 && <0.7,
+                       lambdacube-compiler >=0.6 && <0.7,
                        lambdacube-gl >=0.5 && <0.6,
                        lambdacube-ir >=0.3 && <0.4
   -- hs-source-dirs:      

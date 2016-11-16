@@ -50,11 +50,12 @@ import qualified Data.Vector as V
 --import qualified Data.Vector.Storable as SV
 
 --import Debug.Trace
-import Text.Show.Pretty
+import Text.Show.Pretty (ppShow)
 
 import Data.Digest.CRC32
 import Codec.Picture
 
+import LambdaCube.Compiler (compileMain, Backend(..))
 import LambdaCube.GL as GL
 --import LambdaCube.GL.Mesh
 
@@ -72,11 +73,15 @@ import GameEngine.Items
 import GameEngine.Entity
 import qualified GameEngine.MD3 as MD3
 
+import Paths_lambdacube_quake3
+
 {-
   TODO:
     remove elerea dep from anim map
 -}
 
+lc_q3_cache = "lc_q3.cache" -- local cache: generated files, compiled pipelines are stored here
+q3shader_cache = lc_q3_cache </> "q3shader.cache"
 ------------
 -- Game data
 ------------
@@ -255,7 +260,9 @@ engineInit pk3Data fullBSPName = do
     -- load bsp data
     bsp <- readBSP . LB.fromStrict <$> readEntry bspEntry
 
-    SB.writeFile (bspName ++ ".entities") $ blEntities bsp
+    createDirectoryIfMissing True lc_q3_cache -- create cache
+
+    SB.writeFile (lc_q3_cache </> bspName ++ ".entities") $ blEntities bsp
 
     -- extract spawn points
     let ents = parseEntities bspName $ blEntities bsp
@@ -276,13 +283,13 @@ engineInit pk3Data fullBSPName = do
     --putStrLn $ "level materials"
     --mapM_ SB.putStrLn $ map shName $ V.toList $ blShaders bsp
     shMap' <- do
-      hasShaderCache <- doesFileExist "q3shader.cache"
+      hasShaderCache <- doesFileExist q3shader_cache
       case hasShaderCache of
-        True -> putStrLn "load shader cache" >> decodeFile "q3shader.cache"
+        True -> putStrLn "load shader cache" >> decodeFile q3shader_cache
         False -> do
                   putStrLn "create shader cache"
                   sm <- shaderMap pk3Data
-                  encodeFile "q3shader.cache" sm
+                  encodeFile q3shader_cache sm
                   return sm
     let mkShader hasLightmap n = case T.lookup n shMap' of
           Just s -> (n,s)
@@ -321,7 +328,7 @@ engineInit pk3Data fullBSPName = do
     --putStrLn $ "texture uniforms: \n" ++ ppShow textureUniforms
     putStrLn $ "used materials: " ++ show (T.size shMapTexSlot)
     putStrLn $ "ignored materials: " ++ show (length ignoredMaterials)
-    writeFile "SampleMaterial.lc" $ unlines
+    writeFile (lc_q3_cache </> "SampleMaterial.lc") $ unlines
       [ "module SampleMaterial where"
       , "import Material"
       , "sampleMaterial ="
@@ -531,23 +538,28 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
               False -> cullSurfaces bsp camPos frust surfaceObjs
             return ()
 
-compileQuake3GraphicsCached name = doesFileExist name >>= \case
+compileQuake3GraphicsCached name = doesFileExist (lc_q3_cache </> name) >>= \case
   True -> putStrLn "use cached pipeline" >> return True
   False -> compileQuake3Graphics name
 
 compileQuake3Graphics name = printTimeDiff "compile quake3 graphics pipeline..." $ do
-  {-
-  compileMain ["."] OpenGL33 "Graphics" >>= \case 
-    Left err -> putStrLn ("error: " ++ err) >> return False
-    Right ppl -> LB.writeFile name (encode ppl) >> return True
-  -}
-  (exitCode,_,_) <- readProcessWithExitCode "lc" ["Graphics.lc","-o" ++ name] ""
-  return $ ExitSuccess == exitCode
+  dataDir <- getDataDir
+  -- check order: local lc folder, global lc folder
+  -- local lc_q3.cache stores the generated SampleMaterial.lc with the level specific material description list
+  compileMain [lc_q3_cache, "lc", dataDir </> "lc"] OpenGL33 "Graphics.lc" >>= \case 
+    Left err -> putStrLn ("error: " ++ ppShow err) >> return False
+    Right ppl -> LB.writeFile (lc_q3_cache </> name) (encode ppl) >> return True
 
 loadQuake3Graphics storage name = do
     putStrLn $ "load " ++ name
+    dataDir <- getDataDir
+    let localName  = "lc" </> name
+        globalName = dataDir </> localName
+        paths = [lc_q3_cache </> name,localName,globalName]
+    validPaths <- filterM doesFileExist paths
+    when (null validPaths) $ fail $ name ++ " is not found in " ++ show paths
     renderer <- printTimeDiff "allocate pipeline..." $ do
-      eitherDecode <$> LB.readFile name >>= \case
+      eitherDecode <$> LB.readFile (head validPaths) >>= \case
         Left err -> fail err
         Right ppl -> allocRenderer ppl
     printTimeDiff "setStorage..." $ setStorage renderer storage
@@ -563,7 +575,13 @@ createLoadingScreen = do
     defUniforms $ do
       "LoadingImage" @: FTexture2D
   -- pipeline
-  renderer <- eitherDecode <$> LB.readFile "Loading.json" >>= \case
+  dataDir <- getDataDir
+  let localLoadingName  = "lc" </> "Loading.json"
+      globalLoadingName = dataDir </> localLoadingName
+      paths = [localLoadingName,globalLoadingName]
+  validPaths <- filterM doesFileExist paths
+  when (null validPaths) $ fail $ "could not find Loading.json in " ++ show paths
+  renderer <- eitherDecode <$> LB.readFile (head validPaths) >>= \case
         Left err -> fail err
         Right ppl -> allocRenderer ppl
   -- connect them

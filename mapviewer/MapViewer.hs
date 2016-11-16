@@ -22,7 +22,6 @@ import GameEngine.Engine
 import GameEngine.Zip
 import qualified Data.ByteString.Char8 as SB8
 
-
 #ifdef CAPTURE
 import Codec.Image.DevIL
 import Text.Printf
@@ -220,6 +219,8 @@ readInput compileRequest compileReady pplName rendererRef storage win s mousePos
     isCapturing <- readIORef capRef
     let dt = if isCapturing then recip captureRate else realToFrac t
 
+    updateFPS s dt
+
     reload <- keyIsPressed Key'L
     when reload $ writeIORef compileRequest True
     readIORef compileReady >>= \case
@@ -231,9 +232,8 @@ readInput compileRequest compileReady pplName rendererRef storage win s mousePos
           Just a  -> do
             readIORef rendererRef >>= disposeRenderer
             writeIORef rendererRef a
-    updateFPS s dt
     k <- keyIsPressed Key'Escape
-    return $ if k then Nothing else Just (realToFrac dt)
+    return $ if k then Nothing else Just (min 0.1 $ realToFrac dt) -- simulation must run at least 10 FPS, under 10 FPS won't be realtime
 
 -- FRP boilerplate
 driveNetwork :: (p -> IO (IO a)) -> IO (Maybe p) -> IO ()
