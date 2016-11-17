@@ -8,7 +8,9 @@ import Control.Monad
 
 import System.Environment
 import System.FilePath
+import System.Directory
 import System.IO
+import System.Exit
 
 import "GLFW-b" Graphics.UI.GLFW as GLFW
 import Graphics.GL.Core33
@@ -44,10 +46,13 @@ captureRate = 30
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
-    hSetBuffering stdin NoBuffering
+    --hSetBuffering stdin NoBuffering
 #ifdef CAPTURE
     ilInit
 #endif
+
+    hasPak0_pk3 <- doesFileExist "pak0.pk3"
+    unless hasPak0_pk3 $ die "Could not find pak0.pk3. See how to run: https://github.com/lambdacube3d/lambdacube-quake3/blob/master/README.md"
 
     pk3Data <- loadPK3
     args <- getArgs
