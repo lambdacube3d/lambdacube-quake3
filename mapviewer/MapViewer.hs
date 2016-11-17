@@ -76,22 +76,11 @@ main = do
 
     (inputSchema,levelData) <- engineInit pk3Data fullBSPName
 
-    let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
-
-    -- CommonAttrs
-    storage <- allocStorage inputSchema
-    graphicsData <- setupStorage pk3Data levelData storage
-    putStrLn "storage created"
-
-    simpleRenderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
-    setStorage simpleRenderer storage
-    rendererRef <- newIORef =<< fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
-
+    -- compile graphics pipeline
     let pplName = bspName ++ "_ppl.json"
-    -- compiler thread
     compileRequest <- newIORef False
     compileReady <- newIORef False
-    _ <- forkIO $ forever $ do
+    _ <- forkIO $ forever $ do -- start compile thread
       putStrLn "start to compile"
       writeIORef compileRequest False
       writeIORef compileReady False
@@ -102,6 +91,15 @@ main = do
             threadDelay 100000 -- 10 / sec
             unless req loop
       loop
+
+    -- upload graphics data to GPU
+    storage <- allocStorage inputSchema
+    graphicsData <- setupStorage pk3Data levelData storage
+    putStrLn "storage created"
+
+    simpleRenderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
+    setStorage simpleRenderer storage
+    rendererRef <- newIORef =<< fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
 
     -- play level music
     case getMusicFile levelData of
