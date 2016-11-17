@@ -2,6 +2,7 @@
 
 import Data.IORef
 import Data.Maybe
+import Data.Char (toLower)
 import qualified Data.Map as Map
 import Control.Concurrent
 import Control.Monad
@@ -51,8 +52,8 @@ main = do
     ilInit
 #endif
 
-    hasPak0_pk3 <- doesFileExist "pak0.pk3"
-    unless hasPak0_pk3 $ die "Could not find pak0.pk3. See how to run: https://github.com/lambdacube3d/lambdacube-quake3/blob/master/README.md"
+    noPak0_pk3 <- null . filter (\n -> "pak0.pk3" == map toLower n) <$> getDirectoryContents "."
+    when noPak0_pk3 $ die "Could not find pak0.pk3. See how to run: https://github.com/lambdacube3d/lambdacube-quake3/blob/master/README.md"
 
     pk3Data <- loadPK3
     args <- getArgs
