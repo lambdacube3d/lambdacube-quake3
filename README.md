@@ -30,7 +30,7 @@ stack exec q3mapviewer
 ##### Cabal (local build)
 ```
 cabal new-build
-./dist-newstyle/build/lambdacube-quake3-0.1.0.0/build/q3mapviewer
+./dist-newstyle/build/lambdacube-quake3-0.1.0.0/build/q3mapviewer/q3mapviewer
 ```
 
 ##### Cabal (global install)
