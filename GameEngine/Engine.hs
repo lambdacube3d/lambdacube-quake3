@@ -362,6 +362,7 @@ engineInit pk3Data fullBSPName = do
                                       , ("identityLight", GL.Float)
                                       , ("time",          GL.Float)
                                       , ("LightMap",      FTexture2D)
+                                      , ("Noise",                FTexture2D)
                                       , ("SinTable",             FTexture2D)
                                       , ("SquareTable",          FTexture2D)
                                       , ("SawToothTable",        FTexture2D)
