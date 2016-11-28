@@ -19,8 +19,6 @@ module GameEngine.Engine
 import Debug.Trace
 
 import Control.Monad
-import Data.Time.Clock
-import Text.Printf
 import Data.Aeson (encode,eitherDecode)
 
 --import Control.Applicative hiding (Const)
@@ -63,15 +61,22 @@ import Control.Exception (evaluate)
 import Control.DeepSeq
 --import GHC.Generics
 
-import GameEngine.BSP
-import GameEngine.Material hiding (Vec3)
+import GameEngine.Data.BSP
+import GameEngine.Loader.BSP
+import GameEngine.Data.Material hiding (Vec3)
 import GameEngine.Render
-import GameEngine.ShaderParser
-import GameEngine.Zip
-import GameEngine.Character
-import GameEngine.Items
+import GameEngine.Loader.ShaderParser
+import GameEngine.Loader.Zip
+import GameEngine.Data.Character
+import GameEngine.Loader.Character
+import GameEngine.Data.Items
 import GameEngine.Entity
-import qualified GameEngine.MD3 as MD3
+import GameEngine.Frustum
+import GameEngine.Utils
+import GameEngine.Culling
+
+import qualified GameEngine.Data.MD3 as MD3
+import qualified GameEngine.Loader.MD3 as MD3
 
 import Paths_lambdacube_quake3
 
@@ -596,61 +601,3 @@ drawLoadingScreen w h (storage,renderer,defaultTexture) pk3Data bspName = do
     updateUniforms storage $ do
       "LoadingImage" @= return textureData
     renderFrame renderer
-
--- | Perspective transformation matrix in row major order.
-perspective :: Float  -- ^ Near plane clipping distance (always positive).
-            -> Float  -- ^ Far plane clipping distance (always positive).
-            -> Float  -- ^ Field of view of the y axis, in radians.
-            -> Float  -- ^ Aspect ratio, i.e. screen's width\/height.
-            -> Mat4
-perspective n f fovy aspect = transpose $
-    Mat4 (Vec4 (2*n/(r-l))       0       (-(r+l)/(r-l))        0)
-         (Vec4     0        (2*n/(t-b))  ((t+b)/(t-b))         0)
-         (Vec4     0             0       (-(f+n)/(f-n))  (-2*f*n/(f-n)))
-         (Vec4     0             0            (-1)             0)
-  where
-    t = n*tan(fovy/2)
-    b = -t
-    r = aspect*t
-    l = -r
-
--- | Camera transformation matrix.
-lookat :: Vec3   -- ^ Camera position.
-       -> Vec3   -- ^ Target position.
-       -> Vec3   -- ^ Upward direction.
-       -> Proj4
-lookat pos target up = translateBefore4 (neg pos) (orthogonal $ toOrthoUnsafe r)
-  where
-    w = normalize $ pos &- target
-    u = normalize $ up &^ w
-    v = w &^ u
-    r = transpose $ Mat3 u v w
-
--- pk3 handling
-
-showTime delta
-    | t > 1e-1  = printf "%.3fs" t
-    | t > 1e-3  = printf "%.1fms" (t/1e-3)
-    | otherwise = printf "%.0fus" (t/1e-6)
-  where
-    t = realToFrac delta :: Double
-
-timeDiff m = (\s x e -> (diffUTCTime e s, x))
-  <$> getCurrentTime
-  <*> m
-  <*> getCurrentTime
-
-printTimeDiff s a = do
-  putStr s
-  (t,r) <- timeDiff a
-  putStrLn $ showTime t
-  return r
-
---vec4ToV4F :: Vec4 -> V4F
-vec4ToV4F (Vec4 x y z w) = V4 x y z w
-
---mat4ToM44F :: Mat4 -> M44F
-mat4ToM44F (Mat4 a b c d) = V4 (vec4ToV4F a) (vec4ToV4F b) (vec4ToV4F c) (vec4ToV4F d)
-
-rotationEuler :: Vec3 -> Proj4
-rotationEuler (Vec3 a b c) = orthogonal $ toOrthoUnsafe $ rotMatrixZ a .*. rotMatrixX b .*. rotMatrixY (-c)

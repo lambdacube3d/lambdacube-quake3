@@ -1,62 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
-module GameEngine.MD3 where
+module GameEngine.Loader.MD3
+  ( readMD3
+  , loadMD3
+  ) where
 
-import Control.Applicative
 import Control.Monad
 import Data.Int
-import Data.Word
 
-import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Binary as B
 import Data.Binary.Get as B
 import Data.Binary.IEEE754
 import Data.Vect hiding (Vector)
-import Data.Vector (Vector)
 import qualified Data.ByteString.Char8 as SB
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
 
-data Frame
-    = Frame
-    { frMins    :: !Vec3
-    , frMaxs    :: !Vec3
-    , frOrigin  :: !Vec3
-    , frRadius  :: !Float
-    , frName    :: !SB.ByteString
-    } deriving Show
-
-data Tag
-    = Tag
-    { tgName    :: !SB.ByteString
-    , tgOrigin  :: !Vec3
-    , tgAxisX   :: !Vec3
-    , tgAxisY   :: !Vec3
-    , tgAxisZ   :: !Vec3
-    } deriving Show
-
-data Shader
-    = Shader
-    { shName    :: !SB.ByteString
-    , shIndex   :: !Int
-    } deriving Show
-
-data Surface
-    = Surface
-    { srName        :: !SB.ByteString
-    , srShaders     :: !(Vector Shader)
-    , srTriangles   :: !(SV.Vector Int32)
-    , srTexCoords   :: !(SV.Vector Vec2)
-    , srXyzNormal   :: !(Vector (SV.Vector Vec3,SV.Vector Vec3))
-    } deriving Show
-
-data MD3Model
-    = MD3Model
-    { mdFrames      :: !(Vector Frame)
-    , mdTags        :: !(Vector (Map SB.ByteString Tag))
-    , mdSurfaces    :: !(Vector Surface)
-    } deriving Show
+import GameEngine.Data.MD3
 
 getString   = fmap (SB.takeWhile (/= '\0')) . getByteString
 getUByte    = B.get :: Get Word8

@@ -26,18 +26,24 @@ Flag mapviewer
   Default: True
 
 library
-  exposed-modules:     GameEngine.BSP
-                       GameEngine.Character
+  exposed-modules:     GameEngine.Data.BSP
+                       GameEngine.Data.MD3
+                       GameEngine.Data.Character
+                       GameEngine.Data.Items
+                       GameEngine.Data.Material
+                       GameEngine.Loader.BSP
+                       GameEngine.Loader.MD3
+                       GameEngine.Loader.Character
+                       GameEngine.Loader.ShaderParser
+                       GameEngine.Loader.Zip
                        GameEngine.Collision
                        GameEngine.Engine
                        GameEngine.Entity
-                       GameEngine.Items
-                       GameEngine.Material
-                       GameEngine.MD3
-                       GameEngine.Q3Patch
+                       GameEngine.BezierSurface
+                       GameEngine.Frustum
+                       GameEngine.Culling
+                       GameEngine.Utils
                        GameEngine.Render
-                       GameEngine.ShaderParser
-                       GameEngine.Zip
 
   other-modules:       Paths_lambdacube_quake3
   -- other-extensions:    

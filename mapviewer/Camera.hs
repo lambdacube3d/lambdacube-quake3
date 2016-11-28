@@ -7,7 +7,7 @@ import qualified Data.Vector as V
 import FRP.Elerea.Param
 
 import GameEngine.Collision
-import GameEngine.BSP (BSPLevel)
+import GameEngine.Data.BSP
 
 userCamera :: ([Int] -> Vec3 -> Vec3) -> BSPLevel -> Vec3 -> Signal (Float, Float) -> Signal (Bool, Bool, Bool, Bool, Bool, Bool)
            -> SignalGen Float (Signal (Vec3, Vec3, Vec3, [Int]))

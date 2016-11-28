@@ -1,5 +1,5 @@
 {-# LANGUAGE RecordWildCards, DeriveGeneric #-}
-module GameEngine.Zip
+module GameEngine.Loader.Zip
   ( readArchive
   , readEntry
   , Entry(..)

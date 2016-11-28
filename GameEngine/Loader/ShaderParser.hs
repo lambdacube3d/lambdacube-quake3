@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module GameEngine.ShaderParser where
+module GameEngine.Loader.ShaderParser
+  {-( entities
+  )-} where
 
 import Control.Applicative hiding (many)
 import Data.Attoparsec.ByteString.Char8
@@ -11,7 +13,7 @@ import LambdaCube.Linear
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Trie as T
 
-import GameEngine.Material
+import GameEngine.Data.Material
 
 -- | Zero or more.
 many :: (Alternative f) => f a -> f [a]

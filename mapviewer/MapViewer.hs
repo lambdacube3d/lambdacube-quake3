@@ -22,7 +22,7 @@ import Sound.ProteaAudio
 
 import Camera
 import GameEngine.Engine
-import GameEngine.Zip
+import GameEngine.Loader.Zip
 import qualified Data.ByteString.Char8 as SB8
 
 #ifdef CAPTURE

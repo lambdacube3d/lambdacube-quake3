@@ -1,5 +1,10 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards, ViewPatterns #-}
-module GameEngine.Render where
+module GameEngine.Render
+  ( addBSP
+  , addMD3
+  , setMD3Frame
+  , LCMD3(..)
+  ) where
 
 import Control.Applicative
 import Control.Monad
@@ -21,10 +26,12 @@ import System.FilePath
 
 import LambdaCube.GL
 import LambdaCube.GL.Mesh
-import GameEngine.BSP
-import GameEngine.MD3 (MD3Model)
-import qualified GameEngine.MD3 as MD3
-import GameEngine.Q3Patch
+import GameEngine.Data.BSP
+import GameEngine.Data.MD3 (MD3Model)
+import qualified GameEngine.Data.MD3 as MD3
+import GameEngine.BezierSurface
+import GameEngine.Frustum
+import GameEngine.Utils
 
 {-
     plans:
@@ -33,19 +40,6 @@ import GameEngine.Q3Patch
         - bloom
         - ssao
 -}
-
-tessellatePatch :: V.Vector DrawVertex -> Surface -> Int -> (V.Vector DrawVertex,V.Vector Int)
-tessellatePatch drawV sf level = (V.concat vl,V.concat il)
-  where
-    (w,h)   = srPatchSize sf
-    gridF :: [DrawVertex] -> [[DrawVertex]]
-    gridF l = case splitAt w l of
-        (x,[])  -> [x]
-        (x,xs)  -> x:gridF xs
-    grid        = gridF $ V.toList $ V.take (srNumVertices sf) $ V.drop (srFirstVertex sf) drawV
-    controls    = [V.fromList $ concat [take 3 $ drop x l | l <- lines] | x <- [0,2..w-3], y <- [0,2..h-3], let lines = take 3 $ drop y grid]
-    patches     = [tessellate c level | c <- controls]
-    (vl,il)     = unzip $ reverse $ snd $ foldl' (\(o,l) (v,i) -> (o+V.length v, (v,V.map (+o) i):l)) (0,[]) patches
 
 addObject' :: GLStorage -> String -> Primitive -> Maybe (IndexStream Buffer) -> Map String (Stream Buffer) -> [String] -> IO Object
 addObject' rndr name prim idx attrs unis = addObject rndr name' prim idx attrs' unis
@@ -243,130 +237,3 @@ addMD3 r model skin unis = do
         , lcmd3Buffer   = buffer
         , lcmd3Frames   = frames
         }
-
-isClusterVisible :: BSPLevel -> Int -> Int -> Bool
-isClusterVisible bl a b
-    | a >= 0 = 0 /= (visSet .&. (shiftL 1 (b .&. 7)))
-    | otherwise = True
-  where
-    Visibility nvecs szvecs vecs = blVisibility bl
-    i = a * szvecs + (shiftR b 3)
-    visSet = vecs V.! i
-
-findLeafIdx bl camPos i
-    | i >= 0 = if dist >= 0 then findLeafIdx bl camPos f else findLeafIdx bl camPos b
-    | otherwise = (-i) - 1
-  where 
-    node    = blNodes bl V.! i
-    (f,b)   = ndChildren node 
-    plane   = blPlanes bl V.! ndPlaneNum node
-    dist    = plNormal plane `dotprod` camPos - plDist plane
-
-cullSurfaces :: BSPLevel -> Vec3 -> Frustum -> V.Vector [Object] -> IO ()
-cullSurfaces bsp cam frust objs = case leafIdx < 0 || leafIdx >= V.length leaves of
-    True    -> {-trace "findLeafIdx error" $ -}V.forM_ objs $ \objList -> forM_ objList $ \obj -> enableObject obj True
-    False   -> {-trace ("findLeafIdx ok " ++ show leafIdx ++ " " ++ show camCluster) -}surfaceMask
-  where
-    leafIdx = findLeafIdx bsp cam 0
-    leaves = blLeaves bsp
-    camCluster = lfCluster $ leaves V.! leafIdx
-    visibleLeafs = V.filter (\a -> (isClusterVisible bsp camCluster $ lfCluster a) && inFrustum a) leaves
-    surfaceMask = do
-        let leafSurfaces = blLeafSurfaces bsp
-        V.forM_ objs $ \objList -> forM_ objList $ \obj -> enableObject obj False
-        V.forM_ visibleLeafs $ \l ->
-            V.forM_ (V.slice (lfFirstLeafSurface l) (lfNumLeafSurfaces l) leafSurfaces) $ \i ->
-                forM_ (objs V.! i) $ \obj -> enableObject obj True
-    inFrustum a = boxInFrustum (lfMaxs a) (lfMins a) frust
-
-data Frustum
-    = Frustum
-    { frPlanes  :: [(Vec3, Float)]
-    , ntl       :: Vec3
-    , ntr       :: Vec3
-    , nbl       :: Vec3
-    , nbr       :: Vec3
-    , ftl       :: Vec3
-    , ftr       :: Vec3
-    , fbl       :: Vec3
-    , fbr       :: Vec3
-    }
-
-pointInFrustum p fr = foldl' (\b (n,d) -> b && d + n `dotprod` p >= 0) True $ frPlanes fr
-
-sphereInFrustum p r fr = foldl' (\b (n,d) -> b && d + n `dotprod` p >= (-r)) True $ frPlanes fr
-
-boxInFrustum pp pn fr = foldl' (\b (n,d) -> b && d + n `dotprod` (g pp pn n) >= 0) True $ frPlanes fr
-  where
-    g (Vec3 px py pz) (Vec3 nx ny nz) n = Vec3 (fx px nx) (fy py ny) (fz pz nz)
-      where
-        Vec3 x y z = n
-        [fx,fy,fz] = map (\a -> if a > 0 then max else min) [x,y,z]
-
-frustum :: Float -> Float -> Float -> Float -> Vec3 -> Vec3 -> Vec3 -> Frustum
-frustum angle ratio nearD farD p l u = Frustum [ (pl ntr ntl ftl)
-                                               , (pl nbl nbr fbr)
-                                               , (pl ntl nbl fbl)
-                                               , (pl nbr ntr fbr)
-                                               , (pl ntl ntr nbr)
-                                               , (pl ftr ftl fbl)
-                                               ] ntl ntr nbl nbr ftl ftr fbl fbr
-  where
-    pl a b c = (n,d)
-      where
-        n = normalize $ (c - b) `crossprod` (a - b)
-        d = -(n `dotprod` b)
-    m a v = scalarMul a v
-    ang2rad = pi / 180
-    tang    = tan $ angle * ang2rad * 0.5
-    nh  = nearD * tang
-    nw  = nh * ratio
-    fh  = farD * tang
-    fw  = fh * ratio
-    z   = normalize $ p - l
-    x   = normalize $ u `crossprod` z
-    y   = z `crossprod` x
-
-    nc  = p - m nearD z
-    fc  = p - m farD z
-
-    ntl = nc + m nh y - m nw x
-    ntr = nc + m nh y + m nw x
-    nbl = nc - m nh y - m nw x
-    nbr = nc - m nh y + m nw x
-
-    ftl = fc + m fh y - m fw x
-    ftr = fc + m fh y + m fw x
-    fbl = fc - m fh y - m fw x
-    fbr = fc - m fh y + m fw x
-
--- utility
-sphere :: V4 Float -> Int -> Float -> Mesh
-sphere color n radius = Mesh
-    { mAttributes = Map.fromList [("position", A_V3F vertices), ("normal", A_V3F normals), ("color", A_V4F $ V.replicate (V.length vertices) color)]
-    , mPrimitive = P_TrianglesI indices
-    }
-  where
-    m = pi / fromIntegral n
-    vertices = V.map (\(V3 x y z) -> V3 (radius * x) (radius * y) (radius * z)) normals
-    normals = V.fromList [V3 (sin a * cos b) (cos a) (sin a * sin b) | i <- [0..n], j <- [0..2 * n - 1],
-                          let a = fromIntegral i * m, let b = fromIntegral j * m]
-    indices = V.fromList $ concat [[ix i j, ix i' j, ix i' j', ix i' j', ix i j', ix i j] | i <- [0..n - 1], j <- [0..2 * n - 1],
-                                   let i' = i + 1, let j' = (j + 1) `mod` (2 * n)]
-    ix i j = fromIntegral (i * 2 * n + j)
-
-bbox :: V4 Float -> Vec3 -> Vec3 -> Mesh
-bbox color (Vec3 minX minY minZ) (Vec3 maxX maxY maxZ) = Mesh
-    { mAttributes = Map.fromList [("position", A_V3F vertices), ("color", A_V4F $ V.replicate (V.length vertices) color)]
-    , mPrimitive = P_Triangles
-    }
-  where
-    quads = [[6, 2, 3, 7], [5, 1, 0, 4], [7, 3, 1, 5], [4, 0, 2, 6], [3, 2, 0, 1], [6, 7, 5, 4]]
-    indices = V.fromList $ concat [[a, b, c, c, d, a] | [d, c, b, a] <- quads]
-    vertices = V.backpermute (V.generate 8 mkVertex) indices
-
-    mkVertex n = V3 x y z
-      where
-        x = if testBit n 2 then maxX else minX
-        y = if testBit n 1 then maxY else minY
-        z = if testBit n 0 then maxZ else minZ

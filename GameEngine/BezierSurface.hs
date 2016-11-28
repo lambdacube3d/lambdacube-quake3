@@ -1,16 +1,21 @@
--- http://graphics.cs.brown.edu/games/quake/quake3.html#RenderPatch
-
-module GameEngine.Q3Patch where
+module GameEngine.BezierSurface
+  ( tessellatePatch
+  ) where
 
 import Control.Monad
+import Data.List (foldl')
 import Data.Vect.Float hiding (Vector)
 import Data.Vect.Float.Instances
 import Data.Vector (Vector,(!))
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
 
-import GameEngine.BSP
+import GameEngine.Data.BSP
 
+{-
+  See more:
+    http://graphics.cs.brown.edu/games/quake/quake3.html#RenderPatch
+-}
 tessellate :: Vector DrawVertex -> Int -> (Vector DrawVertex,Vector Int)
 tessellate controls level = (v,stripsI)
   where
@@ -39,25 +44,16 @@ tessellate controls level = (v,stripsI)
                        , let h = V.singleton $ V.head s -- degenerate triangles will be shown in line polygon mode
                        , let l = V.singleton $ V.last s
                        ]
-{-
-tess c l = [f u v | v <- [0..l], u <- [0..l]]
 
-mo = Mat3 (Vec3   1 (-2) 1)
-          (Vec3 (-2)  2  0)
-          (Vec3   1   0  0)
-------------------------
-m = Mat3 (Vec3   1   0  0)
-         (Vec3 (-2)  2  0)
-         (Vec3   1 (-2) 1)
-
-m' = transpose m
-
-cm c f = Mat3 (Vec3 (a 0) (a 1) (a 2))
-              (Vec3 (a 3) (a 4) (a 5))
-              (Vec3 (a 6) (a 7) (a 8))
-  where  a n = f $ c ! n
-
-fn u v c f = Vec3 1 u u^2 *. m .*. cm c f .*. m' .* Vec3 1 v v^2
-p u v c = Vec3 (fn u v c _1) (fn u v c _2) (fn u v c _3)
-tess c l = [p u v c | u <- [0..l], v <- [0..l]]
--}
+tessellatePatch :: V.Vector DrawVertex -> Surface -> Int -> (V.Vector DrawVertex,V.Vector Int)
+tessellatePatch drawV sf level = (V.concat vl,V.concat il)
+  where
+    (w,h)   = srPatchSize sf
+    gridF :: [DrawVertex] -> [[DrawVertex]]
+    gridF l = case splitAt w l of
+        (x,[])  -> [x]
+        (x,xs)  -> x:gridF xs
+    grid        = gridF $ V.toList $ V.take (srNumVertices sf) $ V.drop (srFirstVertex sf) drawV
+    controls    = [V.fromList $ concat [take 3 $ drop x l | l <- lines] | x <- [0,2..w-3], y <- [0,2..h-3], let lines = take 3 $ drop y grid]
+    patches     = [tessellate c level | c <- controls]
+    (vl,il)     = unzip $ reverse $ snd $ foldl' (\(o,l) (v,i) -> (o+V.length v, (v,V.map (+o) i):l)) (0,[]) patches

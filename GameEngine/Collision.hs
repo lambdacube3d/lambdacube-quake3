@@ -19,7 +19,7 @@ import qualified Data.Vector as V
 import Data.Vect.Float
 import Data.Vect.Float.Instances
 import Data.Bits
-import GameEngine.BSP
+import GameEngine.Data.BSP
 
 data TraceHit
   = TraceHit
@@ -66,9 +66,12 @@ instance Monoid TraceHit where
   mempty = TraceHit 1 True False []
   (TraceHit a1 b1 c1 d1) `mappend` (TraceHit a2 b2 c2 d2) = TraceHit (min a1 a2) (b1 && b2) (c1 || c2) (d1 `mappend` d2)
 
-epsilon = 1/32
+epsilon = 1/32 :: Float
+
+clamp :: Float -> Float
 clamp = max 0 . min 1
 
+checkNode :: Bool -> TraceType -> BSPLevel -> Vec3 -> Vec3 -> Int -> Float -> Float -> Vec3 -> Vec3 -> TraceHit
 checkNode noCull traceType bsp@BSPLevel{..} inputStart inputEnd nodeIndex startFraction endFraction start end
   -- leaf
   | nodeIndex < 0 || noCull =
@@ -106,6 +109,7 @@ checkNode noCull traceType bsp@BSPLevel{..} inputStart inputEnd nodeIndex startF
     TraceSphere radius -> radius
     TraceBox _ _ (Vec3 x y z) -> let Vec3 px py pz = plNormal in abs (x * px) + abs (y * py) + abs (z * pz)
 
+checkBrush :: TraceType -> BSPLevel -> Vec3 -> Vec3 -> Int -> Brush -> TraceHit
 checkBrush traceType BSPLevel{..} inputStart inputEnd brushIndex Brush{..} =
   let brushPlanes = fmap ((blPlanes !) . bsPlaneNum) $ V.take brNumSides . V.drop brFirstSide $ blBrushSides
       startEndDistances = case traceType of

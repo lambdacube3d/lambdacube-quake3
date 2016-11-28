@@ -7,8 +7,8 @@ import Data.Attoparsec.ByteString.Char8
 import Data.Vect
 import Data.Maybe
 
-import GameEngine.ShaderParser
-import GameEngine.Items
+import GameEngine.Loader.ShaderParser
+import GameEngine.Data.Items
 
 data Entity
   = TriggerTeleport     SB.ByteString Int
