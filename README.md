@@ -8,8 +8,8 @@ However to be honest at current stage it's just a map viewer...
 ### Install Steps
 #### 1. Get pak0.pk3
 First you have to get the **pak0.pk3** file which contains the game data. You can get it for free from **Quake3 Demo** version. Here are some alternatives:
-- [download](https://github.com/patdohere/dockerfiles/raw/master/quakejs-stack/quakejs/base/baseq3/pak0.pk3) Quake3 Demo pak0.pk3 directly (**EASY**)
-- [step by step](https://slackalaxy.wordpress.com/2015/07/05/quake-iii-demo/) instructions to extract pak0.pk3 from Quake 3 Demo, first [download](http://www.filewatcher.com/m/linuxq3ademo-1.11-6.x86.gz.sh.49289300-0.html
+- **(a)** [download](https://github.com/patdohere/dockerfiles/raw/master/quakejs-stack/quakejs/base/baseq3/pak0.pk3) Quake3 Demo pak0.pk3 directly (**EASY**)
+- **(b)** [step by step](https://slackalaxy.wordpress.com/2015/07/05/quake-iii-demo/) instructions to extract pak0.pk3 from Quake 3 Demo, first [download](http://www.filewatcher.com/m/linuxq3ademo-1.11-6.x86.gz.sh.49289300-0.html
 ) linuxq3ademo-1.11-6.x86.gz.sh
 
 If you own the full version of the game you can use the **pak0.pk3** from it also.
