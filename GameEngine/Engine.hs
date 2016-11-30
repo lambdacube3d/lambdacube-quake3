@@ -142,13 +142,15 @@ readCharacters pk3Data p0 = do
           Vec3 x y z = p0
           characterModels = [[(characterModelSkin name part,"models/players/" ++ name ++ "/" ++ part ++ ".md3") | part <- ["head","upper","lower"]] | name <- characterNames]
 
-  characters <- sequence
+  charactersResult <- sequence <$> sequence
     [ parseCharacter fname <$> readEntry e
     | name <- characterNames
     , let fname = "models/players/" ++ name ++ "/animation.cfg"
           e = maybe (error $ "missing " ++ fname) id $ Map.lookup fname pk3Data
     ]
-  return (characterSkinMaterials,characterObjs,characters)
+  case charactersResult of
+    Right characters  -> return (characterSkinMaterials,characterObjs,characters)
+    Left errorMessage -> fail errorMessage
 
 handWeapon = head $ drop 6 ["models/weapons2/" ++ n ++ "/"++ n ++ ".md3" | n <- weapons]
   where

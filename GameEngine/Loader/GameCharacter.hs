@@ -7,13 +7,14 @@ import Control.Applicative
 import Control.Monad
 import Data.Map (Map,(!))
 import qualified Data.Map as Map
-import Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as BS
-import Data.Attoparsec.ByteString.Char8
+import Data.ByteString (ByteString)
+import Text.Megaparsec hiding (count)
+import Text.Megaparsec.ByteString
+import qualified Text.Megaparsec.Lexer as L
 import LambdaCube.Linear (V3(..))
 
 import GameEngine.Data.GameCharacter
-import GameEngine.Loader.ShaderParser (val,kw,float,int,nat,skip)
+
 {-
   TODO:
     done - parse animation data
@@ -25,21 +26,18 @@ import GameEngine.Loader.ShaderParser (val,kw,float,int,nat,skip)
         update
 -}
 
-parseCharacter :: String -> ByteString -> Character
-parseCharacter n s = eval n $ parse (skip *> character <* skip <* endOfInput) s
-  where
-    eval n f = case f of
-        Done "" r   -> r
-        Done rem r  -> error $ show (n,"Input is not consumed", rem, r)
-        Fail leftover ctx err  -> error $ unlines ["fail:", "not consumed: " ++ BS.unpack leftover, "context: " ++ unwords ctx, "error: " ++ err]
-        Partial f'  -> eval n (f' "")
+parseCharacter :: String -> ByteString -> Either String Character
+parseCharacter fname src = case parse (spaceConsumer *> character <* eof) fname src of
+  Left err  -> Left (parseErrorPretty err)
+  Right e   -> Right e
 
+animation :: Parser Animation
 animation = do
-  first <- nat
-  num <- int
-  looping <- nat
-  fps <- nat
-  skip
+  first <- integer
+  num <- signedInteger
+  looping <- integer
+  fps <- integer
+  spaceConsumer
   return $ Animation
     { aFirstFrame = first
     , aNumFrames  = if num < 0 then -num else num
@@ -52,7 +50,7 @@ animation = do
 
 characterAttributes :: Parser (Character -> Character)
 characterAttributes = fmap (\l x -> foldr ($) x l) $ many $ choice 
-  [ (\a c -> c {footStep = a}) <$ kw "footsteps" <*> choice
+  [ (\a c -> c {footStep = a}) <$ symbol "footsteps" <*> choice
       [ val FOOTSTEP_NORMAL "default"
       , val FOOTSTEP_NORMAL "normal"
       , val FOOTSTEP_BOOT "boot"
@@ -60,15 +58,15 @@ characterAttributes = fmap (\l x -> foldr ($) x l) $ many $ choice
       , val FOOTSTEP_MECH "mech"
       , val FOOTSTEP_ENERGY "energy"
       ]
-  , (\c -> c {fixedLegs = True}) <$ kw "fixedlegs"
-  , (\c -> c {fixedTorso = True}) <$ kw "fixedtorso"
-  , (\a c -> c {gender = a}) <$ kw "sex" <*> choice
+  , (\c -> c {fixedLegs = True}) <$ symbol "fixedlegs"
+  , (\c -> c {fixedTorso = True}) <$ symbol "fixedtorso"
+  , (\a c -> c {gender = a}) <$ symbol "sex" <*> choice
       [ val GENDER_FEMALE "f"
       , val GENDER_NEUTER "n"
       , val GENDER_MALE "m"
       ]
-  , (\x y z c -> c {headOffset = V3 x y z}) <$ kw "headoffset" <*> float <*> float <*> float
-  ] <* skip
+  , (\x y z c -> c {headOffset = V3 x y z}) <$ symbol "headoffset" <*> signedFloat <*> signedFloat <*> signedFloat
+  ] <* spaceConsumer
 
 
 {-
@@ -92,6 +90,7 @@ characterAttributes = fmap (\l x -> foldr ($) x l) $ many $ choice
       FLAG_STAND2RUN
 -}
 
+character :: Parser Character
 character = do
   -- properties
   setAttribs <- characterAttributes
@@ -146,3 +145,21 @@ character = do
     , fixedLegs     = False
     , fixedTorso    = False
     }
+
+-- parser primitives
+lineComment :: Parser ()
+lineComment = L.skipLineComment "//"
+
+blockComment :: Parser ()
+blockComment = L.skipBlockComment "/*" "*/"
+
+spaceConsumer :: Parser ()
+spaceConsumer = L.space (void spaceChar) lineComment blockComment
+
+symbol        = L.symbol spaceConsumer
+lexeme        = L.lexeme spaceConsumer
+integer       = fromIntegral <$> lexeme L.integer
+signedInteger = L.signed spaceConsumer integer
+signedFloat   = realToFrac <$> L.signed spaceConsumer (lexeme $ try L.float <|> fromIntegral <$> L.integer)
+
+val v w = const v <$> symbol w

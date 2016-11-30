@@ -8,6 +8,7 @@ refactor notes:
   Character.hs
     ok - split data definition from loader
     ok - rename to GameCharacter or CharacterAnimation
+    ok - use megaparsec
   Render.hs
     ok - move out patch tesselation
     ok - move out frustum handling
@@ -16,13 +17,10 @@ refactor notes:
     ok - use megaparsec; use code from lambdacube-quake3-new
     ok - separate Entity parser from ShaderParser
 
+  ShaderParser.hs - use megaparsec
+
   BSP.hs, MD3.hs
     - factor out common functions from BSP and MD3 loaders
-
-  Character.hs
-    - use megaparsec
-
-  ShaderParser.hs - use megaparsec
 
   Engine.hs
     - use proper resource monad
