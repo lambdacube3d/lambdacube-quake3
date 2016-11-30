@@ -17,19 +17,19 @@ import Text.Show.Pretty (ppShow)
 import Data.Char (toLower,isSpace)
 import Data.List (foldl')
 import LambdaCube.Linear
-import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Char8 as BS8
 import qualified Data.Trie as T
 
 import GameEngine.Data.Material
 
 parseShaders :: String -> ByteString -> Either String [(ByteString,CommonAttrs)]
-parseShaders fname src = case parse (spaceConsumer' *> many shader <* eof) fname src of
+parseShaders fname src = case parse (spaceConsumer' *> many shader <* eof) fname $ BS8.map toLower src of
   Left err  -> Left (parseErrorPretty err)
   Right e   -> Right e
 
 -- q3 shader related parsers
 shader :: Parser (ByteString,CommonAttrs)
-shader = (\n l -> (bsToLower n,finishShader $ foldl' (\s f -> f s) defaultCommonAttrs l)) <$>
+shader = (\n l -> (n,finishShader $ foldl' (\s f -> f s) defaultCommonAttrs l)) <$>
   line shaderName <* symbol' "{" <*> many shaderAttribute <* symbol' "}"
 
 finishShader :: CommonAttrs -> CommonAttrs
@@ -151,18 +151,15 @@ sort = (\i ca -> ca {caSort = i}) <$ kw "sort" <*> choice
   , float
   ]
 
-bsToLower :: ByteString -> ByteString
-bsToLower = B.map toLower
-
 mapP = (\v sa -> sa {saTexture = v}) <$ kw "map" <*> choice
   [ val ST_Lightmap "$lightmap"
   , val ST_WhiteImage "$whiteimage"
-  , ST_Map . bsToLower <$> filepath
+  , ST_Map <$> filepath
   ]
 
-clampMap = (\v sa -> sa {saTexture = ST_ClampMap $ bsToLower v}) <$> (kw "clampmap" *> filepath)
+clampMap = (\v sa -> sa {saTexture = ST_ClampMap v}) <$> (kw "clampmap" *> filepath)
 
-animMap = (\f v sa -> sa {saTexture = ST_AnimMap f (map bsToLower v)}) <$ kw "animmap" <*> float <*> some filepath
+animMap = (\f v sa -> sa {saTexture = ST_AnimMap f v}) <$ kw "animmap" <*> float <*> some filepath
 
 blendFuncFunc = choice
   [ val (B_One,B_One) "add"
@@ -268,8 +265,8 @@ spaceConsumer' = L.space (void spaceChar) lineComment blockComment
 line :: Parser a -> Parser a
 line p = p <* skipTillEol <* eol <* spaceConsumer'
 
-symbol        = L.symbol' spaceConsumer
-symbol'       = L.symbol' spaceConsumer'
+symbol        = L.symbol spaceConsumer
+symbol'       = L.symbol spaceConsumer'
 lexeme        = L.lexeme spaceConsumer
 lineSymbol    = line . symbol
 signedFloat   = realToFrac <$> L.signed spaceConsumer (lexeme floatLiteral) where
