@@ -17,7 +17,9 @@ refactor notes:
     ok - use megaparsec; use code from lambdacube-quake3-new
     ok - separate Entity parser from ShaderParser
 
-  ShaderParser.hs - use megaparsec
+  ShaderParser.hs
+    ok - use megaparsec
+    - refactor/speedup grammar
 
   BSP.hs, MD3.hs
     - factor out common functions from BSP and MD3 loaders

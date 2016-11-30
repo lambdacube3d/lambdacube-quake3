@@ -22,7 +22,7 @@ import Control.Monad
 import Data.Aeson (encode,eitherDecode)
 
 --import Control.Applicative hiding (Const)
-import Data.Attoparsec.ByteString.Char8
+--import Data.Attoparsec.ByteString.Char8
 import Data.ByteString.Char8 (ByteString)
 import Data.Char
 import Data.List (isPrefixOf,partition,isInfixOf,elemIndex)
@@ -183,12 +183,10 @@ isPrefixOfCI a b = isPrefixOf a $ map toLower b
 
 shaderMap :: Map String Entry -> IO (T.Trie CommonAttrs)
 shaderMap ar = do
-  let eval n f = case f of
-        Done "" r   -> r
-        Done rem r  -> error $ show (n,"Input is not consumed", rem, map fst r)
-        Fail _ c _  -> error $ show (n,"Fail",c)
-        Partial f'  -> eval n (f' "")
-  T.fromList . concat <$> forM [(n,e) | (n,e) <- Map.toList ar, ".shader" == takeExtension n, isPrefixOf "scripts" n] (\(n,e) -> eval n . parse shaders <$> readEntry e)
+  l <- sequence <$> forM [(n,e) | (n,e) <- Map.toList ar, ".shader" == takeExtension n, isPrefixOf "scripts" n] (\(n,e) -> parseShaders n <$> readEntry e)
+  case l of
+    Left err -> fail err
+    Right x -> return . T.fromList . concat $ x
 
 -- Utility code
 tableTexture :: [Float] -> GLUniformName -> Map GLUniformName InputSetter -> IO ()
