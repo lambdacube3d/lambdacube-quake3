@@ -1,4 +1,4 @@
-module GameEngine.Data.Character where
+module GameEngine.Data.GameCharacter where
 
 import LambdaCube.Linear (V3(..))
 import Data.Map

@@ -1,30 +1,43 @@
 refactor notes:
+  ok - Q3Patch.hs - rename (e.g. BezierSurface)
+  ok - Items.hs - add record names to list (with ppShow)
   ok - Collision.hs
   ok - Zip.hs
-  BSP.hs
-    - split data definition from loader
+  ok - BSP.hs - split data definition from loader
+  ok - MD3.hs - split data definition and loader
+  Character.hs
+    ok - split data definition from loader
+    ok - rename to GameCharacter or CharacterAnimation
+  Render.hs
+    ok - move out patch tesselation
+    ok - move out frustum handling
+    ok - move out object culling (render optimization)
+  Entity.hs
+    ok - use megaparsec; use code from lambdacube-quake3-new
+    ok - separate Entity parser from ShaderParser
+
+  BSP.hs, MD3.hs
+    - factor out common functions from BSP and MD3 loaders
+
   Character.hs
     - use megaparsec
-    - split data definition from loader
-    - rename to GameCharacter or CharacterAnimation
-  Engine.hs - 
-  Entity.hs - use megaparsec
-  Items.hs - add record names to list (with ppShow)
-  MD3.hs - split data definition and loader
+
+  ShaderParser.hs - use megaparsec
+
+  Engine.hs
+    - use proper resource monad
+    - manage subsystems elegantly
+
   Material.hs
     - rename CommonAttrs and StageAttrs (also modify Graphics.lc)
-  Q3Patch.hs - rename (e.g. BezierSurface)
+
   Render.hs
-    - move out patch tesselation
-    - move out frustum handling
     - move out storage setup
-    - move out object culling (render optimization)
-  ShaderParser.hs - use megaparsec
 
 ----
 refactor the code
   - to be a game engine
-  - support multiple renderers:
+  NO - support multiple renderers:
       - lambdacube edsl
       - lambdacube dsl
       - gpipe2

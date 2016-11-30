@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, TupleSections #-}
-module GameEngine.Loader.Character
+module GameEngine.Loader.GameCharacter
   ( parseCharacter
   ) where
 
@@ -12,7 +12,7 @@ import qualified Data.ByteString.Char8 as BS
 import Data.Attoparsec.ByteString.Char8
 import LambdaCube.Linear (V3(..))
 
-import GameEngine.Data.Character
+import GameEngine.Data.GameCharacter
 import GameEngine.Loader.ShaderParser (val,kw,float,int,nat,skip)
 {-
   TODO:
@@ -24,6 +24,15 @@ import GameEngine.Loader.ShaderParser (val,kw,float,int,nat,skip)
         play animation
         update
 -}
+
+parseCharacter :: String -> ByteString -> Character
+parseCharacter n s = eval n $ parse (skip *> character <* skip <* endOfInput) s
+  where
+    eval n f = case f of
+        Done "" r   -> r
+        Done rem r  -> error $ show (n,"Input is not consumed", rem, r)
+        Fail leftover ctx err  -> error $ unlines ["fail:", "not consumed: " ++ BS.unpack leftover, "context: " ++ unwords ctx, "error: " ++ err]
+        Partial f'  -> eval n (f' "")
 
 animation = do
   first <- nat
@@ -137,12 +146,3 @@ character = do
     , fixedLegs     = False
     , fixedTorso    = False
     }
-
-parseCharacter :: String -> ByteString -> Character
-parseCharacter n s = eval n $ parse (skip *> character <* skip <* endOfInput) s
-  where
-    eval n f = case f of
-        Done "" r   -> r
-        Done rem r  -> error $ show (n,"Input is not consumed", rem, r)
-        Fail leftover ctx err  -> error $ unlines ["fail:", "not consumed: " ++ BS.unpack leftover, "context: " ++ unwords ctx, "error: " ++ err]
-        Partial f'  -> eval n (f' "")

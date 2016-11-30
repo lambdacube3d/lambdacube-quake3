@@ -110,7 +110,7 @@ main = do
     -- play level music
     case getMusicFile levelData of
       Nothing -> return ()
-      Just musicFName' -> let musicFName = map f $ SB8.unpack musicFName'
+      Just musicFName' -> let musicFName = map f musicFName'
                               f '\\' = '/'
                               f c = c
                           in case Map.lookup musicFName pk3Data of

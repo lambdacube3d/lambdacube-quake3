@@ -66,9 +66,10 @@ import GameEngine.Loader.BSP
 import GameEngine.Data.Material hiding (Vec3)
 import GameEngine.Render
 import GameEngine.Loader.ShaderParser
+import qualified GameEngine.Loader.Entity as E
 import GameEngine.Loader.Zip
-import GameEngine.Data.Character
-import GameEngine.Loader.Character
+import GameEngine.Data.GameCharacter
+import GameEngine.Loader.GameCharacter
 import GameEngine.Data.Items
 import GameEngine.Entity
 import GameEngine.Frustum
@@ -98,6 +99,7 @@ loadPK3 = do
   Map.unions <$> (mapM readArchive =<< filter (\n -> ".pk3" == takeExtensionCI n) <$> getDirectoryContents ".")
 
 mkWorldMat x y z = translation $ Vec3 x y z
+mkWorldMat' = translation
 
 readCharacters pk3Data p0 = do
   let --characterNames = characterNamesFull
@@ -154,16 +156,12 @@ handWeapon = head $ drop 6 ["models/weapons2/" ++ n ++ "/"++ n ++ ".md3" | n <- 
 
 readMD3Objects characterObjs ents pk3Data = do
     let itemMap = T.fromList [(SB.pack $ itClassName it,it) | it <- items]
-        collectObj e
-          | Just classname <- T.lookup "classname" e
-          , Just o <- T.lookup "origin" e
-          , [x,y,z] <- map (read :: String -> Float) $ words $ SB.unpack o = case T.lookup classname itemMap of
-            Just i -> [(mat, (mempty,m)) | m <- Prelude.take cnt $ itWorldModel i, let mat = mkWorldMat x y z]
+        collectObj E.EntityData{..} = case T.lookup (SB.pack classname) itemMap of
+            Just i -> [(mat, (mempty,m)) | m <- Prelude.take cnt $ itWorldModel i, let mat = mkWorldMat' origin]
               where cnt = if itType i `elem` [IT_HEALTH, IT_POWERUP] then 2 else 1
-            Nothing -> case T.lookup "model2" e of
-              Just m -> [(mkWorldMat x y z, (mempty,SB.unpack m))]
+            Nothing -> case model2 of
+              Just m -> [(mkWorldMat' origin, (mempty,m))]
               Nothing -> []
-          | otherwise = []
         md3Objs = concatMap collectObj ents
     md3Map <- T.fromList <$> sequence
       [ (\a -> (SB.pack n,MD3.readMD3 $ LB.fromStrict a)) <$> readEntry m
@@ -270,17 +268,20 @@ engineInit pk3Data fullBSPName = do
     SB.writeFile (lc_q3_cache </> bspName ++ ".entities") $ blEntities bsp
 
     -- extract spawn points
-    let ents = parseEntities bspName $ blEntities bsp
-        spawnPoint e
-          | Just classname <- T.lookup "classname" e
-          , classname `elem` ["info_player_deathmatch","info_player_start","team_CTF_bluespawn","team_CTF_redspawn","team_CTF_blueplayer","team_CTF_redplayer"]
-          , Just origin <- T.lookup "origin" e
-          , [x,y,z] <- map read $ words $ SB.unpack origin = [Vec3 x y z]
+    let Right ents = E.parseEntities bspName $ blEntities bsp
+        spawnPoint E.EntityData{..}
+          | classname `elem` [ "info_player_deathmatch"
+                             , "info_player_start"
+                             , "team_CTF_bluespawn"
+                             , "team_CTF_redspawn"
+                             , "team_CTF_blueplayer"
+                             , "team_CTF_redplayer"
+                             ] = [origin]
           | otherwise = []
         spawnPoints = concatMap spawnPoint ents
         p0 = head spawnPoints
         teleportData = loadTeleports ents
-        music = (head . SB.words) <$> (T.lookup "music" $ head ents)
+        music = (head . words) <$> (E.music $ head ents)
 
     -- MD3 related code
     (characterSkinMaterials,characterObjs,characters) <- readCharacters pk3Data p0

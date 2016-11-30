@@ -1,8 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module GameEngine.Loader.ShaderParser
-  {-( entities
-  )-} where
+module GameEngine.Loader.ShaderParser where
 
 import Control.Applicative hiding (many)
 import Data.Attoparsec.ByteString.Char8
@@ -64,16 +62,6 @@ int = skipSpace' *> signed decimal
 
 nat :: Parser Int
 nat = skipSpace' *> decimal
-
--- q3 entity description parser
-entities :: Parser [T.Trie ByteString]
-entities = skipSpace *> many entity <* skipSpace
-
-entity :: Parser (T.Trie ByteString)
-entity = T.fromList <$> (kw' "{" *> many ((,) <$> str <*> str) <* kw' "}")
-
-str :: Parser ByteString
-str = skipSpace *> string "\"" *> takeWhile1 (\c -> c /= '"') <* char '"'
 
 -- q3 shader related parsers
 
