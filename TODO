@@ -19,7 +19,7 @@ refactor notes:
 
   ShaderParser.hs
     ok - use megaparsec
-    - refactor/speedup grammar
+    ok - refactor/speedup grammar
 
   BSP.hs, MD3.hs
     - factor out common functions from BSP and MD3 loaders
