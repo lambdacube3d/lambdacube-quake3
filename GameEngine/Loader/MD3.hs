@@ -19,33 +19,39 @@ import qualified Data.Vector.Storable as SV
 
 import GameEngine.Data.MD3
 
-getString   = fmap (SB.takeWhile (/= '\0')) . getByteString
+getString :: Int -> Get SB.ByteString
+getString = fmap (SB.takeWhile (/= '\0')) . getByteString
+
 getUByte    = B.get :: Get Word8
-getFloat    = getFloat32le
-getVec2     = Vec2 <$> getFloat <*> getFloat
-getVec3     = Vec3 <$> getFloat <*> getFloat <*> getFloat
-getVec3i16  = (\x y z -> Vec3 (fromIntegral x) (fromIntegral y) (fromIntegral z)) <$> getInt16 <*> getInt16 <*> getInt16
+getFloat    = getFloat32le :: Get Float
+getVec2     = Vec2 <$> getFloat <*> getFloat :: Get Vec2
+getVec3     = Vec3 <$> getFloat <*> getFloat <*> getFloat :: Get Vec3
+getVec3i16  = (\x y z -> Vec3 (fromIntegral x) (fromIntegral y) (fromIntegral z)) <$> getInt16 <*> getInt16 <*> getInt16 :: Get Vec3
 getInt16    = fromIntegral <$> getInt' :: Get Int
-  where
-    getInt' = fromIntegral <$> getWord16le :: Get Int16
+  where getInt' = fromIntegral <$> getWord16le :: Get Int16
 getInt      = fromIntegral <$> getInt' :: Get Int
-  where
-    getInt' = fromIntegral <$> getWord32le :: Get Int32
-getInt3     = (,,) <$> getInt <*> getInt <*> getInt
-getAngle    = (\i -> fromIntegral i * 2 * pi / 255) <$> getUByte
+  where getInt' = fromIntegral <$> getWord32le :: Get Int32
+getInt3     = (,,) <$> getInt <*> getInt <*> getInt :: Get (Int, Int, Int)
+getAngle    = (\i -> fromIntegral i * 2 * pi / 255) <$> getUByte :: Get Float
+
+getV :: Int -> Int -> Get a -> LB.ByteString -> V.Vector a
 getV o n f dat = runGet (V.replicateM n f) (LB.drop (fromIntegral o) dat)
+
+getSV :: SV.Storable a => Int -> Int -> Get a -> LB.ByteString -> SV.Vector a
 getSV o n f dat = runGet (SV.replicateM n f) (LB.drop (fromIntegral o) dat)
 
-getFrame    = Frame <$> getVec3 <*> getVec3 <*> getVec3 <*> getFloat <*> getString 64
-getTag      = Tag <$> getString 64 <*> getVec3 <*> getVec3 <*> getVec3 <*> getVec3
-getShader   = Shader <$> getString 64 <*> getInt
+getFrame    = Frame <$> getVec3 <*> getVec3 <*> getVec3 <*> getFloat <*> getString 64 :: Get Frame
+getTag      = Tag <$> getString 64 <*> getVec3 <*> getVec3 <*> getVec3 <*> getVec3 :: Get Tag
+getShader   = Shader <$> getString 64 <*> getInt  :: Get Shader
 
+getXyzNormal :: Get (Vec3, Vec3)
 getXyzNormal = do
     v <- getVec3i16
     lat <- getAngle
     lng <- getAngle
     return (v &* (1/64), Vec3 (cos lat * sin lng) (sin lat * sin lng) (cos lng))
 
+getSurface :: Get Surface
 getSurface = (\(o,v) -> skip o >> return v) =<< lookAhead getSurface'
   where
     getSurface' = do
@@ -61,6 +67,7 @@ getSurface = (\(o,v) -> skip o >> return v) =<< lookAhead getSurface'
           (getSV oTexCoords nVerts getVec2 dat)
           (getV oXyzNormals nFrames ((\(p,n) -> (SV.fromList p,SV.fromList n)) . unzip <$> replicateM nVerts getXyzNormal) dat))
 
+getMD3Model :: Get MD3Model
 getMD3Model = do
     dat <- lookAhead getRemainingLazyByteString
     "IDP3" <- getString 4

@@ -100,7 +100,7 @@ parseEntities fname src = case parse entities fname src of
   Right e   -> Right e
 
 entities :: Parser [EntityData]
-entities = sc *> many entity <* eof
+entities = spaceConsumer *> many entity <* eof
 
 entity :: Parser EntityData
 entity = foldr ($) emptyEntityData <$> between (symbol "{") (symbol "}") (some value)
@@ -163,18 +163,26 @@ lineComment = L.skipLineComment "//"
 blockComment :: Parser ()
 blockComment = L.skipBlockComment "/*" "*/"
 
-sc :: Parser ()
-sc = L.space (void spaceChar) lineComment blockComment
+spaceConsumer :: Parser ()
+spaceConsumer = L.space (void spaceChar) lineComment blockComment
 
 lexeme :: Parser a -> Parser a
-lexeme = L.lexeme sc
+lexeme = L.lexeme spaceConsumer
 
-symbol = L.symbol sc
+symbol :: String -> Parser String
+symbol = L.symbol spaceConsumer
 
+quoted :: Parser a -> Parser a
 quoted = between (lexeme $ char '"') (lexeme $ char '"')
 
+stringLiteral :: Parser String
 stringLiteral = lexeme $ char '"' >> manyTill anyChar (char '"')
-integerLiteral = fromIntegral <$> L.signed sc (lexeme L.integer)
-floatLiteral = realToFrac <$> L.signed sc (lexeme $ try L.float <|> fromIntegral <$> L.integer)
 
+integerLiteral :: Parser Int
+integerLiteral = fromIntegral <$> L.signed spaceConsumer (lexeme L.integer)
+
+floatLiteral :: Parser Float
+floatLiteral = realToFrac <$> L.signed spaceConsumer (lexeme $ try L.float <|> fromIntegral <$> L.integer)
+
+vector3 :: Parser Vec3
 vector3 = Vec3 <$> floatLiteral <*> floatLiteral <*> floatLiteral

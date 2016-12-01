@@ -64,6 +64,7 @@ data Item
     , itSounds      :: String
     } deriving Show
 
+items :: [Item]
 items =
   [ Item
       { itClassName = "item_armor_shard"

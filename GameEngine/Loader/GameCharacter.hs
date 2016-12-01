@@ -51,19 +51,19 @@ animation = do
 characterAttributes :: Parser (Character -> Character)
 characterAttributes = fmap (\l x -> foldr ($) x l) $ many $ choice 
   [ (\a c -> c {footStep = a}) <$ symbol "footsteps" <*> choice
-      [ val FOOTSTEP_NORMAL "default"
-      , val FOOTSTEP_NORMAL "normal"
-      , val FOOTSTEP_BOOT "boot"
-      , val FOOTSTEP_FLESH "flesh"
-      , val FOOTSTEP_MECH "mech"
-      , val FOOTSTEP_ENERGY "energy"
+      [ value FOOTSTEP_NORMAL "default"
+      , value FOOTSTEP_NORMAL "normal"
+      , value FOOTSTEP_BOOT "boot"
+      , value FOOTSTEP_FLESH "flesh"
+      , value FOOTSTEP_MECH "mech"
+      , value FOOTSTEP_ENERGY "energy"
       ]
   , (\c -> c {fixedLegs = True}) <$ symbol "fixedlegs"
   , (\c -> c {fixedTorso = True}) <$ symbol "fixedtorso"
   , (\a c -> c {gender = a}) <$ symbol "sex" <*> choice
-      [ val GENDER_FEMALE "f"
-      , val GENDER_NEUTER "n"
-      , val GENDER_MALE "m"
+      [ value GENDER_FEMALE "f"
+      , value GENDER_NEUTER "n"
+      , value GENDER_MALE "m"
       ]
   , (\x y z c -> c {headOffset = V3 x y z}) <$ symbol "headoffset" <*> signedFloat <*> signedFloat <*> signedFloat
   ] <* spaceConsumer
@@ -156,10 +156,20 @@ blockComment = L.skipBlockComment "/*" "*/"
 spaceConsumer :: Parser ()
 spaceConsumer = L.space (void spaceChar) lineComment blockComment
 
-symbol        = L.symbol spaceConsumer
-lexeme        = L.lexeme spaceConsumer
-integer       = fromIntegral <$> lexeme L.integer
-signedInteger = L.signed spaceConsumer integer
-signedFloat   = realToFrac <$> L.signed spaceConsumer (lexeme $ try L.float <|> fromIntegral <$> L.integer)
+symbol :: String -> Parser String
+symbol = L.symbol spaceConsumer
 
-val v w = const v <$> symbol w
+lexeme :: Parser a -> Parser a
+lexeme = L.lexeme spaceConsumer
+
+integer :: Parser Int
+integer = fromIntegral <$> lexeme L.integer
+
+signedInteger :: Parser Int
+signedInteger = L.signed spaceConsumer integer
+
+signedFloat :: Parser Float
+signedFloat = realToFrac <$> L.signed spaceConsumer (lexeme $ try L.float <|> fromIntegral <$> L.integer)
+
+value :: a -> String -> Parser a
+value v w = const v <$> symbol w
