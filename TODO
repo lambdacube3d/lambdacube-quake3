@@ -21,10 +21,17 @@ refactor notes:
     ok - use megaparsec
     ok - refactor/speedup grammar
 
-  BSP.hs, MD3.hs
+  Binary: BSP.hs, MD3.hs
     - factor out common functions from BSP and MD3 loaders
+  Megaparsec: Character.hs. Entity.hs, ShaderParser.hs
+    - factor out common parts
+    - use same floating number parser
 
   Engine.hs
+    - add data structure to store internal data
+    - move graphics related functions to separate module
+    - 
+
     - use proper resource monad
     - manage subsystems elegantly
 

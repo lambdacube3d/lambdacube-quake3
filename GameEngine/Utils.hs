@@ -8,8 +8,12 @@ import Data.Vect.Float.Instances
 import qualified Data.Vector as V
 import qualified Data.Map as Map
 
+import System.FilePath
 import LambdaCube.Linear
 import LambdaCube.Mesh
+
+lc_q3_cache = ".lc_q3.cache" -- local cache: generated files, compiled pipelines are stored here
+q3shader_cache = lc_q3_cache </> "q3shader.cache"
 
 -- simple meshes
 sphere :: V4 Float -> Int -> Float -> Mesh

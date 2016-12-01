@@ -16,26 +16,15 @@ module GameEngine.Engine
   , getMusicFile
   ) where
 
-import Debug.Trace
-
 import Control.Monad
-import Data.Aeson (encode,eitherDecode)
-
---import Control.Applicative hiding (Const)
---import Data.Attoparsec.ByteString.Char8
-import Data.ByteString.Char8 (ByteString)
 import Data.Char
 import Data.List (isPrefixOf,partition,isInfixOf,elemIndex)
 import Data.Maybe
---import Data.Trie (Trie)
 import Data.Vect
-import Data.Vect.Float.Instances ()
---import Data.Word
+import Data.Set (Set)
 import Data.Map (Map)
 import System.FilePath
 import System.Directory
-import System.Process
-import System.Exit
 
 import qualified Data.Map as Map
 import Data.Binary (encodeFile,decodeFile)
@@ -43,202 +32,47 @@ import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteString.Char8 as SB
 import qualified Data.Set as Set
 import qualified Data.Trie as T
---import qualified Data.Trie.Internal as T
 import qualified Data.Vector as V
---import qualified Data.Vector.Storable as SV
 
---import Debug.Trace
 import Text.Show.Pretty (ppShow)
 
 import Data.Digest.CRC32
 import Codec.Picture
 
-import LambdaCube.Compiler (compileMain, Backend(..))
 import LambdaCube.GL as GL
---import LambdaCube.GL.Mesh
-
-import Control.Exception (evaluate)
-import Control.DeepSeq
---import GHC.Generics
 
 import GameEngine.Data.BSP
-import GameEngine.Loader.BSP
-import GameEngine.Data.Material hiding (Vec3)
-import GameEngine.Graphics.Render
-import GameEngine.Loader.ShaderParser
-import qualified GameEngine.Loader.Entity as E
-import GameEngine.Loader.Zip
 import GameEngine.Data.GameCharacter
-import GameEngine.Loader.GameCharacter
-import GameEngine.Data.Items
+import GameEngine.Data.Material hiding (Vec3)
+import GameEngine.Content
 import GameEngine.Entity
-import GameEngine.Graphics.Frustum
-import GameEngine.Utils
 import GameEngine.Graphics.Culling
-
+import GameEngine.Graphics.Frustum
+import GameEngine.Graphics.Render
+import GameEngine.Graphics.Storage
+import GameEngine.Loader.BSP
+import GameEngine.Loader.Zip
+import GameEngine.Utils
 import qualified GameEngine.Data.MD3 as MD3
-import qualified GameEngine.Loader.MD3 as MD3
+import qualified GameEngine.Loader.Entity as E
 
 import Paths_lambdacube_quake3
 
-{-
-  TODO:
-    remove elerea dep from anim map
--}
-
-lc_q3_cache = ".lc_q3.cache" -- local cache: generated files, compiled pipelines are stored here
-q3shader_cache = lc_q3_cache </> "q3shader.cache"
-------------
--- Game data
-------------
-
-loadPK3 :: IO (Map String Entry)
-loadPK3 = do
-  let takeExtensionCI = map toLower . takeExtension
-      isPrefixOfCI a b = isPrefixOf a $ map toLower b
-  Map.unions <$> (mapM readArchive =<< filter (\n -> ".pk3" == takeExtensionCI n) <$> getDirectoryContents ".")
-
-mkWorldMat x y z = translation $ Vec3 x y z
-mkWorldMat' = translation
-
-readCharacters pk3Data p0 = do
-  let --characterNames = characterNamesFull
-      characterNames = characterNamesDemo
-
-      characterNamesFull = [ "anarki","biker","bitterman","bones","crash","doom","grunt","hunter","keel","klesk","lucy","major","mynx"
-                           , "orbb","ranger","razor","sarge","slash","sorlag","tankjr","uriel","visor","xaero"
-                           ]
-      characterNamesDemo = ["major","visor","sarge","grunt"]
-
-      readCharacterModelSkin name part = do
-        let fname = "models/players/" ++ name ++ "/" ++ part ++ "_default.skin"
-        txt <- case Map.lookup fname pk3Data of
-          Nothing -> fail $ "missing skin: " ++ fname
-          Just e -> readEntry e
-        return $ Map.fromList
-          [ (head k,head v)
-          | l <- lines $ SB.unpack txt
-          , i <- maybeToList $ elemIndex ',' l
-          , let (words . map toLower -> k,words . map toLower . tail -> v) = splitAt i l
-          , not . null $ k
-          , not . null $ v
-          ]
-
-  characterSkinMap <- evaluate =<< (force . Map.fromList <$> sequence
-    [ ((name,part),) <$> readCharacterModelSkin name part 
-    | name <- characterNames
-    , part <- ["head","upper","lower"]
-    ])
-
-  let characterModelSkin name part = case Map.lookup (name,part) characterSkinMap of
-        Nothing -> error $ unwords ["missing skin for", name, "body part", part]
-        Just skin -> skin
-
-      characterSkinMaterials = Set.fromList $ concat [map SB.pack . Map.elems $ characterModelSkin name part | name <- characterNames, part <- ["head","upper","lower"]]
-      characterObjs = [[(mkWorldMat (x + r * sin (angle i)) (y + r * cos (angle i)) z, m) | m <- ml] | (i,ml) <- zip [0..] characterModels]
-        where
-          r = (200 / 24) * (fromIntegral $ length characterNames)
-          angle i = fromIntegral i / (fromIntegral $ length characterNames) * pi * 2
-          Vec3 x y z = p0
-          characterModels = [[(characterModelSkin name part,"models/players/" ++ name ++ "/" ++ part ++ ".md3") | part <- ["head","upper","lower"]] | name <- characterNames]
-
-  charactersResult <- sequence <$> sequence
-    [ parseCharacter fname <$> readEntry e
-    | name <- characterNames
-    , let fname = "models/players/" ++ name ++ "/animation.cfg"
-          e = maybe (error $ "missing " ++ fname) id $ Map.lookup fname pk3Data
-    ]
-  case charactersResult of
-    Right characters  -> return (characterSkinMaterials,characterObjs,characters)
-    Left errorMessage -> fail errorMessage
-
-handWeapon = head $ drop 6 ["models/weapons2/" ++ n ++ "/"++ n ++ ".md3" | n <- weapons]
-  where
-    weapons = ["bfg","gauntlet","grapple","grenadel","lightning","machinegun","plasma","railgun","rocketl","shells","shotgun"]
-
-readMD3Objects characterObjs ents pk3Data = do
-    let itemMap = T.fromList [(SB.pack $ itClassName it,it) | it <- items]
-        collectObj E.EntityData{..} = case T.lookup (SB.pack classname) itemMap of
-            Just i -> [(mat, (mempty,m)) | m <- Prelude.take cnt $ itWorldModel i, let mat = mkWorldMat' origin]
-              where cnt = if itType i `elem` [IT_HEALTH, IT_POWERUP] then 2 else 1
-            Nothing -> case model2 of
-              Just m -> [(mkWorldMat' origin, (mempty,m))]
-              Nothing -> []
-        md3Objs = concatMap collectObj ents
-    md3Map <- T.fromList <$> sequence
-      [ (\a -> (SB.pack n,MD3.readMD3 $ LB.fromStrict a)) <$> readEntry m
-      | n <- Set.toList . Set.fromList . map (snd . snd) $ md3Objs ++ concat characterObjs ++ [(mkWorldMat 0 0 0,(mempty,handWeapon))]
-      , m <- maybeToList $ Map.lookup n pk3Data
-      ]
-    let md3Materials = Set.fromList . concatMap (concatMap (map MD3.shName . V.toList . MD3.srShaders) . V.toList . MD3.mdSurfaces) $ T.elems md3Map
-
-    return (md3Materials,md3Map,md3Objs)
-
-takeExtensionCI = map toLower . takeExtension
-isPrefixOfCI a b = isPrefixOf a $ map toLower b
-
------------
--- Graphics
------------
-
-shaderMap :: Map String Entry -> IO (T.Trie CommonAttrs)
-shaderMap ar = do
-  l <- sequence <$> forM [(n,e) | (n,e) <- Map.toList ar, ".shader" == takeExtension n, isPrefixOf "scripts" n] (\(n,e) -> parseShaders n <$> readEntry e)
-  case l of
-    Left err -> fail err
-    Right (unzip -> (x,w)) -> do
-      writeFile (lc_q3_cache </> "shader.log") $ unlines $ concat w
-      return . T.fromList . concat $ x
-
--- Utility code
-tableTexture :: [Float] -> GLUniformName -> Map GLUniformName InputSetter -> IO ()
-tableTexture t n s = do
-    let width       = length t
-        v           = V.fromList t
-        bitmap x y  = let a = floor $ min 255 $ max 0 $ 128 + 128 * v V.! x in PixelRGB8 a a a
-        texture     = uniformFTexture2D n s
-
-    tex <- uploadTexture2DToGPU' True False False False $ ImageRGB8 $ generateImage bitmap width 1
-    texture tex
-
-setupTables :: Map GLUniformName InputSetter -> IO ()
-setupTables s = do
-    let funcTableSize = 1024 :: Float
-        sinTexture              = [sin (i*2*pi/(funcTableSize-1)) | i <- [0..funcTableSize-1]]
-        squareTexture           = [if i < funcTableSize / 2 then 1 else -1 | i <- [0..funcTableSize-1]]
-        sawToothTexture         = [i / funcTableSize | i <- [0..funcTableSize-1]]
-        inverseSawToothTexture  = reverse [i / funcTableSize | i <- [0..funcTableSize-1]]
-        triangleTexture         = l1 ++ map ((-1)*) l1
-          where
-            n = funcTableSize / 4
-            l0 = [i / n | i <- [0..n-1]]
-            l1 = l0 ++ reverse l0
-    
-    tableTexture sinTexture "SinTable" s
-    tableTexture squareTexture "SquareTable" s
-    tableTexture sawToothTexture "SawToothTable" s
-    tableTexture inverseSawToothTexture "InverseSawToothTable" s
-    tableTexture triangleTexture "TriangleTable" s
-
-loadQ3Texture :: Bool -> Bool -> TextureData -> Map String Entry -> ByteString -> ByteString -> IO TextureData
-loadQ3Texture isMip isClamped defaultTex ar shName name' = do
-    let name = SB.unpack name'
-        n1 = replaceExtension name "tga"
-        n2 = replaceExtension name "jpg"
-        b0 = Map.member name ar
-        b1 = Map.member n1 ar
-        b2 = Map.member n2 ar
-        fname   = if b0 then name else if b1 then n1 else n2
-    case Map.lookup fname ar of
-        Nothing -> putStrLn ("    unknown texure: " ++ fname ++ " in shader: " ++ SB.unpack shName) >> return defaultTex
-        Just entry  -> do
-            eimg <- decodeImage <$> readEntry entry
-            putStrLn $ "  load: " ++ fname
-            case eimg of
-                Left msg    -> putStrLn ("    error: " ++ msg) >> return defaultTex
-                Right img   -> uploadTexture2DToGPU' True True isMip isClamped img
-
 -- TODO
+engineInit :: Map String Entry -> FilePath
+           -> IO ( PipelineSchema
+                 , ( BSPLevel
+                   , T.Trie MD3.MD3Model
+                   , [(Proj4, (Map String String, String))]
+                   , [[(Proj4, (Map String String, [Char]))]]
+                   , [Character]
+                   , T.Trie CommonAttrs
+                   , [Vec3]
+                   , V.Vector Int
+                   , ([GameEngine.Entity.Entity], T.Trie GameEngine.Entity.Entity)
+                   , Maybe String
+                   )
+                 )
 engineInit pk3Data fullBSPName = do
     let bspName = takeBaseName fullBSPName
 
@@ -396,6 +230,28 @@ getTeleportFun levelData@(bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSl
   --in head $ trace (show ("hitModels",hitModels,models)) hitModels ++ [p]
   in head $ hitModels ++ [p]
 
+setupStorage :: Map String Entry ->
+                    ( BSPLevel
+                    , T.Trie MD3.MD3Model
+                    , [(Proj4, (Map String String, String))]
+                    , [[(Proj4, (Map String String, [Char]))]]
+                    , [Character]
+                    , T.Trie CommonAttrs
+                    , [Vec3]
+                    , V.Vector Int
+                    , ([GameEngine.Entity.Entity], T.Trie GameEngine.Entity.Entity)
+                    , Maybe String
+                    )
+                    -> GLStorage ->
+                  IO ( GLStorage
+                     , [(Proj4, LCMD3)]
+                     , [Character]
+                     , [(Proj4, (MD3.MD3Model, LCMD3), (MD3.MD3Model, LCMD3),(MD3.MD3Model, LCMD3))]
+                     , V.Vector [Object]
+                     , BSPLevel
+                     , LCMD3
+                     , [(Float, SetterFun TextureData, V.Vector TextureData)]
+                     )
 setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_,_,_,_) storage = do
     let slotU           = uniformSetter storage
         entityRGB       = uniformV3F "entityRGB" slotU
@@ -457,6 +313,16 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
     return (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon,animTex)
 
 -- TODO
+updateRenderInput :: ( GLStorage
+                     , [(Proj4, LCMD3)]
+                     , [Character]
+                     , [(Proj4, (MD3.MD3Model, LCMD3), (MD3.MD3Model, LCMD3),(MD3.MD3Model, LCMD3))]
+                     , V.Vector [Object]
+                     , BSPLevel
+                     , LCMD3
+                     , [(Float, SetterFun TextureData, V.Vector TextureData)]
+                     )
+                  -> (Vec3, Vec3, Vec3) -> Int -> Int -> Float -> Bool -> IO ()
 updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon,animTex) (camPos,camTarget,camUp) w h time noBSPCull = do
             let slotU = uniformSetter storage
 
@@ -546,61 +412,3 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
               True  -> V.forM_ surfaceObjs $ \objs -> forM_ objs $ \obj -> enableObject obj True
               False -> cullSurfaces bsp camPos frust surfaceObjs
             return ()
-
-compileQuake3GraphicsCached name = doesFileExist (lc_q3_cache </> name) >>= \case
-  True -> putStrLn "use cached pipeline" >> return True
-  False -> compileQuake3Graphics name
-
-compileQuake3Graphics name = printTimeDiff "compile quake3 graphics pipeline..." $ do
-  dataDir <- getDataDir
-  -- check order: local lc folder, global lc folder
-  -- local lc_q3.cache stores the generated SampleMaterial.lc with the level specific material description list
-  compileMain [lc_q3_cache, "lc", dataDir </> "lc"] OpenGL33 "Graphics.lc" >>= \case 
-    Left err -> putStrLn ("error: " ++ ppShow err) >> return False
-    Right ppl -> LB.writeFile (lc_q3_cache </> name) (encode ppl) >> return True
-
-loadQuake3Graphics storage name = do
-    putStrLn $ "load " ++ name
-    dataDir <- getDataDir
-    let localName  = "lc" </> name
-        globalName = dataDir </> localName
-        paths = [lc_q3_cache </> name,localName,globalName]
-    validPaths <- filterM doesFileExist paths
-    when (null validPaths) $ fail $ name ++ " is not found in " ++ show paths
-    renderer <- printTimeDiff "allocate pipeline..." $ do
-      eitherDecode <$> LB.readFile (head validPaths) >>= \case
-        Left err -> fail err
-        Right ppl -> allocRenderer ppl
-    printTimeDiff "setStorage..." $ setStorage renderer storage
-    --sortSlotObjects storage
-    return $ Just renderer
-
-createLoadingScreen = do
-  -- default texture
-  let redBitmap x y = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
-  defaultTexture <- uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage redBitmap 2 2
-  -- storage
-  storage <- allocStorage $ makeSchema $ do
-    defUniforms $ do
-      "LoadingImage" @: FTexture2D
-  -- pipeline
-  dataDir <- getDataDir
-  let localLoadingName  = "lc" </> "Loading.json"
-      globalLoadingName = dataDir </> localLoadingName
-      paths = [localLoadingName,globalLoadingName]
-  validPaths <- filterM doesFileExist paths
-  when (null validPaths) $ fail $ "could not find Loading.json in " ++ show paths
-  renderer <- eitherDecode <$> LB.readFile (head validPaths) >>= \case
-        Left err -> fail err
-        Right ppl -> allocRenderer ppl
-  -- connect them
-  setStorage renderer storage >>= \case -- check schema compatibility
-    Just err -> fail err
-    Nothing  -> return (storage,renderer,defaultTexture)
-
-drawLoadingScreen w h (storage,renderer,defaultTexture) pk3Data bspName = do
-    textureData <- loadQ3Texture True True defaultTexture pk3Data mempty (SB.pack $ "levelshots/" ++ bspName)
-    setScreenSize storage (fromIntegral w) (fromIntegral h)
-    updateUniforms storage $ do
-      "LoadingImage" @= return textureData
-    renderFrame renderer
