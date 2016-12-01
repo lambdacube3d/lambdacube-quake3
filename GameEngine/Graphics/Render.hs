@@ -29,7 +29,7 @@ import LambdaCube.GL.Mesh
 import GameEngine.Data.BSP
 import GameEngine.Data.MD3 (MD3Model)
 import qualified GameEngine.Data.MD3 as MD3
-import GameEngine.BezierSurface
+import GameEngine.Graphics.BezierSurface
 import GameEngine.Graphics.Frustum
 import GameEngine.Utils
 

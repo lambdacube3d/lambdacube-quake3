@@ -44,7 +44,7 @@ library
                        GameEngine.Engine
                        GameEngine.Content
                        GameEngine.Entity
-                       GameEngine.BezierSurface
+                       GameEngine.Graphics.BezierSurface
                        GameEngine.Collision
                        GameEngine.Utils
 

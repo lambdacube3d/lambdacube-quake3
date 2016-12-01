@@ -1,4 +1,4 @@
-module GameEngine.BezierSurface
+module GameEngine.Graphics.BezierSurface
   ( tessellatePatch
   ) where
 
