@@ -4,12 +4,11 @@ module GameEngine.Loader.ShaderParser
   ( parseShaders
   ) where
 
-import Debug.Trace
 import Control.Applicative
 import Control.Monad
 import Data.ByteString.Char8 (ByteString,pack)
 import Text.Megaparsec hiding (count)
-import Text.Megaparsec.ByteString
+--import Text.Megaparsec.ByteString
 import qualified Text.Megaparsec.Lexer as L
 
 import Text.Show.Pretty (ppShow)
@@ -18,14 +17,17 @@ import Data.Char (toLower,isSpace)
 import Data.List (foldl')
 import LambdaCube.Linear
 import qualified Data.ByteString.Char8 as BS8
-import qualified Data.Trie as T
 
 import GameEngine.Data.Material
 
-parseShaders :: String -> ByteString -> Either String [(ByteString,CommonAttrs)]
-parseShaders fname src = case parse (spaceConsumer' *> many shader <* eof) fname $ BS8.map toLower src of
-  Left err  -> Left (parseErrorPretty err)
-  Right e   -> Right e
+import Control.Monad.Trans.Writer.Strict
+
+type Parser = WriterT [String] (Parsec Dec ByteString)
+
+parseShaders :: String -> ByteString -> Either String ([(ByteString,CommonAttrs)],[String])
+parseShaders fname src = case parse (runWriterT $ spaceConsumer' *> many shader <* eof) fname $ BS8.map toLower src of
+  Left err  -> Left $ parseErrorPretty err
+  Right a   -> Right a
 
 -- q3 shader related parsers
 shader :: Parser (ByteString,CommonAttrs)
@@ -114,8 +116,8 @@ cull = (\a ca -> ca {caCull = a}) <$ kw "cull" <*> choice
   ]
 
 deformVertexes = (\v ca -> ca {caDeformVertexes = v:caDeformVertexes ca}) <$ kw "deformvertexes" <*> choice
-    [ val D_AutoSprite "autosprite"
-    , val D_AutoSprite2 "autosprite2"
+    [ val D_AutoSprite2 "autosprite2"
+    , val D_AutoSprite "autosprite"
     , D_Bulge <$ kw "bulge" <*> float <*> float <*> float
     , D_Move <$ kw "move" <*> v3 <*> wave
     , D_Normal <$ kw "normal" <*> float <*> float -- amplitude, frequency
@@ -276,6 +278,26 @@ signedFloat   = realToFrac <$> L.signed spaceConsumer (lexeme floatLiteral) wher
     , fromIntegral <$> L.integer
     ]
 
+shaderName = lexeme $ pack <$> some (choice [alphaNumChar, oneOf ("/_" :: String)])
+filepath = lexeme $ pack <$> some (satisfy $ not . isSpace)
+
+unknownCommand :: Parser (a -> a)
+unknownCommand = do
+  let n = lookAhead eol
+  pos <- getPosition
+  cmd <- some alphaNumChar
+  args <- manyTill anyChar n
+  tell ["IGNORE - " ++ sourcePosPretty pos ++ ": " ++ cmd ++ args]
+  return id
+
+skipTillEol :: Parser ()
+skipTillEol = do
+  let n = lookAhead eol
+  pos <- getPosition
+  cmd <- manyTill anyChar n
+  unless (null cmd) $ tell ["LEFTOVER - " ++ sourcePosPretty pos ++ ": " ++ cmd]
+  return ()
+
 -- aliases
 skipRest = spaceConsumer
 skip = spaceConsumer
@@ -284,20 +306,10 @@ kw' = kw
 val v w = const v <$> symbol w
 float = signedFloat
 word = lexeme (pack <$> some letterChar)
-shaderName = lexeme $ pack <$> some (choice [alphaNumChar, oneOf ("/_" :: String)])
-filepath = lexeme $ pack <$> some (satisfy $ not . isSpace)
-
-unknownCommand = (\cmd args -> trace ("SKIP1: " ++ cmd ++ args)) <$> some alphaNumChar <*> manyTill anyChar n where n = lookAhead eol
-
-skipTillEol :: Parser String
-skipTillEol = do
-  let n = lookAhead eol
-  cmd <- manyTill anyChar n
-  if null cmd then return cmd else trace ("SKIP2: " ++ cmd) $ return cmd
 
 test = do
-  let n = "/Users/csaba/games/quake3/unpack/scripts/base.shader2"
+  let n = "/Users/csaba/games/quake3/unpack/scripts/base.shader"
   src <- readFile n
   case parseShaders n $ pack src of
     Left  e -> putStrLn e
-    Right x -> putStrLn $ ppShow x
+    Right (x,w) -> putStrLn $ ppShow x ++ "\n" ++ unlines w

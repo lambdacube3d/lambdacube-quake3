@@ -1,4 +1,4 @@
-module GameEngine.Culling
+module GameEngine.Graphics.Culling
   ( cullSurfaces
   ) where
 
@@ -10,7 +10,7 @@ import qualified Data.Vector as V
 import LambdaCube.GL
 
 import GameEngine.Data.BSP
-import GameEngine.Frustum
+import GameEngine.Graphics.Frustum
 
 isClusterVisible :: BSPLevel -> Int -> Int -> Bool
 isClusterVisible bl a b

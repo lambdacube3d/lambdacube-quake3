@@ -1,4 +1,4 @@
-module GameEngine.Frustum where
+module GameEngine.Graphics.Frustum where
 
 import Data.List
 import Data.Vect.Float

@@ -64,7 +64,7 @@ import Control.DeepSeq
 import GameEngine.Data.BSP
 import GameEngine.Loader.BSP
 import GameEngine.Data.Material hiding (Vec3)
-import GameEngine.Render
+import GameEngine.Graphics.Render
 import GameEngine.Loader.ShaderParser
 import qualified GameEngine.Loader.Entity as E
 import GameEngine.Loader.Zip
@@ -72,9 +72,9 @@ import GameEngine.Data.GameCharacter
 import GameEngine.Loader.GameCharacter
 import GameEngine.Data.Items
 import GameEngine.Entity
-import GameEngine.Frustum
+import GameEngine.Graphics.Frustum
 import GameEngine.Utils
-import GameEngine.Culling
+import GameEngine.Graphics.Culling
 
 import qualified GameEngine.Data.MD3 as MD3
 import qualified GameEngine.Loader.MD3 as MD3
@@ -186,7 +186,9 @@ shaderMap ar = do
   l <- sequence <$> forM [(n,e) | (n,e) <- Map.toList ar, ".shader" == takeExtension n, isPrefixOf "scripts" n] (\(n,e) -> parseShaders n <$> readEntry e)
   case l of
     Left err -> fail err
-    Right x -> return . T.fromList . concat $ x
+    Right (unzip -> (x,w)) -> do
+      writeFile (lc_q3_cache </> "shader.log") $ unlines $ concat w
+      return . T.fromList . concat $ x
 
 -- Utility code
 tableTexture :: [Float] -> GLUniformName -> Map GLUniformName InputSetter -> IO ()

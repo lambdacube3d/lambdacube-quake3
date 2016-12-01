@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards, ViewPatterns #-}
-module GameEngine.Render
+module GameEngine.Graphics.Render
   ( addBSP
   , addMD3
   , setMD3Frame
@@ -30,7 +30,7 @@ import GameEngine.Data.BSP
 import GameEngine.Data.MD3 (MD3Model)
 import qualified GameEngine.Data.MD3 as MD3
 import GameEngine.BezierSurface
-import GameEngine.Frustum
+import GameEngine.Graphics.Frustum
 import GameEngine.Utils
 
 {-

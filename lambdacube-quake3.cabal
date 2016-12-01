@@ -32,19 +32,19 @@ library
                        GameEngine.Data.Items
                        GameEngine.Data.Material
                        GameEngine.Loader.BSP
-                       GameEngine.Loader.MD3
                        GameEngine.Loader.Entity
                        GameEngine.Loader.GameCharacter
+                       GameEngine.Loader.MD3
                        GameEngine.Loader.ShaderParser
                        GameEngine.Loader.Zip
-                       GameEngine.Collision
+                       GameEngine.Graphics.Culling
+                       GameEngine.Graphics.Frustum
+                       GameEngine.Graphics.Render
                        GameEngine.Engine
                        GameEngine.Entity
                        GameEngine.BezierSurface
-                       GameEngine.Frustum
-                       GameEngine.Culling
+                       GameEngine.Collision
                        GameEngine.Utils
-                       GameEngine.Render
 
   other-modules:       Paths_lambdacube_quake3
   -- other-extensions:    
@@ -55,6 +55,7 @@ library
                        deepseq >=1.4 && <1.5,
                        process >=1.2 && <1.5,
                        time >=1.5 && <1.7,
+                       transformers >=0.4 && <0.6,
                        bytestring >=0.10 && <0.11,
                        bytestring-trie >=0.2 && <0.3,
                        binary >=0.7 && <0.9,
