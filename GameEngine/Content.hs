@@ -46,7 +46,7 @@ loadPK3 = do
 
 shaderMap :: Map String Entry -> IO (T.Trie CommonAttrs)
 shaderMap ar = do
-  l <- sequence <$> forM [(n,e) | (n,e) <- Map.toList ar, ".shader" == takeExtension n, isPrefixOf "scripts" n] (\(n,e) -> parseShaders n <$> readEntry e)
+  l <- sequence <$> forM [(n,e) | (n,e) <- Map.toList ar, ".shader" == takeExtension n, isPrefixOf "scripts" n] (\(n,e) -> parseShaders (eArchiveName e ++ ":" ++ n) <$> readEntry e)
   case l of
     Left err -> fail err
     Right (unzip -> (x,w)) -> do

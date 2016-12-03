@@ -104,7 +104,9 @@ engineInit pk3Data fullBSPName = do
     SB.writeFile (lc_q3_cache </> bspName ++ ".entities") $ blEntities bsp
 
     -- extract spawn points
-    let Right ents = E.parseEntities bspName $ blEntities bsp
+    let ents = case E.parseEntities bspName $ blEntities bsp of
+            Left err -> error err
+            Right x -> x
         spawnPoint E.EntityData{..}
           | classname `elem` [ "info_player_deathmatch"
                              , "info_player_start"
@@ -285,6 +287,7 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
                 return [(fromIntegral (V.length txVector) / freq,texSetter,txVector)]
             _ -> return []
 
+    putStrLn "add bsp to storage"
     surfaceObjs <- addBSP storage bsp
 
     -- add entities

@@ -90,6 +90,7 @@ addBSP renderer BSPLevel{..} = do
         indices     = SV.convert $ V.map fromIntegral drawI' :: SV.Vector Word32
         vertexCount = V.length drawV'
 
+    putStrLn "compile vertex buffer"
     vertexBuffer <- compileBuffer $
         [ Array ArrFloat (3 * vertexCount) $ attribute dvPosition
         , Array ArrFloat (2 * vertexCount) $ attribute dvDiffuseUV
@@ -97,6 +98,7 @@ addBSP renderer BSPLevel{..} = do
         , Array ArrFloat (3 * vertexCount) $ attribute dvNormal
         , Array ArrFloat (4 * vertexCount) $ attribute dvColor
         ]
+    putStrLn "compile index buffer"
     indexBuffer <- compileBuffer [Array ArrWord32 (SV.length indices) $ withV SV.unsafeWith indices]
     -- add to storage
     let obj surfaceIdx (lmIdx,startV,countV,startI,countI,prim,SB8.unpack -> name) = do
@@ -110,6 +112,7 @@ addBSP renderer BSPLevel{..} = do
                 index = IndexStream indexBuffer 0 startI countI
                 isValidIdx i = i >= 0 && i < lightMapTexturesSize
                 objUnis = ["LightMap","worldMat"]
+            putStrLn $ "add surface " ++ show surfaceIdx
             o <- addObject' renderer name prim (Just index) attrs objUnis
             o1 <- addObject renderer "LightMapOnly" prim (Just index) attrs objUnis
             let lightMap a = forM_ [o,o1] $ \b -> uniformFTexture2D "LightMap" (objectUniformSetter b) a
