@@ -64,7 +64,7 @@ library
                        data-binary-ieee754 >=0.4 && <0.5,
                        vect >=0.4 && <0.5,
                        vector >=0.11 && <0.12,
-                       megaparsec >=5.0 && <5.1,
+                       megaparsec >=5.0 && <5.2,
                        aeson >=0.9 && <1,
                        pretty-show >=1.6 && <1.7,
                        digest >=0.0 && <0.1,
