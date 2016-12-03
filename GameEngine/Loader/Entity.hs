@@ -182,10 +182,8 @@ integerLiteral :: Parser Int
 integerLiteral = fromIntegral <$> L.signed spaceConsumer (lexeme L.integer)
 
 floatLiteral :: Parser Float
-floatLiteral = float--realToFrac <$> L.signed spaceConsumer (lexeme $ try L.float <|> fromIntegral <$> L.integer)
-float :: Parser Float
-float = realToFrac <$> L.signed spaceConsumer (lexeme floatLiteral') where
-  floatLiteral' = choice
+floatLiteral = realToFrac <$> L.signed spaceConsumer (lexeme float) where
+  float = choice
     [ try L.float
     , try ((read . ("0."++)) <$ char '.' <*> some digitChar)
     , fromIntegral <$> L.integer

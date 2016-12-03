@@ -169,7 +169,12 @@ signedInteger :: Parser Int
 signedInteger = L.signed spaceConsumer integer
 
 signedFloat :: Parser Float
-signedFloat = realToFrac <$> L.signed spaceConsumer (lexeme $ try L.float <|> fromIntegral <$> L.integer)
+signedFloat = realToFrac <$> L.signed spaceConsumer (lexeme float) where
+  float = choice
+    [ try L.float
+    , try ((read . ("0."++)) <$ char '.' <*> some digitChar)
+    , fromIntegral <$> L.integer
+    ]
 
 value :: a -> String -> Parser a
 value v w = const v <$> symbol w
