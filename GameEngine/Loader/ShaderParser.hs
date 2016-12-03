@@ -312,11 +312,11 @@ value :: a -> String -> Parser a
 value v w = const v <$> symbol w
 
 line :: Parser a -> Parser a
-line p = p <* skipTillEol <* eol <* newlineConsumer
+line p = p <* skipTillEol <* newlineConsumer
 
 skipTillEol :: Parser ()
 skipTillEol = do
-  let n = lookAhead eol
+  let n = lookAhead (choice [eol, string "{", string "}"])
   pos <- getPosition
   cmd <- manyTill anyChar n
   unless (null cmd) $ tell ["LEFTOVER - " ++ sourcePosPretty pos ++ ": " ++ cmd]
