@@ -1,3 +1,19 @@
+minigame integration:
+  reuse:
+    Entities.hs
+    GameLogic.hs
+    Visuals.hs
+    World.hs
+  ignore:
+    Collision.hs
+    Graphics.hs
+    LensMiniGame.hs
+  TODO:
+    - add reusable modules to project and make it compile
+    - construct the initial game world from map's entity list
+    - create new main loop using the new game logic
+    - implement rendering in similar style as it was with gloss
+
 refactor notes:
   ok - Q3Patch.hs - rename (e.g. BezierSurface)
   ok - Items.hs - add record names to list (with ppShow)
@@ -40,6 +56,14 @@ refactor notes:
 
   Render.hs
     - move out storage setup
+
+install guide:
+  - local build: lambdacube-quake3:
+      works well, it finds the local lc directory and lambdacube-compiler finds the prelude in the installed place
+  - test local build with lambdacube-compiler and lambdacube-quake3
+      problem: lambdacube-compiler does not find prelude
+      solution: copy the prelude to lc
+      note: lambdacube-quake3 devs dont need this, only compiler+quake3 devs
 
 ----
 refactor the code
