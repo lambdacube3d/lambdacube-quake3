@@ -1,8 +1,10 @@
 {-# LANGUAGE LambdaCase, RecordWildCards, OverloadedStrings, ViewPatterns #-}
 module GameEngine.Entity where
 
+import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as SB
-import qualified Data.Trie as T
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Vect
 import Data.Maybe
 
@@ -17,7 +19,7 @@ data Entity
 --  | ItemEntity Item
   deriving Show
 
-loadTeleports :: [EntityData] -> ([Entity],T.Trie Entity)
+loadTeleports :: [EntityData] -> ([Entity],Map ByteString Entity)
 loadTeleports t = (teleports,targets) where
   teleports =
     [ TriggerTeleport (SB.pack target_) (read model_)
@@ -26,7 +28,7 @@ loadTeleports t = (teleports,targets) where
     , target_ <- maybeToList target
     , ('*':model_) <- maybeToList model
     ]
-  targets = T.fromList
+  targets = Map.fromList
     [ (targetName_,TargetPosition targetName_ origin)
     | EntityData{..} <- t
     , classname `elem` ["target_position","misc_teleporter_dest","info_notnull"]
@@ -37,9 +39,9 @@ loadTeleports t = (teleports,targets) where
 {-
     let ents = parseEntities bspName $ blEntities bsp
         spawnPoint e
-          | Just classname <- T.lookup "classname" e
+          | Just classname <- Map.lookup "classname" e
           , classname `elem` ["info_player_deathmatch"]
-          , Just origin <- T.lookup "origin" e
+          , Just origin <- Map.lookup "origin" e
           , [x,y,z] <- map read $ words $ SB.unpack origin = [Vec3 x y z]
           | otherwise = []
         spawnPoints = concatMap spawnPoint ents

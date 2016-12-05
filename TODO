@@ -9,7 +9,7 @@ minigame integration:
     Graphics.hs
     LensMiniGame.hs
   TODO:
-    - add reusable modules to project and make it compile
+    ok - add reusable modules to project and make it compile
     - construct the initial game world from map's entity list
     - create new main loop using the new game logic
     - implement rendering in similar style as it was with gloss

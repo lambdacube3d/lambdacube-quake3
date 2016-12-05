@@ -47,6 +47,10 @@ library
                        GameEngine.Graphics.BezierSurface
                        GameEngine.Collision
                        GameEngine.Utils
+                       GameEngine.Entities
+                       GameEngine.Visuals
+                       GameEngine.World
+                       GameEngine.GameLogic
 
   other-modules:       Paths_lambdacube_quake3
   -- other-extensions:    
@@ -57,9 +61,12 @@ library
                        deepseq >=1.4 && <1.5,
                        process >=1.2 && <1.5,
                        time >=1.5 && <1.7,
+                       mersenne-random-pure64 >=0.2.2 && <1,
+                       MonadRandom >=0.4.2 && <1,
+                       microlens-platform >=0.3 && <1,
+                       mtl >=2.2 && <3,
                        transformers >=0.4 && <0.6,
                        bytestring >=0.10 && <0.11,
-                       bytestring-trie >=0.2 && <0.3,
                        binary >=0.7 && <0.9,
                        data-binary-ieee754 >=0.4 && <0.5,
                        vect >=0.4 && <0.5,

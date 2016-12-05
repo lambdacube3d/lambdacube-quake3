@@ -29,9 +29,9 @@ import System.Directory
 import qualified Data.Map as Map
 import Data.Binary (encodeFile,decodeFile)
 import qualified Data.ByteString.Lazy as LB
+import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as SB
 import qualified Data.Set as Set
-import qualified Data.Trie as T
 import qualified Data.Vector as V
 
 import Text.Show.Pretty (ppShow)
@@ -62,14 +62,14 @@ import Paths_lambdacube_quake3
 engineInit :: Map String Entry -> FilePath
            -> IO ( PipelineSchema
                  , ( BSPLevel
-                   , T.Trie MD3.MD3Model
+                   , Map ByteString MD3.MD3Model
                    , [(Proj4, (Map String String, String))]
                    , [[(Proj4, (Map String String, [Char]))]]
                    , [Character]
-                   , T.Trie CommonAttrs
+                   , Map ByteString CommonAttrs
                    , [Vec3]
                    , V.Vector Int
-                   , ([GameEngine.Entity.Entity], T.Trie GameEngine.Entity.Entity)
+                   , ([GameEngine.Entity.Entity], Map ByteString GameEngine.Entity.Entity)
                    , Maybe String
                    )
                  )
@@ -135,9 +135,9 @@ engineInit pk3Data fullBSPName = do
                   sm <- shaderMap pk3Data
                   encodeFile q3shader_cache sm
                   return sm
-    let mkShader hasLightmap n = case T.lookup n shMap' of
+    let mkShader hasLightmap n = case Map.lookup n shMap' of
           Just s -> (n,s)
-          Nothing -> let alias = SB.pack . dropExtension . SB.unpack $ n in case T.lookup alias shMap' of
+          Nothing -> let alias = SB.pack . dropExtension . SB.unpack $ n in case Map.lookup alias shMap' of
             Just s -> (alias,s)
             Nothing -> (n,imageShader hasLightmap n)
 
@@ -146,16 +146,16 @@ engineInit pk3Data fullBSPName = do
         allShName = map shName $ V.toList $ blShaders bsp
         (selectedMaterials,ignoredMaterials) = partition (\n -> or $ [SB.isInfixOf k n | k <- ["floor","wall","door","trim","block"]]) allShName
 
-        shMap = T.fromList [mkShader True n | n <- Set.toList shNames] `T.unionL`
-                T.fromList [mkShader False n | n <- Set.toList md3Materials] `T.unionL`
-                T.fromList [mkShader False n | n <- Set.toList characterSkinMaterials]
+        shMap = Map.fromList [mkShader True n | n <- Set.toList shNames] `Map.union`
+                Map.fromList [mkShader False n | n <- Set.toList md3Materials] `Map.union`
+                Map.fromList [mkShader False n | n <- Set.toList characterSkinMaterials]
 
     let shMapTexSlot = mangleCA <$> shMap
           where
             mangleStageTex stageTex = SB.pack $ "Tex_" ++ show (crc32 $ SB.pack $ show stageTex)
             mangleCA ca = ca {caStages = mangleSA <$> caStages ca}
             mangleSA sa = sa {saTextureUniform = mangleStageTex sa}
-        textureUniforms = map SB.unpack . Set.toList . Set.fromList . concat . map name . concat . map caStages $ T.elems shMapTexSlot
+        textureUniforms = map SB.unpack . Set.toList . Set.fromList . concat . map name . concat . map caStages $ Map.elems shMapTexSlot
           where
             name s = [saTextureUniform s]
             {-
@@ -167,16 +167,16 @@ engineInit pk3Data fullBSPName = do
               ST_WhiteImage   -> []
             -}
 
-    putStrLn $ "all materials:  " ++ show (T.size shMap')
-    --putStrLn $ "used materials: " ++ show (T.size shMap)
+    putStrLn $ "all materials:  " ++ show (Map.size shMap')
+    --putStrLn $ "used materials: " ++ show (Map.size shMap)
     --putStrLn $ "texture uniforms: \n" ++ ppShow textureUniforms
-    putStrLn $ "used materials: " ++ show (T.size shMapTexSlot)
+    putStrLn $ "used materials: " ++ show (Map.size shMapTexSlot)
     putStrLn $ "ignored materials: " ++ show (length ignoredMaterials)
     writeFile (lc_q3_cache </> "SampleMaterial.lc") $ unlines
       [ "module SampleMaterial where"
       , "import Material"
       , "sampleMaterial ="
-      , unlines . map ("  "++) . lines . ppShow . T.toList $ shMapTexSlot
+      , unlines . map ("  "++) . lines . ppShow . Map.toList $ shMapTexSlot
       ]
     SB.putStrLn $ SB.unlines ignoredMaterials
 
@@ -195,7 +195,7 @@ engineInit pk3Data fullBSPName = do
             ]
         inputSchema = {-TODO-}
           PipelineSchema
-          { objectArrays = Map.fromList $ ("CollisionShape",debugSlotSchema) : zip ("LightMapOnly":"missing shader":map SB.unpack (T.keys shMap)) (repeat quake3SlotSchema)
+          { objectArrays = Map.fromList $ ("CollisionShape",debugSlotSchema) : zip ("LightMapOnly":"missing shader":map SB.unpack (Map.keys shMap)) (repeat quake3SlotSchema)
           , uniforms = Map.fromList $ [ ("viewProj",      M44F)
                                       , ("worldMat",      M44F)
                                       , ("viewMat",       M44F)
@@ -228,20 +228,20 @@ getBSP (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,bru
 getSpawnPoints (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,teleportData,music) = spawnPoints
 getTeleportFun levelData@(bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,spawnPoints,brushModelMapping,(teleport,teleportTarget),music) brushIndex p =
   let models = map (getModelIndexFromBrushIndex levelData) brushIndex
-      hitModels = [tp | TriggerTeleport target model <- teleport, model `elem` models, TargetPosition _ tp <- maybeToList $ T.lookup target teleportTarget]
+      hitModels = [tp | TriggerTeleport target model <- teleport, model `elem` models, TargetPosition _ tp <- maybeToList $ Map.lookup target teleportTarget]
   --in head $ trace (show ("hitModels",hitModels,models)) hitModels ++ [p]
   in head $ hitModels ++ [p]
 
 setupStorage :: Map String Entry ->
                     ( BSPLevel
-                    , T.Trie MD3.MD3Model
+                    , Map ByteString MD3.MD3Model
                     , [(Proj4, (Map String String, String))]
                     , [[(Proj4, (Map String String, [Char]))]]
                     , [Character]
-                    , T.Trie CommonAttrs
+                    , Map ByteString CommonAttrs
                     , [Vec3]
                     , V.Vector Int
-                    , ([GameEngine.Entity.Entity], T.Trie GameEngine.Entity.Entity)
+                    , ([GameEngine.Entity.Entity], Map ByteString GameEngine.Entity.Entity)
                     , Maybe String
                     )
                     -> GLStorage ->
@@ -274,7 +274,7 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
 
     putStrLn "loading textures:"
     -- load textures
-    animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ concatMap (\(shName,sh) -> [(shName,saTexture sa,saTextureUniform sa,caNoMipMaps sh) | sa <- caStages sh]) $ T.toList shMapTexSlot) $
+    animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ concatMap (\(shName,sh) -> [(shName,saTexture sa,saTextureUniform sa,caNoMipMaps sh) | sa <- caStages sh]) $ Map.toList shMapTexSlot) $
       \(shName,stageTex,texSlotName,noMip) -> do
         let texSetter = uniformFTexture2D texSlotName  slotU
             setTex isClamped img = texSetter =<< loadQ3Texture (not noMip) isClamped defaultTexture pk3Data shName img
@@ -291,7 +291,7 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
     surfaceObjs <- addBSP storage bsp
 
     -- add entities
-    let addMD3Obj (mat,(skin,name)) = case T.lookup (SB.pack name) md3Map of
+    let addMD3Obj (mat,(skin,name)) = case Map.lookup (SB.pack name) md3Map of
           Nothing -> return []
           Just md3 -> do
                     putStrLn ("add model: " ++ name)
@@ -300,14 +300,14 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
 
     lcMD3Objs <- concat <$> forM md3Objs addMD3Obj
 
-    lcMD3Weapon <- addMD3 storage (fromJust $ T.lookup (SB.pack handWeapon) md3Map) mempty ["worldMat","viewProj"]
+    lcMD3Weapon <- addMD3 storage (fromJust $ Map.lookup (SB.pack handWeapon) md3Map) mempty ["worldMat","viewProj"]
 
     -- add characters
     lcCharacterObjs <- forM characterObjs
       (\[(mat,(hSkin,hName)),(_,(uSkin,uName)),(_,(lSkin,lName))] -> do
-        let Just hMD3 = T.lookup (SB.pack hName) md3Map
-            Just uMD3 = T.lookup (SB.pack uName) md3Map
-            Just lMD3 = T.lookup (SB.pack lName) md3Map
+        let Just hMD3 = Map.lookup (SB.pack hName) md3Map
+            Just uMD3 = Map.lookup (SB.pack uName) md3Map
+            Just lMD3 = Map.lookup (SB.pack lName) md3Map
         hLC <- addMD3 storage hMD3 hSkin ["worldMat"]
         uLC <- addMD3 storage uMD3 uSkin ["worldMat"]
         lLC <- addMD3 storage lMD3 lSkin ["worldMat"]
