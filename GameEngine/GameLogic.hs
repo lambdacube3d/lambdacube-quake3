@@ -251,3 +251,19 @@ stepParticle t dt = do
 -- utils
 unitVectorAtAngle = sinCos
 degToRad a = a/180*pi
+
+-- world step function
+stepFun :: Float -> World -> World
+stepFun dt = execState $ do
+  -- update time
+  wInput %= (\i -> i {dtime = dt, time = time i + dt})
+  input <- use wInput
+  ents <- use wEntities
+  vis <- use wVisuals
+  rand <- use wRandomGen
+  let (r1,e,v1) = updateEntities rand input ents
+      Input{..} = input
+      (r2,v2) = updateVisuals r1 time dtime vis
+  wEntities .= e
+  wRandomGen .= r2
+  wVisuals .= v1 ++ v2
