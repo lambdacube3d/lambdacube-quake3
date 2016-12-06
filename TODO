@@ -13,6 +13,7 @@ minigame integration:
     - construct the initial game world from map's entity list
     - create new main loop using the new game logic
     - implement rendering in similar style as it was with gloss
+    - refactor entities to use q3 item types
 
 refactor notes:
   ok - Q3Patch.hs - rename (e.g. BezierSurface)

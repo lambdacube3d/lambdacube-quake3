@@ -117,7 +117,10 @@ readMD3Objects characterObjs ents pk3Data = do
     let itemMap = Map.fromList [(SB.pack $ itClassName it,it) | it <- items]
         collectObj E.EntityData{..} = case Map.lookup (SB.pack classname) itemMap of
             Just i -> [(mat, (mempty,m)) | m <- Prelude.take cnt $ itWorldModel i, let mat = mkWorldMat' origin]
-              where cnt = if itType i `elem` [IT_HEALTH, IT_POWERUP] then 2 else 1
+              where cnt = case itType i of
+                      IT_HEALTH     -> 2
+                      IT_POWERUP _  -> 2
+                      _ -> 1
             Nothing -> case model2 of
               Just m -> [(mkWorldMat' origin, (mempty,m))]
               Nothing -> []
