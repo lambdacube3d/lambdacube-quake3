@@ -58,21 +58,32 @@ import qualified GameEngine.Loader.Entity as E
 
 import Paths_lambdacube_quake3
 
+type EngineContent =
+  ( BSPLevel
+  , Map ByteString MD3.MD3Model
+  , [(Proj4, (Map String String, String))]
+  , [[(Proj4, (Map String String, [Char]))]]
+  , [Character]
+  , Map ByteString CommonAttrs
+  , [Vec3]
+  , V.Vector Int
+  , ([GameEngine.Entity.Entity], Map ByteString GameEngine.Entity.Entity)
+  , Maybe String
+  )
+
+type EngineGraphics =
+  ( GLStorage
+  , [(Proj4, LCMD3)]
+  , [Character]
+  , [(Proj4, (MD3.MD3Model, LCMD3), (MD3.MD3Model, LCMD3),(MD3.MD3Model, LCMD3))]
+  , V.Vector [Object]
+  , BSPLevel
+  , LCMD3
+  , [(Float, SetterFun TextureData, V.Vector TextureData)]
+  )
+
 -- TODO
-engineInit :: Map String Entry -> FilePath
-           -> IO ( PipelineSchema
-                 , ( BSPLevel
-                   , Map ByteString MD3.MD3Model
-                   , [(Proj4, (Map String String, String))]
-                   , [[(Proj4, (Map String String, [Char]))]]
-                   , [Character]
-                   , Map ByteString CommonAttrs
-                   , [Vec3]
-                   , V.Vector Int
-                   , ([GameEngine.Entity.Entity], Map ByteString GameEngine.Entity.Entity)
-                   , Maybe String
-                   )
-                 )
+engineInit :: Map String Entry -> FilePath -> IO (PipelineSchema, EngineContent)
 engineInit pk3Data fullBSPName = do
     let bspName = takeBaseName fullBSPName
 
@@ -232,28 +243,7 @@ getTeleportFun levelData@(bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSl
   --in head $ trace (show ("hitModels",hitModels,models)) hitModels ++ [p]
   in head $ hitModels ++ [p]
 
-setupStorage :: Map String Entry ->
-                    ( BSPLevel
-                    , Map ByteString MD3.MD3Model
-                    , [(Proj4, (Map String String, String))]
-                    , [[(Proj4, (Map String String, [Char]))]]
-                    , [Character]
-                    , Map ByteString CommonAttrs
-                    , [Vec3]
-                    , V.Vector Int
-                    , ([GameEngine.Entity.Entity], Map ByteString GameEngine.Entity.Entity)
-                    , Maybe String
-                    )
-                    -> GLStorage ->
-                  IO ( GLStorage
-                     , [(Proj4, LCMD3)]
-                     , [Character]
-                     , [(Proj4, (MD3.MD3Model, LCMD3), (MD3.MD3Model, LCMD3),(MD3.MD3Model, LCMD3))]
-                     , V.Vector [Object]
-                     , BSPLevel
-                     , LCMD3
-                     , [(Float, SetterFun TextureData, V.Vector TextureData)]
-                     )
+setupStorage :: Map String Entry -> EngineContent -> GLStorage -> IO EngineGraphics
 setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_,_,_,_) storage = do
     let slotU           = uniformSetter storage
         entityRGB       = uniformV3F "entityRGB" slotU
@@ -316,16 +306,7 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
     return (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon,animTex)
 
 -- TODO
-updateRenderInput :: ( GLStorage
-                     , [(Proj4, LCMD3)]
-                     , [Character]
-                     , [(Proj4, (MD3.MD3Model, LCMD3), (MD3.MD3Model, LCMD3),(MD3.MD3Model, LCMD3))]
-                     , V.Vector [Object]
-                     , BSPLevel
-                     , LCMD3
-                     , [(Float, SetterFun TextureData, V.Vector TextureData)]
-                     )
-                  -> (Vec3, Vec3, Vec3) -> Int -> Int -> Float -> Bool -> IO ()
+updateRenderInput :: EngineGraphics -> (Vec3, Vec3, Vec3) -> Int -> Int -> Float -> Bool -> IO ()
 updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon,animTex) (camPos,camTarget,camUp) w h time noBSPCull = do
             let slotU = uniformSetter storage
 
