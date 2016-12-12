@@ -47,10 +47,11 @@ library
                        GameEngine.Graphics.BezierSurface
                        GameEngine.Collision
                        GameEngine.Utils
-                       GameEngine.Entities
-                       GameEngine.Visuals
-                       GameEngine.World
-                       GameEngine.GameLogic
+                       GameEngine.Logic.LoadEntities
+                       GameEngine.Logic.Entities
+                       GameEngine.Logic.Visuals
+                       GameEngine.Logic.World
+                       GameEngine.Logic.GameLogic
 
   other-modules:       Paths_lambdacube_quake3
   -- other-extensions:    

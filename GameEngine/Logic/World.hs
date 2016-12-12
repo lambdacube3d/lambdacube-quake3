@@ -1,11 +1,11 @@
 {-# LANGUAGE TemplateHaskell #-}
-module GameEngine.World where
+module GameEngine.Logic.World where
 
 import Lens.Micro.Platform
 import System.Random.Mersenne.Pure64
 
-import GameEngine.Visuals
-import GameEngine.Entities
+import GameEngine.Logic.Visuals
+import GameEngine.Logic.Entities
 
 data Input
   = Input

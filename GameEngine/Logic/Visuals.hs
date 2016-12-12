@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase, TemplateHaskell #-}
-module GameEngine.Visuals where
+module GameEngine.Logic.Visuals where
 
 import Data.Vect
 import Lens.Micro.Platform
