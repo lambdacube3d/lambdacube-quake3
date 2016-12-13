@@ -25,6 +25,10 @@ Flag mapviewer
   Description: Q3 map viewer application
   Default: True
 
+Flag shooter
+  Description: 3D shooter game
+  Default: True
+
 library
   exposed-modules:     GameEngine.Data.BSP
                        GameEngine.Data.MD3
@@ -105,6 +109,33 @@ executable q3mapviewer
     lambdacube-quake3
 
   if flag(mapviewer)
+    Buildable: True
+  else
+    Buildable: False
+
+executable shooter
+  hs-source-dirs:   game
+  main-is:          GameMain.hs
+  other-modules:    RenderGame
+                    RenderSystem
+  default-language: Haskell2010
+
+  build-depends:
+    base < 5,
+    containers >=0.5 && <0.6,
+    filepath >=1.4 && <1.5,
+    directory >=1.2 && <1.3,
+    microlens-platform >=0.3 && <1,
+    mtl >=2.2 && <3,
+    mersenne-random-pure64 >=0.2.2 && <1,
+    vect >=0.4 && <0.5,
+    GLFW-b >= 1.4.7,
+    OpenGLRaw >=3.1 && <4,
+    bytestring >=0.10 && <0.11,
+    lambdacube-gl >=0.5 && <0.6,
+    lambdacube-quake3
+
+  if flag(shooter)
     Buildable: True
   else
     Buildable: False

@@ -4,6 +4,8 @@ module GameEngine.Graphics.Render
   , addMD3
   , setMD3Frame
   , LCMD3(..)
+  , uploadMD3
+  , GPUMD3(..)
   ) where
 
 import Control.Applicative
@@ -27,7 +29,7 @@ import System.FilePath
 import LambdaCube.GL
 import LambdaCube.GL.Mesh
 import GameEngine.Data.BSP
-import GameEngine.Data.MD3 (MD3Model)
+import GameEngine.Data.MD3 (MD3Model(..))
 import qualified GameEngine.Data.MD3 as MD3
 import GameEngine.Graphics.BezierSurface
 import GameEngine.Graphics.Frustum
@@ -140,77 +142,72 @@ setMD3Frame (LCMD3{..}) idx = updateBuffer lcmd3Buffer $ lcmd3Frames V.! idx
 
 type MD3Skin = Map String String
 
+data GPUMD3
+  = GPUMD3
+  { gpumd3Buffer    :: Buffer
+  , gpumd3Surfaces  :: [(IndexStream Buffer,Map String (Stream Buffer))] -- index stream, attribute streams
+  , gpumd3Frames    :: V.Vector [(Int,Array)]
+  }
+
+{-
+    buffer layout
+      index arrays for surfaces         [index array of surface 0,          index array of surface 1,         ...]
+      texture coord arrays for surfaces [texture coord array of surface 0,  texture coord array of surface 1, ...]
+      position arrays for surfaces      [position array of surface 0,       position array of surface 1,      ...]
+      normal arrays for surfaces        [normal array of surface 0,         normal array of surface 1,        ...]
+    in short: [ surf1_idx..surfN_idx
+              , surf1_tex..surfN_tex
+              , surf1_pos..surfN_pos
+              , surf1_norm..surfN_norm
+              ]
+-}
+uploadMD3 :: MD3Model -> IO GPUMD3
+uploadMD3 MD3Model{..} = do
+  let cvtSurface :: MD3.Surface -> (Array,Array,V.Vector (Array,Array))
+      cvtSurface MD3.Surface{..} =
+        ( Array ArrWord32 (SV.length srTriangles) (withV srTriangles)
+        , Array ArrFloat (2 * SV.length srTexCoords) (withV srTexCoords)
+        , V.map cvtPosNorm srXyzNormal
+        )
+        where
+          withV a f = SV.unsafeWith a (\p -> f $ castPtr p)
+          cvtPosNorm (p,n) = (f p, f n) where f sv = Array ArrFloat (3 * SV.length sv) $ withV sv
+
+      addSurface sf (il,tl,pl,nl,pnl) = (i:il,t:tl,p:pl,n:nl,pn:pnl) where
+        (i,t,pn) = cvtSurface sf
+        (p,n)    = V.head pn
+
+      (il,tl,pl,nl,pnl) = V.foldr addSurface ([],[],[],[],[]) mdSurfaces
+
+  buffer <- compileBuffer (concat [il,tl,pl,nl])
+
+  let numSurfaces = V.length mdSurfaces
+      surfaceData idx MD3.Surface{..} = (index,attributes) where
+        index = IndexStream buffer idx 0 (SV.length srTriangles)
+        countV = SV.length srTexCoords
+        attributes = Map.fromList $
+          [ ("diffuseUV",   Stream Attribute_V2F buffer (1 * numSurfaces + idx) 0 countV)
+          , ("position",    Stream Attribute_V3F buffer (2 * numSurfaces + idx) 0 countV)
+          , ("normal",      Stream Attribute_V3F buffer (3 * numSurfaces + idx) 0 countV)
+          , ("color",       ConstV4F (V4 1 1 1 1))
+          , ("lightmapUV",  ConstV2F (V2 0 0))
+          ]
+
+      frames = foldr addSurfaceFrames emptyFrame $ zip [0..] pnl where
+        emptyFrame = V.replicate (V.length mdFrames) []
+        addSurfaceFrames (idx,pn) f = V.zipWith (\l (p,n) -> (2 * numSurfaces + idx,p):(3 * numSurfaces + idx,n):l) f pn
+
+  return $ GPUMD3
+    { gpumd3Buffer    = buffer
+    , gpumd3Surfaces  = zipWith surfaceData [0..] (V.toList mdSurfaces)
+    , gpumd3Frames    = frames
+    }
+
 addMD3 :: GLStorage -> MD3Model -> MD3Skin -> [String] -> IO LCMD3
-addMD3 r model skin unis = do
-    let cvtSurface :: MD3.Surface -> (Array,Array,V.Vector (Array,Array))
-        cvtSurface sf = ( Array ArrWord32 (SV.length indices) (withV indices)
-                        , Array ArrFloat (2 * SV.length texcoords) (withV texcoords)
-                        , posNorms
-                        )
-          where
-            withV a f = SV.unsafeWith a (\p -> f $ castPtr p)
-            tris = MD3.srTriangles sf
-            indices = tris
-            {-
-            intToWord16 :: Int -> Word16
-            intToWord16 = fromIntegral
-            addIndex v i (a,b,c) = do
-                SMV.write v i $ intToWord16 a
-                SMV.write v (i+1) $ intToWord16 b
-                SMV.write v (i+2) $ intToWord16 c
-                return (i+3)
-            indices = SV.create $ do
-                v <- SMV.new $ 3 * V.length tris
-                V.foldM_ (addIndex v) 0 tris
-                return v
-            -}
-            texcoords = MD3.srTexCoords sf
-            cvtPosNorm (p,n) = (f p, f n)
-              where
-                --f :: V.Vector Vec3 -> Array
-                f sv = Array ArrFloat (3 * SV.length sv) $ withV sv
-                --(p,n) = V.unzip pn
-            posNorms = V.map cvtPosNorm $ MD3.srXyzNormal sf
-
-        addSurface sf (il,tl,pl,nl,pnl) = (i:il,t:tl,p:pl,n:nl,pn:pnl)
-          where
-            (i,t,pn) = cvtSurface sf
-            (p,n)    = V.head pn
-        (il,tl,pl,nl,pnl)   = V.foldr addSurface ([],[],[],[],[]) surfaces
-        surfaces            = MD3.mdSurfaces model
-        numSurfaces         = V.length surfaces
-        frames              = foldr addSurfaceFrames emptyFrame $ zip [0..] pnl
-          where
-            emptyFrame = V.replicate (V.length $ MD3.mdFrames model) []
-            -- TODO: ????
-            addSurfaceFrames (idx,pn) f = V.zipWith (\l (p,n) -> (2 * numSurfaces + idx,p):(3 * numSurfaces + idx,n):l) f pn
-
-    {-
-        buffer layout
-          index arrays for surfaces         [index array of surface 0,          index array of surface 1,         ...]
-          texture coord arrays for surfaces [texture coord array of surface 0,  texture coord array of surface 1, ...]
-          position arrays for surfaces      [position array of surface 0,       position array of surface 1,      ...]
-          normal arrays for surfaces        [normal array of surface 0,         normal array of surface 1,        ...]
-        in short: [ surf1_idx..surfN_idx
-                  , surf1_tex..surfN_tex
-                  , surf1_pos..surfN_pos
-                  , surf1_norm..surfN_norm
-                  ]
-    -}
-    buffer <- compileBuffer $ concat [il,tl,pl,nl]
-
-    objs <- forM (zip [0..] $ V.toList surfaces) $ \(idx,sf) -> do
-        let countV = SV.length $ MD3.srTexCoords sf
-            countI = SV.length (MD3.srTriangles sf)
-            attrs = Map.fromList $
-                [ ("diffuseUV",     Stream Attribute_V2F buffer (1 * numSurfaces + idx) 0 countV)
-                , ("position",      Stream Attribute_V3F buffer (2 * numSurfaces + idx) 0 countV)
-                , ("normal",        Stream Attribute_V3F buffer (3 * numSurfaces + idx) 0 countV)
-                , ("color",         ConstV4F (V4 1 1 1 1))
-                , ("lightmapUV",    ConstV2F (V2 0 0))
-                ]
-            index = IndexStream buffer idx 0 countI
-            materialName s = case Map.lookup (SB8.unpack $ MD3.srName sf) skin of
+addMD3 r model@MD3Model{..} skin unis = do
+    GPUMD3{..} <- uploadMD3 model
+    objs <- forM (zip gpumd3Surfaces $ V.toList mdSurfaces) $ \((index,attrs),sf) -> do
+        let materialName s = case Map.lookup (SB8.unpack $ MD3.srName sf) skin of
               Nothing -> SB8.unpack $ MD3.shName s
               Just a  -> a
         objList <- concat <$> forM (V.toList $ MD3.srShaders sf) (\s -> do
@@ -219,7 +216,7 @@ addMD3 r model skin unis = do
           return [a,b])
 
         -- add collision geometry
-        collisionObjs <- case V.toList $ MD3.mdFrames model of
+        collisionObjs <- case V.toList mdFrames of
           (MD3.Frame{..}:_) -> do
             sphereObj <- uploadMeshToGPU (sphere (V4 1 0 0 1) 4 frRadius) >>= addMeshToObjectArray r "CollisionShape" (nub $ ["worldMat","origin"] ++ unis)
             boxObj <- uploadMeshToGPU (bbox (V4 0 0 1 1) frMins frMaxs) >>= addMeshToObjectArray r "CollisionShape" (nub $ ["worldMat","origin"] ++ unis)
@@ -237,6 +234,6 @@ addMD3 r model skin unis = do
     --           general problem: should the gfx network contain all passes (every possible materials)?
     return $ LCMD3
         { lcmd3Object   = concat objs
-        , lcmd3Buffer   = buffer
-        , lcmd3Frames   = frames
+        , lcmd3Buffer   = gpumd3Buffer
+        , lcmd3Frames   = gpumd3Frames
         }

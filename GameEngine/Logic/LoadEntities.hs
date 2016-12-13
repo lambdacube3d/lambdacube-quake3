@@ -23,41 +23,42 @@ vec3vec2 v = Vec2 x y where Vec3 x y _ = v
 
 loadEntity :: E.EntityData -> Maybe Entity
 loadEntity E.EntityData{..} = case Map.lookup classname itemMap of
-  Just Item{..} -> return $ case itType of
-    IT_HEALTH -> EHealth $ Health
+  Just Item{..} -> case itType of
+    IT_HEALTH -> Just . EHealth $ Health
       { _hPosition  = vec3vec2 origin
       , _hQuantity  = itQuantity
       }
-    IT_WEAPON _ -> EWeapon $ Weapon
+    IT_WEAPON _ -> Just . EWeapon $ Weapon
       { _wPosition  = vec3vec2 origin
       , _wDropped   = False
       }
-    IT_AMMO _ -> EAmmo $ Ammo
+    IT_AMMO _ -> Just . EAmmo $ Ammo
       { _aPosition  = vec3vec2 origin
       , _aQuantity  = itQuantity
       , _aDropped   = False
       }
-    IT_ARMOR -> EArmor $ Armor
+    IT_ARMOR -> Just . EArmor $ Armor
       { _rPosition  = vec3vec2 origin
       , _rQuantity  = itQuantity
       , _rDropped   = False
       }
+    _ -> Nothing
   Nothing -> case classname of
     "trigger_teleport" -> do
       target_ <- target
-      return . ETeleport $ Teleport
+      Just . ETeleport $ Teleport
         { _tPosition  = vec3vec2 origin
         , _tTarget    = target_
         }
     "trigger_push" -> do 
       target_ <- target
-      return . ETeleport $ Teleport -- HACK
+      Just . ETeleport $ Teleport -- HACK
         { _tPosition  = vec3vec2 origin
         , _tTarget    = target_
         }
     _ | classname `elem` ["target_position","misc_teleporter_dest","info_notnull"] -> do
       targetname_ <- targetname
-      return . ETarget $ Target
+      Just . ETarget $ Target
         { _ttPosition   = vec3vec2 origin
         , _ttTargetName = targetname_
         }
