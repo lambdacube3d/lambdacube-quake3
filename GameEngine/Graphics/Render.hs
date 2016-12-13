@@ -14,6 +14,7 @@ import Data.ByteString.Char8 (ByteString)
 import Data.Vect.Float
 import Data.List
 import Foreign
+import Data.Set (Set)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -147,6 +148,8 @@ data GPUMD3
   { gpumd3Buffer    :: Buffer
   , gpumd3Surfaces  :: [(IndexStream Buffer,Map String (Stream Buffer))] -- index stream, attribute streams
   , gpumd3Frames    :: V.Vector [(Int,Array)]
+  , gpumd3Model     :: MD3Model
+  , gpumd3Shaders   :: Set String
   }
 
 {-
@@ -162,7 +165,7 @@ data GPUMD3
               ]
 -}
 uploadMD3 :: MD3Model -> IO GPUMD3
-uploadMD3 MD3Model{..} = do
+uploadMD3 model@MD3Model{..} = do
   let cvtSurface :: MD3.Surface -> (Array,Array,V.Vector (Array,Array))
       cvtSurface MD3.Surface{..} =
         ( Array ArrWord32 (SV.length srTriangles) (withV srTriangles)
@@ -201,6 +204,8 @@ uploadMD3 MD3Model{..} = do
     { gpumd3Buffer    = buffer
     , gpumd3Surfaces  = zipWith surfaceData [0..] (V.toList mdSurfaces)
     , gpumd3Frames    = frames
+    , gpumd3Model     = model
+    , gpumd3Shaders   = Set.fromList $ concat [map (SB8.unpack . MD3.shName) $ V.toList srShaders | MD3.Surface{..} <- V.toList mdSurfaces]
     }
 
 addMD3 :: GLStorage -> MD3Model -> MD3Skin -> [String] -> IO LCMD3
