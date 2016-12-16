@@ -2,6 +2,7 @@
 module GameEngine.Graphics.Render
   ( addBSP
   , addMD3
+  , addMD3'
   , setMD3Frame
   , LCMD3(..)
   , uploadMD3
@@ -209,8 +210,13 @@ uploadMD3 model@MD3Model{..} = do
     }
 
 addMD3 :: GLStorage -> MD3Model -> MD3Skin -> [String] -> IO LCMD3
-addMD3 r model@MD3Model{..} skin unis = do
-    GPUMD3{..} <- uploadMD3 model
+addMD3 r model skin unis = do
+    gpuMD3 <- uploadMD3 model
+    addMD3' r gpuMD3 skin unis
+
+addMD3' :: GLStorage -> GPUMD3 -> MD3Skin -> [String] -> IO LCMD3
+addMD3' r GPUMD3{..} skin unis = do
+    let MD3Model{..} = gpumd3Model
     objs <- forM (zip gpumd3Surfaces $ V.toList mdSurfaces) $ \((index,attrs),sf) -> do
         let materialName s = case Map.lookup (SB8.unpack $ MD3.srName sf) skin of
               Nothing -> SB8.unpack $ MD3.shName s

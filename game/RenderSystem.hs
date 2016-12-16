@@ -29,13 +29,6 @@ data RenderSystem
   , rsShaderCache   :: IORef ShaderCache
   }
 
-{-
-    create image cache; storage compatible
-    create md3 cache;   storage compatible
-    create debug pipeline
-    create storage
-    create storage object cache
--}
 initRenderSystem :: Map String Entry -> IO RenderSystem
 initRenderSystem pk3 = do
   md3Cache <- newIORef Map.empty
@@ -75,20 +68,33 @@ setNub = Set.toList . Set.fromList
 
 {-
   ok - collect models to load
-  collect models to add storage
+  ok - collect models to add storage
+  - create image cache
+  - compile pipeline
+  - create shader cache
+  - create storage
 
 to render:
   setup uniforms: viewport size, q3 uniforms(time,...), camera matrix
 -}
-render :: RenderSystem -> [Renderable] -> IO ()
-render RenderSystem{..} renderables = do
+
+updateMD3Cache RenderSystem{..} renderables = do
   md3Cache <- readIORef rsMD3Cache
-  -- lead new models
+  -- load new models
   let newModelNames = setNub [name | MD3 _ name <- renderables, Map.notMember name md3Cache]
   newModels <- forM newModelNames $ loadMD3 rsFileSystem
   let md3Cache' = md3Cache `Map.union` Map.fromList (zip newModelNames newModels)
   unless (null newModelNames) $ putStrLn $ unlines $ "new models:" : newModelNames
   writeIORef rsMD3Cache md3Cache'
+  return (newModels,md3Cache')
+
+updatePipeline = undefined
+updateMaterials = undefined
+
+render :: RenderSystem -> [Renderable] -> IO ()
+render renderSystem@RenderSystem{..} renderables = do
+  -- load new models
+  (newModels,md3Cache) <- updateMD3Cache renderSystem renderables
 
   -- check new materials
   shaderCache <- readIORef rsShaderCache
@@ -111,27 +117,26 @@ render RenderSystem{..} renderables = do
       newInstance name = do
         --TODO: creates new instance from model cache
         putStrLn $ "new instance: " ++ name
-        return [error "object instance"]
+        let storage = error "no storage"
+        LCMD3{..} <- addMD3' storage (md3Cache Map.! name) mempty mempty
+        return lcmd3Object
 
       setupInstance model (MD3 position _) = do
+        forM_ model $ \obj -> enableObject obj True
         return ()
 
   instanceCache <- readIORef rsInstanceCache
-  (newInstances,_) <- foldM addInstance (Map.empty,instanceCache) renderables
+  (newInstances,unusedInstances) <- foldM addInstance (Map.empty,instanceCache) renderables
   let instanceCache' = Map.unionWith (++) instanceCache newInstances
   writeIORef rsInstanceCache instanceCache'
-{-
-  -- init engine
-  (inputSchema,levelData) <- engineInit pk3Data fullBSPName
 
+  -- hide unused instances
+  forM_ (concat . concat $ Map.elems unusedInstances) $ flip enableObject False
+
+{-
   -- load level graphics data
   storage <- allocStorage inputSchema
-  graphicsData <- setupStorage pk3Data levelData storage
 
   simpleRenderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
-  setStorage simpleRenderer storage
-
-  -- main loop
-        updateRenderInput graphicsData (camPos,camTarget,camUp) w h time noBSPCull
-        renderFrame simpleRenderer
+  renderFrame simpleRenderer
 -}
