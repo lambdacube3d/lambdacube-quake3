@@ -2,6 +2,7 @@
 module RenderSystem where
 
 import Control.Monad
+import Data.Maybe (fromJust)
 import Data.IORef
 import Data.List (foldl')
 import Data.Set (Set)
@@ -13,6 +14,7 @@ import Data.ByteString.Char8 (unpack)
 
 import GameEngine.Content (shaderMap)
 import GameEngine.Data.Material (CommonAttrs)
+import GameEngine.Graphics.Storage
 import GameEngine.Graphics.Render
 import GameEngine.Loader.Zip
 import GameEngine.Loader.MD3 (readMD3)
@@ -31,6 +33,8 @@ data RenderSystem
   , rsMD3Cache      :: IORef MD3Cache
   , rsInstanceCache :: IORef InstanceCache
   , rsShaderCache   :: IORef ShaderCache
+  , rsRenderer      :: IORef GLRenderer
+  , rsStorage       :: IORef GLStorage
   }
 
 initRenderSystem :: Map String Entry -> IO RenderSystem
@@ -39,12 +43,19 @@ initRenderSystem pk3 = do
   instanceCache <- newIORef Map.empty
   shaderCache <- newIORef Set.empty
   shMap <- shaderMap pk3
+  let (inputSchema,_) = createRenderInfo shMap mempty mempty
+  storage <- allocStorage inputSchema
+  renderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
+  rendererRef <- newIORef renderer
+  storageRef <- newIORef storage
   pure $ RenderSystem
     { rsFileSystem    = pk3
     , rsShaderMap     = shMap
     , rsMD3Cache      = md3Cache
     , rsInstanceCache = instanceCache
     , rsShaderCache   = shaderCache
+    , rsRenderer      = rendererRef
+    , rsStorage       = storageRef
     }
 
 loadMD3 pk3 name = case Map.lookup name pk3 of
@@ -99,24 +110,37 @@ updateRenderCache renderSystem@RenderSystem{..} newModels = do
   let newMaterials = Set.unions (map gpumd3Shaders newModels) `Set.difference` shaderCache
   case Set.size newMaterials == 0 of
     True -> do
-      putStrLn $ unlines $ "new materials:" : Set.toList newMaterials
       instanceCache <- readIORef rsInstanceCache
-      return (error "storage",instanceCache,error "renderer")
+      storage <- readIORef rsStorage
+      renderer <- readIORef rsRenderer
+      return (storage,instanceCache,renderer)
     False -> do
+      putStrLn $ unlines $ "new materials:" : Set.toList newMaterials
       let shaderCache' = shaderCache `Set.union` newMaterials
       writeIORef rsShaderCache shaderCache'
   {-
     TODO:
-      - extract new materials from new models
+      ok - extract new materials from new models
       if there is any new material:
-        - clear instance cache
+        ok - clear instance cache
+        ok - return (storage,instanceCache,renderer)
+        ok - generate material list, generate new pipeline schema
+        - setup instance uniforms
+        - setup storage default uniforms values: tables, ...
         - load new images from new materials
-        - generate material list, generate new pipeline schema, compile new pipeline
-        - return (storage,instanceCache,renderer)
+        - compile new pipeline
   -}
-      let usedMaterials = Map.restrictKeys rsShaderMap shaderCache'
+      let (inputSchema,shMapTexSlot) = createRenderInfo rsShaderMap Set.empty shaderCache'
+      storage <- allocStorage inputSchema
+      renderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
+      setStorage renderer storage
+      writeIORef rsStorage storage
+      writeIORef rsRenderer renderer
+      writeIORef rsInstanceCache mempty
+
+      writeSampleMaterial shMapTexSlot
       instanceCache <- readIORef rsInstanceCache
-      return (error "storage",instanceCache,error "renderer")
+      return (storage,instanceCache,renderer)
 
 render :: RenderSystem -> [Renderable] -> IO ()
 render renderSystem@RenderSystem{..} renderables = do
@@ -145,6 +169,7 @@ render renderSystem@RenderSystem{..} renderables = do
 
       setupInstance model (MD3 position _) = do
         forM_ model $ \obj -> enableObject obj True
+        -- TODO: set model matrix
         return ()
 
   (newInstances,unusedInstances) <- foldM addInstance (Map.empty,instanceCache) renderables
@@ -154,10 +179,3 @@ render renderSystem@RenderSystem{..} renderables = do
   forM_ (concat . concat $ Map.elems unusedInstances) $ flip enableObject False
 
   renderFrame renderer
-
-{-
-  -- load level graphics data
-  storage <- allocStorage inputSchema
-
-  simpleRenderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
--}

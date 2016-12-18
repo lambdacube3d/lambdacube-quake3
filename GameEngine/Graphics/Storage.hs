@@ -217,3 +217,11 @@ createRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTexSlo
                                 , ("origin",    V3F)
                                 ] ++ zip textureUniforms (repeat FTexture2D)
     }
+
+writeSampleMaterial :: Map FilePath CommonAttrs -> IO ()
+writeSampleMaterial shMapTexSlot = writeFile (lc_q3_cache </> "SampleMaterial.lc") $ unlines
+  [ "module SampleMaterial where"
+  , "import Material"
+  , "sampleMaterial ="
+  , unlines . map ("  "++) . lines . ppShow . Map.toList $ shMapTexSlot
+  ]

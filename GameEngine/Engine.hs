@@ -135,21 +135,15 @@ engineInit pk3Data fullBSPName = do
         allShName = map shName $ V.toList $ blShaders bsp
         (selectedMaterials,ignoredMaterials) = partition (\n -> or $ [SB.isInfixOf k n | k <- ["floor","wall","door","trim","block"]]) allShName
 
-
     let levelMaterials = Set.map SB.unpack shNames
         modelMaterials = Set.map SB.unpack (md3Materials `Set.union` characterSkinMaterials)
-        (inputSchema,shMapTexSlot) = createRenderInfo shMap levelMaterials modelMaterials 
+        (inputSchema,shMapTexSlot) = createRenderInfo shMap levelMaterials modelMaterials
     --putStrLn $ "all materials:  " ++ show (Map.size shMap')
     --putStrLn $ "used materials: " ++ show (Map.size shMap)
     --putStrLn $ "texture uniforms: \n" ++ ppShow textureUniforms
     --putStrLn $ "used materials: " ++ show (Map.size shMapTexSlot)
     --putStrLn $ "ignored materials: " ++ show (length ignoredMaterials)
-    writeFile (lc_q3_cache </> "SampleMaterial.lc") $ unlines
-      [ "module SampleMaterial where"
-      , "import Material"
-      , "sampleMaterial ="
-      , unlines . map ("  "++) . lines . ppShow . Map.toList $ shMapTexSlot
-      ]
+    writeSampleMaterial shMapTexSlot
     --SB.putStrLn $ SB.unlines ignoredMaterials
 
     let brushModelMapping = V.replicate (V.length $ blBrushes bsp) (-1) V.//
