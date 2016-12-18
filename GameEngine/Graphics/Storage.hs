@@ -52,17 +52,16 @@ setupTables s = do
     tableTexture inverseSawToothTexture "InverseSawToothTable" s
     tableTexture triangleTexture "TriangleTable" s
 
-loadQ3Texture :: Bool -> Bool -> TextureData -> Map String Entry -> ByteString -> ByteString -> IO TextureData
-loadQ3Texture isMip isClamped defaultTex ar shName name' = do
-    let name = SB.unpack name'
-        n1 = replaceExtension name "tga"
+loadQ3Texture :: Bool -> Bool -> TextureData -> Map String Entry -> String -> String -> IO TextureData
+loadQ3Texture isMip isClamped defaultTex ar shName name = do
+    let n1 = replaceExtension name "tga"
         n2 = replaceExtension name "jpg"
         b0 = Map.member name ar
         b1 = Map.member n1 ar
         b2 = Map.member n2 ar
         fname   = if b0 then name else if b1 then n1 else n2
     case Map.lookup fname ar of
-        Nothing -> putStrLn ("    unknown texure: " ++ fname ++ " in shader: " ++ SB.unpack shName) >> return defaultTex
+        Nothing -> putStrLn ("    unknown texure: " ++ fname ++ " in shader: " ++ shName) >> return defaultTex
         Just entry  -> do
             eimg <- decodeImage <$> readEntry entry
             putStrLn $ "  load: " ++ fname
@@ -127,7 +126,7 @@ createLoadingScreen = do
 
 drawLoadingScreen :: Int -> Int -> (GLStorage, GLRenderer, TextureData) -> Map String Entry -> String -> IO ()
 drawLoadingScreen w h (storage,renderer,defaultTexture) pk3Data bspName = do
-    textureData <- loadQ3Texture True True defaultTexture pk3Data mempty (SB.pack $ "levelshots/" ++ bspName)
+    textureData <- loadQ3Texture True True defaultTexture pk3Data mempty ("levelshots/" ++ bspName)
     setScreenSize storage (fromIntegral w) (fromIntegral h)
     updateUniforms storage $ do
       "LoadingImage" @= return textureData

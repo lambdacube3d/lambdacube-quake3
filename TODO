@@ -12,8 +12,8 @@ minigame integration:
     ok - add reusable modules to project and make it compile
     ok - construct the initial game world from map's entity list
     ok - move game logic under Logic namespace
+    ok - create new main loop using the new game logic
     - design engine architecture (submodules, api, sample code)
-    - create new main loop using the new game logic
     - implement rendering in similar style as it was with gloss
     - refactor entities to use q3 item types
 
@@ -47,9 +47,9 @@ refactor notes:
     - use same floating number parser
 
   Engine.hs
-    - add data structure to store internal data
-    - move graphics related functions to separate module
-    - 
+    ok - add data structure to store internal data
+    ok - move graphics related functions to separate module
+    ok - use String instead of ByteString in Materials and ShaderMap
 
     - use proper resource monad
     - manage subsystems elegantly

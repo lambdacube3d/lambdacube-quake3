@@ -21,13 +21,13 @@ import Control.Monad.Trans.Writer.Strict
 
 type Parser = WriterT [String] (Parsec Dec ByteString)
 
-parseShaders :: String -> ByteString -> Either String ([(ByteString,CommonAttrs)],[String])
+parseShaders :: String -> ByteString -> Either String ([(String,CommonAttrs)],[String])
 parseShaders fname src = case parse (runWriterT $ newlineConsumer *> many shader <* eof) fname $ BS8.map toLower src of
   Left err  -> Left $ parseErrorPretty err
   Right a   -> Right a
 
 -- q3 shader related parsers
-shader :: Parser (ByteString,CommonAttrs)
+shader :: Parser (String,CommonAttrs)
 shader = (\n l -> (n,finishShader $ foldl' (\s f -> f s) defaultCommonAttrs l)) <$>
   line filepath <* newlineSymbol "{" <*> many shaderAttribute <* newlineSymbol "}"
 
@@ -305,8 +305,8 @@ float = realToFrac <$> L.signed spaceConsumer (lexeme floatLiteral) where
     , fromIntegral <$> L.integer
     ]
 
-filepath :: Parser ByteString
-filepath = lexeme $ pack <$> some (satisfy $ not . isSpace)
+filepath :: Parser String
+filepath = lexeme $ some (satisfy $ not . isSpace)
 
 value :: a -> String -> Parser a
 value v w = const v <$> symbol w

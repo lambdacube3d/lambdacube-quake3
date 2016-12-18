@@ -9,7 +9,10 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.ByteString.Lazy as LB
+import Data.ByteString.Char8 (unpack)
 
+import GameEngine.Content (shaderMap)
+import GameEngine.Data.Material (CommonAttrs)
 import GameEngine.Graphics.Render
 import GameEngine.Loader.Zip
 import GameEngine.Loader.MD3 (readMD3)
@@ -24,6 +27,7 @@ type ShaderCache = Set String
 data RenderSystem
   = RenderSystem
   { rsFileSystem    :: Map String Entry
+  , rsShaderMap     :: Map String CommonAttrs
   , rsMD3Cache      :: IORef MD3Cache
   , rsInstanceCache :: IORef InstanceCache
   , rsShaderCache   :: IORef ShaderCache
@@ -34,8 +38,10 @@ initRenderSystem pk3 = do
   md3Cache <- newIORef Map.empty
   instanceCache <- newIORef Map.empty
   shaderCache <- newIORef Set.empty
+  shMap <- shaderMap pk3
   pure $ RenderSystem
     { rsFileSystem    = pk3
+    , rsShaderMap     = shMap
     , rsMD3Cache      = md3Cache
     , rsInstanceCache = instanceCache
     , rsShaderCache   = shaderCache
@@ -88,8 +94,29 @@ updateMD3Cache RenderSystem{..} renderables = do
   writeIORef rsMD3Cache md3Cache'
   return (newModels,md3Cache')
 
-updatePipeline = undefined
-updateMaterials = undefined
+updateRenderCache renderSystem@RenderSystem{..} newModels = do
+  shaderCache <- readIORef rsShaderCache
+  let newMaterials = Set.unions (map gpumd3Shaders newModels) `Set.difference` shaderCache
+  case Set.size newMaterials == 0 of
+    True -> do
+      putStrLn $ unlines $ "new materials:" : Set.toList newMaterials
+      instanceCache <- readIORef rsInstanceCache
+      return (error "storage",instanceCache,error "renderer")
+    False -> do
+      let shaderCache' = shaderCache `Set.union` newMaterials
+      writeIORef rsShaderCache shaderCache'
+  {-
+    TODO:
+      - extract new materials from new models
+      if there is any new material:
+        - clear instance cache
+        - load new images from new materials
+        - generate material list, generate new pipeline schema, compile new pipeline
+        - return (storage,instanceCache,renderer)
+  -}
+      let usedMaterials = Map.restrictKeys rsShaderMap shaderCache'
+      instanceCache <- readIORef rsInstanceCache
+      return (error "storage",instanceCache,error "renderer")
 
 render :: RenderSystem -> [Renderable] -> IO ()
 render renderSystem@RenderSystem{..} renderables = do
@@ -97,11 +124,7 @@ render renderSystem@RenderSystem{..} renderables = do
   (newModels,md3Cache) <- updateMD3Cache renderSystem renderables
 
   -- check new materials
-  shaderCache <- readIORef rsShaderCache
-  let newMaterials = Set.unions (map gpumd3Shaders newModels) `Set.difference` shaderCache
-  when (Set.size newMaterials > 0) $ putStrLn $ unlines $ "new materials:" : Set.toList newMaterials
-  let shaderCache' = shaderCache `Set.union` newMaterials
-  writeIORef rsShaderCache shaderCache'
+  (storage,instanceCache,renderer) <- updateRenderCache renderSystem newModels
 
   -- create new instances
   let addInstance (new,old) md3@(MD3 _ name) = case Map.lookup name old of
@@ -115,9 +138,8 @@ render renderSystem@RenderSystem{..} renderables = do
           return (Map.insertWith (++) name [model] new,old)
 
       newInstance name = do
-        --TODO: creates new instance from model cache
+        -- creates new instance from model cache
         putStrLn $ "new instance: " ++ name
-        let storage = error "no storage"
         LCMD3{..} <- addMD3' storage (md3Cache Map.! name) mempty mempty
         return lcmd3Object
 
@@ -125,18 +147,17 @@ render renderSystem@RenderSystem{..} renderables = do
         forM_ model $ \obj -> enableObject obj True
         return ()
 
-  instanceCache <- readIORef rsInstanceCache
   (newInstances,unusedInstances) <- foldM addInstance (Map.empty,instanceCache) renderables
-  let instanceCache' = Map.unionWith (++) instanceCache newInstances
-  writeIORef rsInstanceCache instanceCache'
+  writeIORef rsInstanceCache $ Map.unionWith (++) instanceCache newInstances
 
   -- hide unused instances
   forM_ (concat . concat $ Map.elems unusedInstances) $ flip enableObject False
+
+  renderFrame renderer
 
 {-
   -- load level graphics data
   storage <- allocStorage inputSchema
 
   simpleRenderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
-  renderFrame simpleRenderer
 -}

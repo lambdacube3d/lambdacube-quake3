@@ -64,7 +64,7 @@ type EngineContent =
   , [(Proj4, (Map String String, String))]
   , [[(Proj4, (Map String String, [Char]))]]
   , [Character]
-  , Map ByteString CommonAttrs
+  , Map String CommonAttrs
   , [Vec3]
   , V.Vector Int
   , ([GameEngine.Entity.Entity], Map ByteString GameEngine.Entity.Entity)
@@ -86,22 +86,6 @@ type EngineGraphics =
 engineInit :: Map String Entry -> FilePath -> IO (PipelineSchema, EngineContent)
 engineInit pk3Data fullBSPName = do
     let bspName = takeBaseName fullBSPName
-
-    let imageShader hasLightmap txName = defaultCommonAttrs {caStages = sa:if hasLightmap then saLM:[] else []}
-          where
-            sa = defaultStageAttrs
-                { saTexture     = ST_Map txName
-                , saBlend       = Nothing
-                , saTCGen       = TG_Base
-                , saDepthWrite  = True
-                , saRGBGen      = RGB_IdentityLighting
-                }
-            saLM = defaultStageAttrs
-                { saTexture = ST_Lightmap
-                , saBlend   = Just (B_DstColor,B_Zero)
-                , saTCGen   = TG_Lightmap
-                , saRGBGen  = RGB_IdentityLighting
-                }
         bspEntry = case Map.lookup fullBSPName pk3Data of
             Nothing -> error "You need to put pk3 file into your current directory"
             Just bspd -> bspd
@@ -148,7 +132,7 @@ engineInit pk3Data fullBSPName = do
                   return sm
     let mkShader hasLightmap n = case Map.lookup n shMap' of
           Just s -> (n,s)
-          Nothing -> let alias = SB.pack . dropExtension . SB.unpack $ n in case Map.lookup alias shMap' of
+          Nothing -> let alias = dropExtension n in case Map.lookup alias shMap' of
             Just s -> (alias,s)
             Nothing -> (n,imageShader hasLightmap n)
 
@@ -157,16 +141,16 @@ engineInit pk3Data fullBSPName = do
         allShName = map shName $ V.toList $ blShaders bsp
         (selectedMaterials,ignoredMaterials) = partition (\n -> or $ [SB.isInfixOf k n | k <- ["floor","wall","door","trim","block"]]) allShName
 
-        shMap = Map.fromList [mkShader True n | n <- Set.toList shNames] `Map.union`
-                Map.fromList [mkShader False n | n <- Set.toList md3Materials] `Map.union`
-                Map.fromList [mkShader False n | n <- Set.toList characterSkinMaterials]
+        shMap = Map.fromList [mkShader True (SB.unpack n) | n <- Set.toList shNames] `Map.union`
+                Map.fromList [mkShader False (SB.unpack n) | n <- Set.toList md3Materials] `Map.union`
+                Map.fromList [mkShader False (SB.unpack n) | n <- Set.toList characterSkinMaterials]
 
     let shMapTexSlot = mangleCA <$> shMap
           where
-            mangleStageTex stageTex = SB.pack $ "Tex_" ++ show (crc32 $ SB.pack $ show stageTex)
+            mangleStageTex stageTex = "Tex_" ++ show (crc32 $ SB.pack $ show stageTex)
             mangleCA ca = ca {caStages = mangleSA <$> caStages ca}
             mangleSA sa = sa {saTextureUniform = mangleStageTex sa}
-        textureUniforms = map SB.unpack . Set.toList . Set.fromList . concat . map name . concat . map caStages $ Map.elems shMapTexSlot
+        textureUniforms = Set.toList . Set.fromList . concat . map name . concat . map caStages $ Map.elems shMapTexSlot
           where
             name s = [saTextureUniform s]
             {-
@@ -206,7 +190,7 @@ engineInit pk3Data fullBSPName = do
             ]
         inputSchema = {-TODO-}
           PipelineSchema
-          { objectArrays = Map.fromList $ ("CollisionShape",debugSlotSchema) : zip ("LightMapOnly":"missing shader":map SB.unpack (Map.keys shMap)) (repeat quake3SlotSchema)
+          { objectArrays = Map.fromList $ ("CollisionShape",debugSlotSchema) : zip ("LightMapOnly":"missing shader": Map.keys shMap) (repeat quake3SlotSchema)
           , uniforms = Map.fromList $ [ ("viewProj",      M44F)
                                       , ("worldMat",      M44F)
                                       , ("viewMat",       M44F)
@@ -266,7 +250,7 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
     -- load textures
     animTex <- fmap concat $ forM (Set.toList $ Set.fromList $ concatMap (\(shName,sh) -> [(shName,saTexture sa,saTextureUniform sa,caNoMipMaps sh) | sa <- caStages sh]) $ Map.toList shMapTexSlot) $
       \(shName,stageTex,texSlotName,noMip) -> do
-        let texSetter = uniformFTexture2D texSlotName  slotU
+        let texSetter = uniformFTexture2D (SB.pack texSlotName) slotU
             setTex isClamped img = texSetter =<< loadQ3Texture (not noMip) isClamped defaultTexture pk3Data shName img
         case stageTex of
             ST_Map img          -> setTex False img >> return []

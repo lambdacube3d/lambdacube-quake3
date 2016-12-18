@@ -4,7 +4,6 @@ module GameEngine.Data.Material where
 import Data.Binary
 import GHC.Generics (Generic)
 
-import qualified Data.ByteString.Char8 as SB
 import LambdaCube.Linear
 
 type Vec3 = V3 Float
@@ -119,9 +118,9 @@ data TCMod
     deriving (Show,Generic)
 
 data StageTexture
-    = ST_Map        !SB.ByteString
-    | ST_ClampMap   !SB.ByteString
-    | ST_AnimMap    !Float ![SB.ByteString]
+    = ST_Map        !String
+    | ST_ClampMap   !String
+    | ST_AnimMap    !Float ![String]
     | ST_Lightmap
     | ST_WhiteImage
     deriving (Show,Eq,Ord,Generic)
@@ -164,8 +163,8 @@ data StageAttrs
     , saAlphaFunc   :: !(Maybe AlphaFunction)
 
     -- parser internals
-    , saDepthMaskExplicit   :: Bool
-    , saTextureUniform  :: !SB.ByteString
+    , saDepthMaskExplicit :: Bool
+    , saTextureUniform    :: !String
     }
     deriving (Show,Generic)
 
