@@ -52,21 +52,6 @@ shaderMap ar = do
       writeFile (lc_q3_cache </> "shader.log") $ unlines $ concat w
       return . Map.fromList . concat $ x
 
-imageShader hasLightmap txName = defaultCommonAttrs {caStages = sa:if hasLightmap then saLM:[] else []} where
-  sa = defaultStageAttrs
-      { saTexture     = ST_Map txName
-      , saBlend       = Nothing
-      , saTCGen       = TG_Base
-      , saDepthWrite  = True
-      , saRGBGen      = RGB_IdentityLighting
-      }
-  saLM = defaultStageAttrs
-      { saTexture = ST_Lightmap
-      , saBlend   = Just (B_DstColor,B_Zero)
-      , saTCGen   = TG_Lightmap
-      , saRGBGen  = RGB_IdentityLighting
-      }
-
 readCharacters :: Map String Entry -> Vec3 -> IO (Set ByteString, [[(Proj4, (Map String String, String))]], [Character])
 readCharacters pk3Data p0 = do
   let --characterNames = characterNamesFull

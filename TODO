@@ -50,6 +50,7 @@ refactor notes:
     ok - add data structure to store internal data
     ok - move graphics related functions to separate module
     ok - use String instead of ByteString in Materials and ShaderMap
+    ok - factor out a function what creates SampleMaterial.lc and the PipelineSchema from Set of material names
 
     - use proper resource monad
     - manage subsystems elegantly
