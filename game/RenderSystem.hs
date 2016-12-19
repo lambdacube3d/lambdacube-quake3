@@ -12,10 +12,11 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.ByteString.Lazy as LB
 import Data.ByteString.Char8 (unpack,ByteString)
+import Codec.Picture
 
 import GameEngine.Utils
 import GameEngine.Content (shaderMap)
-import GameEngine.Data.Material (CommonAttrs)
+import GameEngine.Data.Material
 import GameEngine.Graphics.Storage
 import GameEngine.Graphics.Render
 import GameEngine.Loader.Zip
@@ -31,14 +32,15 @@ type ImageCache = Map String TextureData
 
 data RenderSystem
   = RenderSystem
-  { rsFileSystem    :: Map String Entry
-  , rsShaderMap     :: Map String CommonAttrs
-  , rsMD3Cache      :: IORef MD3Cache
-  , rsInstanceCache :: IORef InstanceCache
-  , rsShaderCache   :: IORef ShaderCache
-  , rsImageCache    :: IORef ImageCache
-  , rsRenderer      :: IORef GLRenderer
-  , rsStorage       :: IORef GLStorage
+  { rsFileSystem      :: Map String Entry
+  , rsShaderMap       :: Map String CommonAttrs
+  , rsCheckerTexture  :: TextureData
+  , rsMD3Cache        :: IORef MD3Cache
+  , rsInstanceCache   :: IORef InstanceCache
+  , rsShaderCache     :: IORef ShaderCache
+  , rsImageCache      :: IORef ImageCache
+  , rsRenderer        :: IORef GLRenderer
+  , rsStorage         :: IORef GLStorage
   }
 
 initRenderSystem :: Map String Entry -> IO RenderSystem
@@ -54,21 +56,26 @@ initRenderSystem pk3 = do
   renderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
   rendererRef <- newIORef renderer
   storageRef <- newIORef storage
+  -- default texture
+  let redBitmap x y = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
+  checkerTexture <- uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage redBitmap 2 2
   pure $ RenderSystem
-    { rsFileSystem    = pk3
-    , rsShaderMap     = shMap
-    , rsMD3Cache      = md3Cache
-    , rsInstanceCache = instanceCache
-    , rsShaderCache   = shaderCache
-    , rsImageCache    = imageCache
-    , rsRenderer      = rendererRef
-    , rsStorage       = storageRef
+    { rsFileSystem      = pk3
+    , rsShaderMap       = shMap
+    , rsCheckerTexture  = checkerTexture
+    , rsMD3Cache        = md3Cache
+    , rsInstanceCache   = instanceCache
+    , rsShaderCache     = shaderCache
+    , rsImageCache      = imageCache
+    , rsRenderer        = rendererRef
+    , rsStorage         = storageRef
     }
 
 loadMD3 pk3 name = case Map.lookup name pk3 of
   Nothing -> fail $ "file not found: " ++ name
   Just a -> readMD3 . LB.fromStrict <$> readEntry a >>= uploadMD3
 
+setNub :: Ord a => [a] -> [a]
 setNub = Set.toList . Set.fromList
 
 initStorageDefaultValues storage = do
@@ -94,6 +101,29 @@ updateMD3Cache RenderSystem{..} renderables = do
   unless (null newModelNames) $ putStrLn $ unlines $ "new models:" : newModelNames
   writeIORef rsMD3Cache md3Cache'
   return (newModels,md3Cache')
+
+initStorageTextures RenderSystem{..} storage usedMaterials = do
+  let usedTextures = setNub [ (name,saTexture,saTextureUniform,caNoMipMaps)
+                            | (name,CommonAttrs{..}) <- Map.toList usedMaterials
+                            , StageAttrs{..} <- caStages
+                            ]
+  putStrLn $ unlines $ "new textures" : [show name | (_,name,_,_) <- usedTextures]
+{-
+  putStrLn "loading textures:"
+  -- load textures
+  animTex <- fmap concat $ forM usedTextures $ \(shName,stageTex,texSlotName,noMip) -> do
+      let texSetter = uniformFTexture2D (SB.pack texSlotName) slotU
+          setTex isClamped img = texSetter =<< loadQ3Texture (not noMip) isClamped defaultTexture pk3Data shName img
+      case stageTex of
+          ST_Map img          -> setTex False img >> return []
+          ST_ClampMap img     -> setTex True img >> return []
+          ST_AnimMap freq imgs   -> do
+              txList <- mapM (loadQ3Texture (not noMip) False defaultTexture pk3Data shName) imgs
+              let txVector = V.fromList txList
+              return [(fromIntegral (V.length txVector) / freq,texSetter,txVector)]
+          _ -> return []
+-}
+  return ()
 
 updateRenderCache renderSystem@RenderSystem{..} newModels = do
   shaderCache <- readIORef rsShaderCache
@@ -123,16 +153,17 @@ updateRenderCache renderSystem@RenderSystem{..} newModels = do
   -}
       let (inputSchema,usedMaterials) = createRenderInfo rsShaderMap Set.empty shaderCache'
       storage <- allocStorage inputSchema
+      -- TODO: load new images and set storage texture uniforms
+      initStorageTextures renderSystem storage usedMaterials
       initStorageDefaultValues storage
-      renderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
-      setStorage renderer storage
       writeIORef rsStorage storage
-      writeIORef rsRenderer renderer
       writeIORef rsInstanceCache mempty
 
       writeSampleMaterial usedMaterials
-      instanceCache <- readIORef rsInstanceCache
-      return (storage,instanceCache,renderer)
+      renderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
+      setStorage renderer storage
+      writeIORef rsRenderer renderer
+      return (storage,mempty,renderer)
 
 render :: RenderSystem -> [Renderable] -> IO ()
 render renderSystem@RenderSystem{..} renderables = do

@@ -14,16 +14,19 @@ minigame integration:
     ok - move game logic under Logic namespace
     ok - create new main loop using the new game logic
     ok - implement rendering in similar style as it was with gloss
+
+render system
     - render materials
-    - collision detection
     - static geometry support: load and render
-    - 3d camera support
     - character support: player character
-    - refactor entities to use q3 item types
-    - restructure code: engine, game
     - case insensitive names: convert names to lower case in parsers/loaders/zip map
     - performance benchmark, if necessary use resource references and make the interface monadic
-    - design engine architecture (submodules, api, sample code)
+    - restructure code: engine, game; design engine architecture (submodules, api, sample code)
+
+game
+    - collision detection
+    - 3d camera support
+    - refactor entities to use q3 item types
 
 refactor notes:
   ok - Q3Patch.hs - rename (e.g. BezierSurface)
