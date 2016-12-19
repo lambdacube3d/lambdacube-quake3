@@ -99,7 +99,7 @@ play pk3 world0 render_ input_ step_ = do
                     <*> keyIsPressed Key'Q
                     <*> keyIsPressed Key'Space
         quit <- keyIsPressed Key'Escape
-        unless quit $ loop $ step_ 0.1 $ input_ ks world
+        unless quit $ loop $ step_ (1/30) $ input_ ks world
   loop world0
 
   destroyWindow win

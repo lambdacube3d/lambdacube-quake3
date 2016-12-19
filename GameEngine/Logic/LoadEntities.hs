@@ -13,7 +13,21 @@ import GameEngine.Data.Items
 import qualified GameEngine.Loader.Entity as E
 
 loadEntities :: [E.EntityData] -> [Entity]
-loadEntities = catMaybes . map loadEntity
+loadEntities = (player0:) . catMaybes . map loadEntity where
+  player0 = EPlayer $ Player
+    { _pPosition    = Vec2 0 0
+    , _pFVelocity   = 0
+    , _pSVelocity   = 0
+    , _pAngle       = 0
+    , _pHealth      = 100
+    , _pAmmo        = 10
+    , _pArmor       = 0
+    , _pShootTime   = 0
+    , _pDamageTimer = 0
+    , _pName        = "grunt"
+    , _pId          = 0
+    }
+
 
 itemMap :: Map String Item
 itemMap = Map.fromList [(itClassName i,i) | i <- items]

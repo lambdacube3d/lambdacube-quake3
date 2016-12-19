@@ -2,7 +2,7 @@
 module GameEngine.Graphics.Render
   ( addBSP
   , addMD3
-  , addMD3'
+  , addGPUMD3
   , setMD3Frame
   , LCMD3(..)
   , uploadMD3
@@ -212,10 +212,10 @@ uploadMD3 model@MD3Model{..} = do
 addMD3 :: GLStorage -> MD3Model -> MD3Skin -> [String] -> IO LCMD3
 addMD3 r model skin unis = do
     gpuMD3 <- uploadMD3 model
-    addMD3' r gpuMD3 skin unis
+    addGPUMD3 r gpuMD3 skin unis
 
-addMD3' :: GLStorage -> GPUMD3 -> MD3Skin -> [String] -> IO LCMD3
-addMD3' r GPUMD3{..} skin unis = do
+addGPUMD3 :: GLStorage -> GPUMD3 -> MD3Skin -> [String] -> IO LCMD3
+addGPUMD3 r GPUMD3{..} skin unis = do
     let MD3Model{..} = gpumd3Model
     objs <- forM (zip gpumd3Surfaces $ V.toList mdSurfaces) $ \((index,attrs),sf) -> do
         let materialName s = case Map.lookup (SB8.unpack $ MD3.srName sf) skin of
@@ -231,7 +231,7 @@ addMD3' r GPUMD3{..} skin unis = do
           (MD3.Frame{..}:_) -> do
             sphereObj <- uploadMeshToGPU (sphere (V4 1 0 0 1) 4 frRadius) >>= addMeshToObjectArray r "CollisionShape" (nub $ ["worldMat","origin"] ++ unis)
             boxObj <- uploadMeshToGPU (bbox (V4 0 0 1 1) frMins frMaxs) >>= addMeshToObjectArray r "CollisionShape" (nub $ ["worldMat","origin"] ++ unis)
-            when (frOrigin /= zero) $ putStrLn $ "frOrigin: " ++ show frOrigin
+            --when (frOrigin /= zero) $ putStrLn $ "frOrigin: " ++ show frOrigin
             return [sphereObj,boxObj]
           _ -> return []
         {-

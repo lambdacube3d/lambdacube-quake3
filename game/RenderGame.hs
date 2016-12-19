@@ -13,7 +13,8 @@ data Renderable
 renderFun :: World -> [Renderable]
 renderFun w = ents where
   ents = flip concatMap (w^.wEntities) $ \case
-    --EBullet b   -> MD3 (b^.bPosition) Translate x y $ Color green $ Circle 2 where (x,y) = 
+    EBullet b   -> [MD3 (b^.bPosition) "models/ammo/rocket/rocket.md3"]
+    EPlayer a   -> [MD3 (a^.pPosition) "models/players/grunt/head.md3"]
     EWeapon a   -> [MD3 (a^.wPosition) "models/weapons2/shotgun/shotgun.md3"]
     EAmmo a     -> [MD3 (a^.aPosition) "models/powerups/ammo/shotgunam.md3"]
     EArmor a    -> [MD3 (a^.rPosition) "models/powerups/armor/armor_red.md3"]

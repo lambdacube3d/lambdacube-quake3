@@ -1,7 +1,8 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards, OverloadedStrings #-}
 module RenderSystem where
 
 import Control.Monad
+import Data.Vect
 import Data.Maybe (fromJust)
 import Data.IORef
 import Data.List (foldl')
@@ -10,8 +11,9 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.ByteString.Lazy as LB
-import Data.ByteString.Char8 (unpack)
+import Data.ByteString.Char8 (unpack,ByteString)
 
+import GameEngine.Utils
 import GameEngine.Content (shaderMap)
 import GameEngine.Data.Material (CommonAttrs)
 import GameEngine.Graphics.Storage
@@ -25,6 +27,7 @@ type MD3Cache = Map String GPUMD3
 type Model = [Object]
 type InstanceCache = Map String [Model]
 type ShaderCache = Set String
+type ImageCache = Map String TextureData
 
 data RenderSystem
   = RenderSystem
@@ -33,6 +36,7 @@ data RenderSystem
   , rsMD3Cache      :: IORef MD3Cache
   , rsInstanceCache :: IORef InstanceCache
   , rsShaderCache   :: IORef ShaderCache
+  , rsImageCache    :: IORef ImageCache
   , rsRenderer      :: IORef GLRenderer
   , rsStorage       :: IORef GLStorage
   }
@@ -42,9 +46,11 @@ initRenderSystem pk3 = do
   md3Cache <- newIORef Map.empty
   instanceCache <- newIORef Map.empty
   shaderCache <- newIORef Set.empty
+  imageCache <- newIORef Map.empty
   shMap <- shaderMap pk3
   let (inputSchema,_) = createRenderInfo shMap mempty mempty
   storage <- allocStorage inputSchema
+  initStorageDefaultValues storage
   renderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
   rendererRef <- newIORef renderer
   storageRef <- newIORef storage
@@ -54,6 +60,7 @@ initRenderSystem pk3 = do
     , rsMD3Cache      = md3Cache
     , rsInstanceCache = instanceCache
     , rsShaderCache   = shaderCache
+    , rsImageCache    = imageCache
     , rsRenderer      = rendererRef
     , rsStorage       = storageRef
     }
@@ -64,36 +71,19 @@ loadMD3 pk3 name = case Map.lookup name pk3 of
 
 setNub = Set.toList . Set.fromList
 
-{-
-  things to cache
-    MD3Name -> GPUMD3
-    MD3Name -> Model
-    Set ShaderName -> Pipeline
-    
--}
-
-{-
-  in every frame collect info:
-    collect
-      MD3Names in Map MD3Name Int -- instance count
-      Set ShaderName
-    current `difference` collected
-    newMaterials - when not null => recompile pipeline in new thread; rebuild storage
-    newMD3s - add to model cache
-    newMD3Instances - create new instances
--}
-
-{-
-  ok - collect models to load
-  ok - collect models to add storage
-  - create image cache
-  - compile pipeline
-  - create shader cache
-  - create storage
-
-to render:
-  setup uniforms: viewport size, q3 uniforms(time,...), camera matrix
--}
+initStorageDefaultValues storage = do
+  let slotU           = uniformSetter storage
+      entityRGB       = uniformV3F "entityRGB" slotU
+      entityAlpha     = uniformFloat "entityAlpha" slotU
+      identityLight   = uniformFloat "identityLight" slotU
+      worldMat        = uniformM44F "worldMat" slotU
+      overbrightBits  = 0
+      idmtx = V4 (V4 1 0 0 0) (V4 0 1 0 0) (V4 0 0 1 0) (V4 0 0 0 1)
+  worldMat idmtx
+  entityRGB $ V3 1 1 1
+  entityAlpha 1
+  identityLight $ 1 / (2 ^ overbrightBits)
+  setupTables slotU
 
 updateMD3Cache RenderSystem{..} renderables = do
   md3Cache <- readIORef rsMD3Cache
@@ -125,20 +115,22 @@ updateRenderCache renderSystem@RenderSystem{..} newModels = do
         ok - clear instance cache
         ok - return (storage,instanceCache,renderer)
         ok - generate material list, generate new pipeline schema
-        - setup instance uniforms
-        - setup storage default uniforms values: tables, ...
+        ok - setup instance uniforms
+        ok - setup storage default uniforms values: tables, ...
         - load new images from new materials
         - compile new pipeline
+        - update animated textures
   -}
-      let (inputSchema,shMapTexSlot) = createRenderInfo rsShaderMap Set.empty shaderCache'
+      let (inputSchema,usedMaterials) = createRenderInfo rsShaderMap Set.empty shaderCache'
       storage <- allocStorage inputSchema
+      initStorageDefaultValues storage
       renderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
       setStorage renderer storage
       writeIORef rsStorage storage
       writeIORef rsRenderer renderer
       writeIORef rsInstanceCache mempty
 
-      writeSampleMaterial shMapTexSlot
+      writeSampleMaterial usedMaterials
       instanceCache <- readIORef rsInstanceCache
       return (storage,instanceCache,renderer)
 
@@ -164,13 +156,14 @@ render renderSystem@RenderSystem{..} renderables = do
       newInstance name = do
         -- creates new instance from model cache
         putStrLn $ "new instance: " ++ name
-        LCMD3{..} <- addMD3' storage (md3Cache Map.! name) mempty mempty
+        LCMD3{..} <- addGPUMD3 storage (md3Cache Map.! name) mempty ["worldMat"]
         return lcmd3Object
 
-      setupInstance model (MD3 position _) = do
-        forM_ model $ \obj -> enableObject obj True
-        -- TODO: set model matrix
-        return ()
+      setupInstance model (MD3 (Vec2 x y) _) = do
+        forM_ model $ \obj -> do
+          enableObject obj True
+          -- set model matrix
+          uniformM44F "worldMat" (objectUniformSetter obj) $ mat4ToM44F $ fromProjective $ (translation $ Vec3 x y 0)
 
   (newInstances,unusedInstances) <- foldM addInstance (Map.empty,instanceCache) renderables
   writeIORef rsInstanceCache $ Map.unionWith (++) instanceCache newInstances
@@ -178,4 +171,38 @@ render renderSystem@RenderSystem{..} renderables = do
   -- hide unused instances
   forM_ (concat . concat $ Map.elems unusedInstances) $ flip enableObject False
 
+  setFrameUniforms storage
+
   renderFrame renderer
+
+setFrameUniforms storage = do
+  -- set uniforms
+  let slotU = uniformSetter storage
+      viewProj    = uniformM44F "viewProj" slotU
+      viewOrigin  = uniformV3F "viewOrigin" slotU
+      orientation = uniformM44F "orientation" slotU
+      viewMat     = uniformM44F "viewMat" slotU
+      timeSetter  = uniformFloat "time" slotU
+
+      cm = fromProjective (lookat camPos camTarget camUp)
+      pm = perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h)
+      sm = fromProjective (scaling $ Vec3 s s s)
+      s  = 0.005
+      Vec3 cx cy cz = camPos
+      near = 0.00001/s
+      far  = 100/s
+      fovDeg = 60
+      --frust = frustum fovDeg (fromIntegral w / fromIntegral h) near far camPos camTarget camUp
+      time = 1
+      w = 800
+      h = 600
+      camPos = Vec3 0 0 3000
+      camTarget = Vec3 0 0 0
+      camUp = Vec3 0 1 0
+
+  timeSetter $ time / 1
+  viewOrigin $ V3 cx cy cz
+  viewMat $ mat4ToM44F cm
+
+  viewProj $! mat4ToM44F $! cm .*. sm .*. pm
+  setScreenSize storage w h
