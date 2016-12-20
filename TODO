@@ -16,7 +16,10 @@ minigame integration:
     ok - implement rendering in similar style as it was with gloss
 
 render system
-    - render materials
+    ok - render materials
+    - unsolved:
+      pass viewport/window size
+      pass time
     - static geometry support: load and render
     - character support: player character
     - case insensitive names: convert names to lower case in parsers/loaders/zip map
@@ -24,8 +27,11 @@ render system
     - restructure code: engine, game; design engine architecture (submodules, api, sample code)
 
 game
+    - 3d spectator camera, 3d item positions
+      new input: mouse position
+      questions: how to pass camera info to render system
     - collision detection
-    - 3d camera support
+    - gravity
     - refactor entities to use q3 item types
 
 refactor notes:

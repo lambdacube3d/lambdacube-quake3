@@ -1,8 +1,8 @@
-{-# LANGUAGE RecordWildCards, OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards, OverloadedStrings, LambdaCase #-}
 module RenderSystem where
 
 import Control.Monad
-import Data.Vect
+import Data.Vect hiding (Vector)
 import Data.Maybe (fromJust)
 import Data.IORef
 import Data.List (foldl')
@@ -11,8 +11,12 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.ByteString.Lazy as LB
-import Data.ByteString.Char8 (unpack,ByteString)
+import Data.ByteString.Char8 (pack,unpack,ByteString)
 import Codec.Picture
+import Data.Vector (Vector)
+import qualified Data.Vector as V
+import Data.Digest.CRC32 (crc32)
+import Graphics.UI.GLFW (getTime)
 
 import GameEngine.Utils
 import GameEngine.Content (shaderMap)
@@ -28,19 +32,21 @@ type MD3Cache = Map String GPUMD3
 type Model = [Object]
 type InstanceCache = Map String [Model]
 type ShaderCache = Set String
-type ImageCache = Map String TextureData
+type TextureCache = Map (String,Bool,Bool) TextureData
+type AnimatedTexture = (Float, SetterFun TextureData, Vector TextureData)
 
 data RenderSystem
   = RenderSystem
-  { rsFileSystem      :: Map String Entry
-  , rsShaderMap       :: Map String CommonAttrs
-  , rsCheckerTexture  :: TextureData
-  , rsMD3Cache        :: IORef MD3Cache
-  , rsInstanceCache   :: IORef InstanceCache
-  , rsShaderCache     :: IORef ShaderCache
-  , rsImageCache      :: IORef ImageCache
-  , rsRenderer        :: IORef GLRenderer
-  , rsStorage         :: IORef GLStorage
+  { rsFileSystem        :: Map String Entry
+  , rsShaderMap         :: Map String CommonAttrs
+  , rsCheckerTexture    :: TextureData
+  , rsMD3Cache          :: IORef MD3Cache
+  , rsInstanceCache     :: IORef InstanceCache
+  , rsShaderCache       :: IORef ShaderCache
+  , rsTextureCache      :: IORef TextureCache
+  , rsRenderer          :: IORef GLRenderer
+  , rsStorage           :: IORef GLStorage
+  , rsAnimatedTextures  :: IORef [AnimatedTexture]
   }
 
 initRenderSystem :: Map String Entry -> IO RenderSystem
@@ -48,7 +54,7 @@ initRenderSystem pk3 = do
   md3Cache <- newIORef Map.empty
   instanceCache <- newIORef Map.empty
   shaderCache <- newIORef Set.empty
-  imageCache <- newIORef Map.empty
+  textureCache <- newIORef Map.empty
   shMap <- shaderMap pk3
   let (inputSchema,_) = createRenderInfo shMap mempty mempty
   storage <- allocStorage inputSchema
@@ -56,19 +62,21 @@ initRenderSystem pk3 = do
   renderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
   rendererRef <- newIORef renderer
   storageRef <- newIORef storage
+  animatedTextures <- newIORef []
   -- default texture
   let redBitmap x y = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
   checkerTexture <- uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage redBitmap 2 2
   pure $ RenderSystem
-    { rsFileSystem      = pk3
-    , rsShaderMap       = shMap
-    , rsCheckerTexture  = checkerTexture
-    , rsMD3Cache        = md3Cache
-    , rsInstanceCache   = instanceCache
-    , rsShaderCache     = shaderCache
-    , rsImageCache      = imageCache
-    , rsRenderer        = rendererRef
-    , rsStorage         = storageRef
+    { rsFileSystem        = pk3
+    , rsShaderMap         = shMap
+    , rsCheckerTexture    = checkerTexture
+    , rsMD3Cache          = md3Cache
+    , rsInstanceCache     = instanceCache
+    , rsShaderCache       = shaderCache
+    , rsTextureCache      = textureCache
+    , rsRenderer          = rendererRef
+    , rsStorage           = storageRef
+    , rsAnimatedTextures  = animatedTextures
     }
 
 loadMD3 pk3 name = case Map.lookup name pk3 of
@@ -107,23 +115,30 @@ initStorageTextures RenderSystem{..} storage usedMaterials = do
                             | (name,CommonAttrs{..}) <- Map.toList usedMaterials
                             , StageAttrs{..} <- caStages
                             ]
-  putStrLn $ unlines $ "new textures" : [show name | (_,name,_,_) <- usedTextures]
-{-
+      cachedTexture isMip isClamped shaderName imageName = do
+        textureCache <- readIORef rsTextureCache
+        let key = (imageName,isMip,isClamped)
+        case Map.lookup key textureCache of
+          Just texture -> return texture
+          Nothing -> do
+            texture <- loadQ3Texture isMip isClamped rsCheckerTexture rsFileSystem shaderName imageName
+            writeIORef rsTextureCache $ Map.insert key texture textureCache
+            return texture
   putStrLn "loading textures:"
   -- load textures
-  animTex <- fmap concat $ forM usedTextures $ \(shName,stageTex,texSlotName,noMip) -> do
-      let texSetter = uniformFTexture2D (SB.pack texSlotName) slotU
-          setTex isClamped img = texSetter =<< loadQ3Texture (not noMip) isClamped defaultTexture pk3Data shName img
+  animatedTextures <- fmap concat $ forM usedTextures $ \(shName,stageTex,texSlotName,noMip) -> do
+      let texSetter = uniformFTexture2D (pack texSlotName) (uniformSetter storage)
+          setTex isClamped img = texSetter =<< cachedTexture (not noMip) isClamped shName img
       case stageTex of
           ST_Map img          -> setTex False img >> return []
           ST_ClampMap img     -> setTex True img >> return []
           ST_AnimMap freq imgs   -> do
-              txList <- mapM (loadQ3Texture (not noMip) False defaultTexture pk3Data shName) imgs
+              txList <- mapM (cachedTexture (not noMip) False shName) imgs
               let txVector = V.fromList txList
               return [(fromIntegral (V.length txVector) / freq,texSetter,txVector)]
           _ -> return []
--}
-  return ()
+
+  writeIORef rsAnimatedTextures animatedTextures
 
 updateRenderCache renderSystem@RenderSystem{..} newModels = do
   shaderCache <- readIORef rsShaderCache
@@ -147,8 +162,8 @@ updateRenderCache renderSystem@RenderSystem{..} newModels = do
         ok - generate material list, generate new pipeline schema
         ok - setup instance uniforms
         ok - setup storage default uniforms values: tables, ...
-        - load new images from new materials
-        - compile new pipeline
+        ok - load new images from new materials
+        ok - compile new pipeline
         - update animated textures
   -}
       let (inputSchema,usedMaterials) = createRenderInfo rsShaderMap Set.empty shaderCache'
@@ -160,7 +175,9 @@ updateRenderCache renderSystem@RenderSystem{..} newModels = do
       writeIORef rsInstanceCache mempty
 
       writeSampleMaterial usedMaterials
-      renderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
+      let filename = show (crc32 . pack $ show usedMaterials) ++ "_ppl.json"
+      compileQuake3GraphicsCached filename >>= \ok -> unless ok $ fail "no renderer"
+      renderer <- fromJust <$> loadQuake3Graphics storage filename
       setStorage renderer storage
       writeIORef rsRenderer renderer
       return (storage,mempty,renderer)
@@ -202,11 +219,12 @@ render renderSystem@RenderSystem{..} renderables = do
   -- hide unused instances
   forM_ (concat . concat $ Map.elems unusedInstances) $ flip enableObject False
 
-  setFrameUniforms storage
+  setFrameUniforms storage =<< readIORef rsAnimatedTextures
 
   renderFrame renderer
 
-setFrameUniforms storage = do
+setFrameUniforms :: GLStorage -> [AnimatedTexture] -> IO ()
+setFrameUniforms storage animatedTextures = do
   -- set uniforms
   let slotU = uniformSetter storage
       viewProj    = uniformM44F "viewProj" slotU
@@ -224,16 +242,22 @@ setFrameUniforms storage = do
       far  = 100/s
       fovDeg = 60
       --frust = frustum fovDeg (fromIntegral w / fromIntegral h) near far camPos camTarget camUp
-      time = 1
+      --time = 1
       w = 800
       h = 600
-      camPos = Vec3 0 0 3000
+      camPos = Vec3 0 0 1000
       camTarget = Vec3 0 0 0
       camUp = Vec3 0 1 0
 
+  time <- maybe 0 realToFrac <$> getTime
   timeSetter $ time / 1
   viewOrigin $ V3 cx cy cz
   viewMat $ mat4ToM44F cm
 
   viewProj $! mat4ToM44F $! cm .*. sm .*. pm
   setScreenSize storage w h
+
+  forM_ animatedTextures $ \(animTime,texSetter,v) -> do
+    let (_,i) = properFraction (time / animTime)
+        idx = floor $ i * fromIntegral (V.length v)
+    texSetter $ v V.! idx
