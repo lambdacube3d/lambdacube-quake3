@@ -23,11 +23,11 @@ import GameEngine.Loader.BSP
 import GameEngine.Loader.Zip
 import qualified GameEngine.Loader.Entity as E
 
-import GameEngine.Logic.World
-import GameEngine.Logic.GameLogic
-import GameEngine.Logic.LoadEntities
+import World
+import GameLogic
+import LoadEntities
 import RenderGame
-import RenderSystem
+import GameEngine.RenderSystem
 
 data Event
   = Event
@@ -68,7 +68,8 @@ play pk3 world0 render_ input_ step_ = do
   let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
       loop world = do
         pollEvents
-        render renderSystem $ render_ world
+        time <- maybe 0 realToFrac <$> getTime
+        render renderSystem time $ render_ world
         swapBuffers win
         ks <- Event <$> keyIsPressed Key'W
                     <*> keyIsPressed Key'S

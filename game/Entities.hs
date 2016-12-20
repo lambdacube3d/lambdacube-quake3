@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module GameEngine.Logic.Entities where
+module Entities where
 
 import Data.Vect
 import Lens.Micro.Platform

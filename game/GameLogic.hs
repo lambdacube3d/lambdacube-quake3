@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase, RecordWildCards, TupleSections, NoMonomorphismRestriction, FlexibleContexts #-}
-module GameEngine.Logic.GameLogic where
+module GameLogic where
 
 import Control.Monad
 import Data.Maybe
@@ -19,9 +19,9 @@ import System.Random.Mersenne.Pure64
 import Data.Vector ((!),(//))
 import qualified Data.Vector as V
 
-import GameEngine.Logic.Entities
-import GameEngine.Logic.Visuals
-import GameEngine.Logic.World
+import Entities
+import Visuals
+import World
 --import Collision
 
 type Time = Float

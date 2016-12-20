@@ -51,11 +51,7 @@ library
                        GameEngine.Graphics.BezierSurface
                        GameEngine.Collision
                        GameEngine.Utils
-                       GameEngine.Logic.LoadEntities
-                       GameEngine.Logic.Entities
-                       GameEngine.Logic.Visuals
-                       GameEngine.Logic.World
-                       GameEngine.Logic.GameLogic
+                       GameEngine.RenderSystem
 
   other-modules:       Paths_lambdacube_quake3
   -- other-extensions:    
@@ -117,7 +113,11 @@ executable shooter
   hs-source-dirs:   game
   main-is:          GameMain.hs
   other-modules:    RenderGame
-                    RenderSystem
+                    LoadEntities
+                    Entities
+                    Visuals
+                    World
+                    GameLogic
   default-language: Haskell2010
 
   build-depends:
@@ -127,6 +127,7 @@ executable shooter
     directory >=1.2 && <1.3,
     microlens-platform >=0.3 && <1,
     mtl >=2.2 && <3,
+    transformers >=0.4 && <0.6,
     mersenne-random-pure64 >=0.2.2 && <1,
     vect >=0.4 && <0.5,
     GLFW-b >= 1.4.7,
@@ -135,6 +136,7 @@ executable shooter
     JuicyPixels >=3.2 && <3.3,
     vector >=0.11 && <0.12,
     digest >=0.0 && <0.1,
+    MonadRandom >=0.4.2 && <1,
     lambdacube-gl >=0.5 && <0.6,
     lambdacube-quake3
 

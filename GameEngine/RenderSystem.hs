@@ -1,5 +1,10 @@
 {-# LANGUAGE RecordWildCards, OverloadedStrings, LambdaCase #-}
-module RenderSystem where
+module GameEngine.RenderSystem
+  ( RenderSystem
+  , initRenderSystem
+  , render
+  , Renderable(..)
+  ) where
 
 import Control.Monad
 import Data.Vect hiding (Vector)
@@ -16,7 +21,6 @@ import Codec.Picture
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Data.Digest.CRC32 (crc32)
-import Graphics.UI.GLFW (getTime)
 
 import GameEngine.Utils
 import GameEngine.Content (shaderMap)
@@ -25,8 +29,11 @@ import GameEngine.Graphics.Storage
 import GameEngine.Graphics.Render
 import GameEngine.Loader.Zip
 import GameEngine.Loader.MD3 (readMD3)
-import RenderGame
 import LambdaCube.GL
+
+data Renderable
+  = MD3 Vec2 String -- model
+  deriving Show
 
 type MD3Cache = Map String GPUMD3
 type Model = [Object]
@@ -170,8 +177,8 @@ updateRenderCache renderSystem@RenderSystem{..} newModels = do
       writeIORef rsRenderer renderer
       return (storage,mempty,renderer)
 
-render :: RenderSystem -> [Renderable] -> IO ()
-render renderSystem@RenderSystem{..} renderables = do
+render :: RenderSystem -> Float -> [Renderable] -> IO ()
+render renderSystem@RenderSystem{..} time renderables = do
   -- load new models
   (newModels,md3Cache) <- updateMD3Cache renderSystem renderables
 
@@ -207,12 +214,12 @@ render renderSystem@RenderSystem{..} renderables = do
   -- hide unused instances
   forM_ (concat . concat $ Map.elems unusedInstances) $ flip enableObject False
 
-  setFrameUniforms storage =<< readIORef rsAnimatedTextures
+  setFrameUniforms time storage =<< readIORef rsAnimatedTextures
 
   renderFrame renderer
 
-setFrameUniforms :: GLStorage -> [AnimatedTexture] -> IO ()
-setFrameUniforms storage animatedTextures = do
+setFrameUniforms :: Float -> GLStorage -> [AnimatedTexture] -> IO ()
+setFrameUniforms time storage animatedTextures = do
   -- set uniforms
   let slotU = uniformSetter storage
       viewProj    = uniformM44F "viewProj" slotU
@@ -237,7 +244,6 @@ setFrameUniforms storage animatedTextures = do
       camTarget = Vec3 0 0 0
       camUp = Vec3 0 1 0
 
-  time <- maybe 0 realToFrac <$> getTime
   timeSetter $ time / 1
   viewOrigin $ V3 cx cy cz
   viewMat $ mat4ToM44F cm

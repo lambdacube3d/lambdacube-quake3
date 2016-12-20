@@ -1,5 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
-module GameEngine.Logic.LoadEntities
+module LoadEntities
   ( loadEntities
   ) where
 
@@ -8,7 +8,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Vect
 
-import GameEngine.Logic.Entities
+import Entities
 import GameEngine.Data.Items
 import qualified GameEngine.Loader.Entity as E
 

@@ -3,12 +3,9 @@ module RenderGame where
 
 import Data.Vect
 import Lens.Micro.Platform
-import GameEngine.Logic.Entities
-import GameEngine.Logic.World
-
-data Renderable
-  = MD3 Vec2 String -- model
-  deriving Show
+import Entities
+import World
+import GameEngine.RenderSystem
 
 renderFun :: World -> [Renderable]
 renderFun w = ents where
