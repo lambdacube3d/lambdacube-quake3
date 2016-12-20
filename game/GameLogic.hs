@@ -176,7 +176,7 @@ stepSpawn t dt = do
 stepPlayer :: Input -> EM Player ()
 stepPlayer input@Input{..} = do
   -- acceleration according input
-  pAngle += rightmove * dtime
+  pAngle += rightmove * dtime / 10
   angle <- use pAngle
   let direction = unitVectorAtAngle $ degToRad angle
   pFVelocity += forwardmove * dtime

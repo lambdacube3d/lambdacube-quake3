@@ -5,6 +5,7 @@ import Data.Monoid
 import Data.Maybe
 import Control.Monad.Writer.Strict
 import Data.Vect
+import Data.Vect.Float.Instances
 import Lens.Micro.Platform
 import Entities
 import World
@@ -27,10 +28,14 @@ renderFun w = Scene renderables (fromMaybe idmtx camera) where
       fovDeg = 60
       w = 800
       h = 600
-      camPos = Vec3 x y 1000
-      camTarget = Vec3 x y 0
-      camUp = Vec3 0 1 0
-      Vec2 x y = a^.pPosition
+      camPos = toVec3 $ a^.pPosition
+      camTarget = camPos + toVec3 direction
+      camUp = Vec3 0 0 1
+      angle = a^.pAngle
+      direction = unitVectorAtAngle $ degToRad angle
+      toVec3 (Vec2 x y) = Vec3 x y 0
+      unitVectorAtAngle = sinCos
+      degToRad a = a/180*pi
 
     EWeapon a   -> add [MD3 (a^.wPosition) "models/weapons2/shotgun/shotgun.md3"]
     EAmmo a     -> add [MD3 (a^.aPosition) "models/powerups/ammo/shotgunam.md3"]

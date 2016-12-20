@@ -29,7 +29,7 @@ render system
 game
     - 3d spectator camera, 3d item positions
       new input: mouse position
-      questions: how to pass camera info to render system
+      questions: how to pass camera info to render system => add to scene
     - collision detection
     - gravity
     - refactor entities to use q3 item types

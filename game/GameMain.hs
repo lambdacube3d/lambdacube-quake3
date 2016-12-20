@@ -48,7 +48,7 @@ inputFun Event{..} w = w & wInput .~ i' where
   i@Input{..} = w^.wInput
   i' = i
     { forwardmove = f ksMoveForward - f ksMoveBackward
-    , rightmove   = f ksTurnRight - f ksTurnLeft
+    , rightmove   = f ksTurnLeft - f ksTurnRight
     , sidemove    = f ksMoveRight - f ksMoveLeft
     , shoot       = ksShoot
     }
