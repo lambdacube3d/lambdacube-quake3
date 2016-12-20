@@ -4,6 +4,7 @@ module GameEngine.RenderSystem
   , initRenderSystem
   , render
   , Renderable(..)
+  , Scene(..)
   ) where
 
 import Control.Monad
@@ -30,6 +31,12 @@ import GameEngine.Graphics.Render
 import GameEngine.Loader.Zip
 import GameEngine.Loader.MD3 (readMD3)
 import LambdaCube.GL
+
+data Scene
+  = Scene
+  { renderables :: [Renderable]
+  , camera      :: Mat4
+  } deriving Show
 
 data Renderable
   = MD3 Vec2 String -- model
@@ -177,8 +184,8 @@ updateRenderCache renderSystem@RenderSystem{..} newModels = do
       writeIORef rsRenderer renderer
       return (storage,mempty,renderer)
 
-render :: RenderSystem -> Float -> [Renderable] -> IO ()
-render renderSystem@RenderSystem{..} time renderables = do
+render :: RenderSystem -> Float -> Scene -> IO ()
+render renderSystem@RenderSystem{..} time Scene{..} = do
   -- load new models
   (newModels,md3Cache) <- updateMD3Cache renderSystem renderables
 
@@ -214,12 +221,12 @@ render renderSystem@RenderSystem{..} time renderables = do
   -- hide unused instances
   forM_ (concat . concat $ Map.elems unusedInstances) $ flip enableObject False
 
-  setFrameUniforms time storage =<< readIORef rsAnimatedTextures
+  setFrameUniforms time camera storage =<< readIORef rsAnimatedTextures
 
   renderFrame renderer
 
-setFrameUniforms :: Float -> GLStorage -> [AnimatedTexture] -> IO ()
-setFrameUniforms time storage animatedTextures = do
+setFrameUniforms :: Float -> Mat4 -> GLStorage -> [AnimatedTexture] -> IO ()
+setFrameUniforms time camera storage animatedTextures = do
   -- set uniforms
   let slotU = uniformSetter storage
       viewProj    = uniformM44F "viewProj" slotU
@@ -248,7 +255,7 @@ setFrameUniforms time storage animatedTextures = do
   viewOrigin $ V3 cx cy cz
   viewMat $ mat4ToM44F cm
 
-  viewProj $! mat4ToM44F $! cm .*. sm .*. pm
+  viewProj $! mat4ToM44F camera -- $! cm .*. sm .*. pm
   setScreenSize storage w h
 
   forM_ animatedTextures $ \(animTime,texSetter,v) -> do

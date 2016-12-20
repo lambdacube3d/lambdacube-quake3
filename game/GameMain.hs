@@ -59,7 +59,7 @@ main = do
   (pk3,ents) <- loadMap
   play pk3 (emptyWorld ents) renderFun inputFun stepFun
 
-play :: Map String Entry -> World -> (World -> [Renderable]) -> (Event -> World -> World) -> (Float -> World -> World) -> IO ()
+play :: Map String Entry -> World -> (World -> Scene) -> (Event -> World -> World) -> (Float -> World -> World) -> IO ()
 play pk3 world0 render_ input_ step_ = do
   -- init graphics
   win <- initWindow "LambdaCube 3D Shooter" 800 600
