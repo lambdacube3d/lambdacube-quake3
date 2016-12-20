@@ -153,19 +153,7 @@ updateRenderCache renderSystem@RenderSystem{..} newModels = do
       putStrLn $ unlines $ "new materials:" : Set.toList newMaterials
       let shaderCache' = shaderCache `Set.union` newMaterials
       writeIORef rsShaderCache shaderCache'
-  {-
-    TODO:
-      ok - extract new materials from new models
-      if there is any new material:
-        ok - clear instance cache
-        ok - return (storage,instanceCache,renderer)
-        ok - generate material list, generate new pipeline schema
-        ok - setup instance uniforms
-        ok - setup storage default uniforms values: tables, ...
-        ok - load new images from new materials
-        ok - compile new pipeline
-        - update animated textures
-  -}
+
       let (inputSchema,usedMaterials) = createRenderInfo rsShaderMap Set.empty shaderCache'
       storage <- allocStorage inputSchema
       -- TODO: load new images and set storage texture uniforms

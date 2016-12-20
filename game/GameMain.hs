@@ -28,27 +28,6 @@ import GameEngine.Logic.GameLogic
 import GameEngine.Logic.LoadEntities
 import RenderGame
 import RenderSystem
-{-
-  ok - parse pk3 content
-  ok - select map
-  ok - create empty world
-  init graphics
-    create image cache
-    create md3 cache
-    create debug pipeline
-    create storage
-    create storage object cache
-  game loop
-    ok - read input
-    ok - step world
-    ok - render world
-    process renderables
-      disable storage cache content
-      add renderables from storage cache, or load them on cache miss and
-        update image cache
-        update md3 cache
-        update pipeline if necessary
--}
 
 data Event
   = Event
