@@ -21,6 +21,8 @@ render system
       pass viewport/window size - include in camera
       pass time - include in scene
     - static geometry support: load and render
+        - gpubsp, bsp cache
+        - new renderables: BSPMap, BSPModel
     - character support: player character
     - case insensitive names: convert names to lower case in parsers/loaders/zip map
     - performance benchmark, if necessary use resource references and make the interface monadic

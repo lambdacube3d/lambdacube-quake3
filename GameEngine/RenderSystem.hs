@@ -38,8 +38,16 @@ data Scene
   , camera      :: Mat4
   } deriving Show
 
+{-
+  renderable visual parameters:
+    entityRGB Vec3
+    entityAlpha Float
+    worldMat Mat4
+-}
 data Renderable
   = MD3 Vec2 String -- model
+  | BSPMap String
+  | BSPModel String Int
   deriving Show
 
 type MD3Cache = Map String GPUMD3
