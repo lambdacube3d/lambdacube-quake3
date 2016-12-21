@@ -72,10 +72,11 @@ data GPUBSP
   , gpubspLightmaps     :: Vector TextureData
   , gpubspSurfaces      :: [(String,Primitive,IndexStream Buffer,Map String (Stream Buffer),Maybe TextureData)]
   , gpubspShaders       :: Set String
+  , gpubspBSPLevel      :: BSPLevel
   }
 
 uploadBSP :: BSPLevel -> IO GPUBSP
-uploadBSP BSPLevel{..} = do
+uploadBSP bsp@BSPLevel{..} = do
   -- construct vertex and index buffer
   let convertSurface (objs,lenV,arrV,lenI,arrI) sf = if noDraw then skip else case srSurfaceType sf of
           Planar          -> objs'
@@ -136,11 +137,13 @@ uploadBSP BSPLevel{..} = do
     , gpubspLightmaps     = lightMapTextures
     , gpubspSurfaces      = surfaces
     , gpubspShaders       = Set.fromList [name | (name,_,_,_,_) <- surfaces]
+    , gpubspBSPLevel      = bsp
     }
 
 data BSPInstance
   = BSPInstance
-  { bspinstanceSurfaces :: Vector [Object]
+  { bspinstanceBSPLevel :: BSPLevel
+  , bspinstanceSurfaces :: Vector [Object]
   }
 
 addBSP :: GLStorage -> BSPLevel -> IO BSPInstance
@@ -164,7 +167,7 @@ addGPUBSP whiteTexture storage GPUBSP{..} = do
           -}
           forM_ [o,o1] $ \b -> uniformFTexture2D "LightMap" (objectUniformSetter b) $ fromMaybe whiteTexture lightmap
           return [o,o1]
-  BSPInstance <$> V.imapM obj (V.fromList gpubspSurfaces)
+  BSPInstance gpubspBSPLevel <$> V.imapM obj (V.fromList gpubspSurfaces)
 
 data MD3Instance
   = MD3Instance

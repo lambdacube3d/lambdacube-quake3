@@ -11,17 +11,19 @@ import Entities
 import World
 import GameEngine.RenderSystem
 import GameEngine.Utils
+import GameEngine.Graphics.Frustum
 
 renderFun :: World -> Scene
-renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) (fromMaybe idmtx camera) where
+renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera cameraOrigin cameraFrustum where
   add l = tell (l,Last Nothing)
   setCamera c = tell ([],Last $ Just c)
-  (renderables,Last camera) = execWriter . forM_ (w^.wEntities) $ \case
+  (renderables,Last (Just (camera,cameraOrigin,cameraFrustum))) = execWriter . forM_ (w^.wEntities) $ \case
     EBullet b   -> add [MD3 (b^.bPosition) "models/ammo/rocket/rocket.md3"]
-    EPlayer a   -> setCamera (cm .*. sm .*. pm){- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
+    EPlayer a   -> setCamera (cm .*. sm .*. pm,camPos,frust){- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
       cm = fromProjective (lookat camPos camTarget camUp)
       pm = perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h)
       sm = fromProjective (scaling $ Vec3 s s s)
+      frust = frustum fovDeg (fromIntegral w / fromIntegral h) near far camPos camTarget camUp
       s  = 0.005
       near = 0.00001/s
       far  = 100/s

@@ -25,9 +25,11 @@ import Data.Digest.CRC32 (crc32)
 
 import GameEngine.Utils
 import GameEngine.Content (shaderMap)
-import GameEngine.Data.Material
+import GameEngine.Data.Material hiding (Vec3)
 import GameEngine.Graphics.Storage
 import GameEngine.Graphics.Render
+import GameEngine.Graphics.Frustum
+import GameEngine.Graphics.Culling
 import GameEngine.Loader.Zip
 import GameEngine.Loader.BSP (readBSP)
 import GameEngine.Loader.MD3 (readMD3)
@@ -35,9 +37,11 @@ import LambdaCube.GL
 
 data Scene
   = Scene
-  { renderables :: [Renderable]
-  , camera      :: Mat4
-  } deriving Show
+  { renderables   :: [Renderable]
+  , camera        :: Mat4
+  , cameraOrigin  :: Vec3
+  , cameraFrustum :: Frustum
+  }
 
 {-
   renderable visual parameters:
@@ -288,9 +292,9 @@ render renderSystem@RenderSystem{..} time Scene{..} = do
           uniformM44F "worldMat" (objectUniformSetter obj) $ mat4ToM44F $ fromProjective $ (translation $ Vec3 x y 0)
 
       setupBSPInstance BSPInstance{..} = do
+        cullSurfaces bspinstanceBSPLevel cameraOrigin cameraFrustum bspinstanceSurfaces
         -- TODO: do BSP cull on surfaces
-        forM_ bspinstanceSurfaces $ mapM_ (flip enableObject True)
-        return ()
+        --forM_ bspinstanceSurfaces $ mapM_ (flip enableObject True)
 
   ((newMD3Instances,unusedMD3Instances),(newBSPInstances,unusedBSPInstances)) <- foldM addInstance ((Map.empty,md3InstanceCache),(Map.empty,bspInstanceCache)) renderables
   writeIORef rsMD3InstanceCache $ Map.unionWith (++) md3InstanceCache newMD3Instances
@@ -300,12 +304,12 @@ render renderSystem@RenderSystem{..} time Scene{..} = do
   forM_ (concat $ Map.elems unusedMD3Instances) $ \MD3Instance{..} -> forM_ md3instanceObject $ flip enableObject False
   forM_ (concat $ Map.elems unusedBSPInstances) $ \BSPInstance{..} -> forM_ bspinstanceSurfaces $ mapM_ (flip enableObject False)
 
-  setFrameUniforms time camera storage =<< readIORef rsAnimatedTextures
+  setFrameUniforms time cameraOrigin camera storage =<< readIORef rsAnimatedTextures
 
   renderFrame renderer
 
-setFrameUniforms :: Float -> Mat4 -> GLStorage -> [AnimatedTexture] -> IO ()
-setFrameUniforms time camera storage animatedTextures = do
+setFrameUniforms :: Float -> Vec3 -> Mat4 -> GLStorage -> [AnimatedTexture] -> IO ()
+setFrameUniforms time cameraOrigin camera storage animatedTextures = do
   -- set uniforms
   let slotU = uniformSetter storage
       viewProj    = uniformM44F "viewProj" slotU
@@ -318,7 +322,7 @@ setFrameUniforms time camera storage animatedTextures = do
       pm = perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h)
       sm = fromProjective (scaling $ Vec3 s s s)
       s  = 0.005
-      Vec3 cx cy cz = camPos
+      Vec3 cx cy cz = cameraOrigin
       near = 0.00001/s
       far  = 100/s
       fovDeg = 60
