@@ -77,9 +77,10 @@ data RenderSystem
   -- resource caches
   , rsBSPCache          :: IORef BSPCache
   , rsBSPInstanceCache  :: IORef BSPInstanceCache
+  , rsBSPShaderCache    :: IORef ShaderCache
   , rsMD3Cache          :: IORef MD3Cache
   , rsMD3InstanceCache  :: IORef MD3InstanceCache
-  , rsShaderCache       :: IORef ShaderCache
+  , rsMD3ShaderCache    :: IORef ShaderCache
   , rsTextureCache      :: IORef TextureCache
   -- renderer pipeline
   , rsRenderer          :: IORef GLRenderer
@@ -91,9 +92,10 @@ initRenderSystem :: Map String Entry -> IO RenderSystem
 initRenderSystem pk3 = do
   bspCache <- newIORef Map.empty
   bspInstanceCache <- newIORef Map.empty
+  bspShaderCache <- newIORef Set.empty
   md3Cache <- newIORef Map.empty
   md3InstanceCache <- newIORef Map.empty
-  shaderCache <- newIORef Set.empty
+  md3ShaderCache <- newIORef Set.empty
   textureCache <- newIORef Map.empty
   shMap <- shaderMap pk3
   let (inputSchema,_) = createRenderInfo shMap mempty mempty
@@ -116,9 +118,10 @@ initRenderSystem pk3 = do
     , rsTableTextures     = tableTextures
     , rsBSPCache          = bspCache
     , rsBSPInstanceCache  = bspInstanceCache
+    , rsBSPShaderCache    = bspShaderCache
     , rsMD3Cache          = md3Cache
     , rsMD3InstanceCache  = md3InstanceCache
-    , rsShaderCache       = shaderCache
+    , rsMD3ShaderCache    = md3ShaderCache
     , rsTextureCache      = textureCache
     , rsRenderer          = rendererRef
     , rsStorage           = storageRef
@@ -193,25 +196,31 @@ updateModelCache RenderSystem{..} renderables = do
   writeIORef rsBSPCache bspCache'
 
   -- collect new materials
-  shaderCache <- readIORef rsShaderCache
-  let newMaterials = Set.unions (map gpumd3Shaders newModels ++ map gpubspShaders newBSPs) `Set.difference` shaderCache
-  return (newMaterials,md3Cache',bspCache')
+  md3ShaderCache <- readIORef rsMD3ShaderCache
+  bspShaderCache <- readIORef rsBSPShaderCache
+  let newMD3Materials = Set.unions (map gpumd3Shaders newModels) `Set.difference` md3ShaderCache
+      newBSPMaterials = Set.unions (map gpubspShaders newBSPs) `Set.difference` bspShaderCache
+  return (newMD3Materials,newBSPMaterials,md3Cache',bspCache')
 
-updateRenderCache renderSystem@RenderSystem{..} newMaterials = do
-  shaderCache <- readIORef rsShaderCache
-  case Set.size newMaterials == 0 of
-    True -> do
+updateRenderCache renderSystem@RenderSystem{..} newMD3Materials newBSPMaterials
+  | Set.null newMD3Materials && Set.null newBSPMaterials = do
       md3InstanceCache <- readIORef rsMD3InstanceCache
       bspInstanceCache <- readIORef rsBSPInstanceCache
       storage <- readIORef rsStorage
       renderer <- readIORef rsRenderer
       return (storage,renderer,md3InstanceCache,bspInstanceCache)
-    False -> do
-      putStrLn $ unlines $ "new materials:" : Set.toList newMaterials
-      let shaderCache' = shaderCache `Set.union` newMaterials
-      writeIORef rsShaderCache shaderCache'
+  | otherwise = do
+      md3ShaderCache <- readIORef rsMD3ShaderCache
+      putStrLn $ unlines $ "new md3 materials:" : Set.toList newMD3Materials
+      let md3ShaderCache' = md3ShaderCache `Set.union` newMD3Materials
+      writeIORef rsMD3ShaderCache md3ShaderCache'
 
-      let (inputSchema,usedMaterials) = createRenderInfo rsShaderMap Set.empty shaderCache'
+      bspShaderCache <- readIORef rsBSPShaderCache
+      putStrLn $ unlines $ "new bsp materials:" : Set.toList newBSPMaterials
+      let bspShaderCache' = bspShaderCache `Set.union` newBSPMaterials
+      writeIORef rsBSPShaderCache bspShaderCache'
+
+      let (inputSchema,usedMaterials) = createRenderInfo rsShaderMap bspShaderCache' md3ShaderCache'
       storage <- allocStorage inputSchema
       -- load new images and set storage texture uniforms
       initStorageTextures renderSystem storage usedMaterials
@@ -221,6 +230,7 @@ updateRenderCache renderSystem@RenderSystem{..} newMaterials = do
       let filename = show (crc32 . pack $ show usedMaterials) ++ "_ppl.json"
       compileQuake3GraphicsCached filename >>= \ok -> unless ok $ fail "no renderer"
       renderer <- fromJust <$> loadQuake3Graphics storage filename
+      disposeRenderer =<< readIORef rsRenderer
       --renderer <- readIORef rsRenderer
       --setStorage renderer storage
       writeIORef rsStorage storage
@@ -232,10 +242,10 @@ updateRenderCache renderSystem@RenderSystem{..} newMaterials = do
 render :: RenderSystem -> Float -> Scene -> IO ()
 render renderSystem@RenderSystem{..} time Scene{..} = do
   -- load new models
-  (newMaterials,md3Cache,bspCache) <- updateModelCache renderSystem renderables
+  (newMD3Materials,newBSPMaterials,md3Cache,bspCache) <- updateModelCache renderSystem renderables
 
   -- check new materials
-  (storage,renderer,md3InstanceCache,bspInstanceCache) <- updateRenderCache renderSystem newMaterials
+  (storage,renderer,md3InstanceCache,bspInstanceCache) <- updateRenderCache renderSystem newMD3Materials newBSPMaterials
 
   -- create new instances
   let addInstance ((new,old),bsp) md3@(MD3 _ name) = case Map.lookup name old of

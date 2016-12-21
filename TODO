@@ -28,12 +28,13 @@ render system
     - new renderable: BSPInlineModel
   high level
     ok - render materials
+    ok - static geometry support: load and render
+        ok - gpubsp, bsp cache
+        ok - new renderables: BSPMap
     - unsolved:
       pass viewport/window size - include in camera
       pass time - include in scene
-    - static geometry support: load and render
-        - gpubsp, bsp cache
-        - new renderables: BSPMap, BSPModel
+    - support BSPInlineModel
     - character support: player character
     - precache support
     - case insensitive names: convert names to lower case in parsers/loaders/zip map
