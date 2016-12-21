@@ -72,12 +72,12 @@ type EngineContent =
 
 type EngineGraphics =
   ( GLStorage
-  , [(Proj4, LCMD3)]
+  , [(Proj4, MD3Instance)]
   , [Character]
-  , [(Proj4, (MD3.MD3Model, LCMD3), (MD3.MD3Model, LCMD3),(MD3.MD3Model, LCMD3))]
+  , [(Proj4, (MD3.MD3Model, MD3Instance), (MD3.MD3Model, MD3Instance),(MD3.MD3Model, MD3Instance))]
   , V.Vector [Object]
   , BSPLevel
-  , LCMD3
+  , MD3Instance
   , [(Float, SetterFun TextureData, V.Vector TextureData)]
   )
 
@@ -198,7 +198,7 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
             _ -> return []
 
     putStrLn "add bsp to storage"
-    surfaceObjs <- addBSP storage bsp
+    surfaceObjs <- bspinstanceSurfaces <$> addBSP storage bsp
 
     -- add entities
     let addMD3Obj (mat,(skin,name)) = case Map.lookup (SB.pack name) md3Map of
@@ -261,11 +261,11 @@ updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,
             let invCM = mat4ToM44F $ idmtx -- inverse cm .*. (fromProjective $ translation (Vec3 0 (0) (-30)))
                 --rot = fromProjective $ rotationEuler (Vec3 (-pi/2+30/pi*2) (pi/2) (-pi))
                 rot = fromProjective $ orthogonal $ toOrthoUnsafe $ rotMatrixX (-pi/2) .*. rotMatrixY (pi/2) .*. rotMatrixX (10/pi*2)
-            forM_ (lcmd3Object lcMD3Weapon) $ \obj -> do
+            forM_ (md3instanceObject lcMD3Weapon) $ \obj -> do
               uniformM44F "viewProj" (objectUniformSetter obj) $ mat4ToM44F $! rot .*. (fromProjective $ translation (Vec3 3 (-10) (-5))) .*. sm .*. pm
               uniformM44F "worldMat" (objectUniformSetter obj) invCM
             forM_ lcMD3Objs $ \(mat,lcmd3) -> do
-              forM_ (lcmd3Object lcmd3) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ mat4ToM44F $ fromProjective $ (rotationEuler (Vec3 time 0 0) .*. mat)
+              forM_ (md3instanceObject lcmd3) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ mat4ToM44F $ fromProjective $ (rotationEuler (Vec3 time 0 0) .*. mat)
 
             forM_ (zip characters lcCharacterObjs) $ \(Character{..},(mat,(hMD3,hLC),(uMD3,uLC),(lMD3,lLC))) -> do
               {-
@@ -297,9 +297,9 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
                   uMat = (tagToMat4 $ (MD3.mdTags lMD3 V.! legFrame) Map.! "tag_torso")
                   lMat = one :: Proj4
                   lcMat m = mat4ToM44F $ fromProjective $ m .*. rotationEuler (Vec3 time 0 0) .*. mat
-              forM_ (lcmd3Object hLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat hMat
-              forM_ (lcmd3Object uLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat uMat
-              forM_ (lcmd3Object lLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat lMat
+              forM_ (md3instanceObject hLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat hMat
+              forM_ (md3instanceObject uLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat uMat
+              forM_ (md3instanceObject lLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat lMat
               --setMD3Frame hLC frame
               setMD3Frame uLC torsoFrame
               setMD3Frame lLC legFrame

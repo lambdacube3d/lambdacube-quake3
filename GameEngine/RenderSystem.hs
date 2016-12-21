@@ -62,6 +62,7 @@ data RenderSystem
   { rsFileSystem        :: Map String Entry
   , rsShaderMap         :: Map String CommonAttrs
   , rsCheckerTexture    :: TextureData
+  , rsWhiteTexture      :: TextureData
   , rsTableTextures     :: TableTextures
   , rsMD3Cache          :: IORef MD3Cache
   , rsInstanceCache     :: IORef InstanceCache
@@ -85,7 +86,8 @@ initRenderSystem pk3 = do
   rendererRef <- newIORef renderer
   storageRef <- newIORef storage
   animatedTextures <- newIORef []
-  -- default texture
+  -- default textures
+  whiteTexture <- uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage (\_ _ -> PixelRGB8 255 255 255) 1 1
   let redBitmap x y = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
   checkerTexture <- uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage redBitmap 2 2
   tableTextures <- initTableTextures
@@ -94,6 +96,7 @@ initRenderSystem pk3 = do
     { rsFileSystem        = pk3
     , rsShaderMap         = shMap
     , rsCheckerTexture    = checkerTexture
+    , rsWhiteTexture      = whiteTexture
     , rsTableTextures     = tableTextures
     , rsMD3Cache          = md3Cache
     , rsInstanceCache     = instanceCache
@@ -217,8 +220,8 @@ render renderSystem@RenderSystem{..} time Scene{..} = do
       newInstance name = do
         -- creates new instance from model cache
         putStrLn $ "new instance: " ++ name
-        LCMD3{..} <- addGPUMD3 storage (md3Cache Map.! name) mempty ["worldMat"]
-        return lcmd3Object
+        MD3Instance{..} <- addGPUMD3 storage (md3Cache Map.! name) mempty ["worldMat"]
+        return md3instanceObject
 
       setupInstance model (MD3 (Vec2 x y) _) = do
         forM_ model $ \obj -> do
