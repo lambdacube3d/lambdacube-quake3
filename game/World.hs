@@ -23,6 +23,7 @@ data World
   , _wVisuals   :: [Visual]
   , _wInput     :: Input
   , _wRandomGen :: PureMT
+  , _wMapFile   :: String
   } deriving Show
 
 makeLenses ''World

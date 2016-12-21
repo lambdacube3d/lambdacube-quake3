@@ -18,6 +18,7 @@ import Control.Monad
 import Data.ByteString.Char8 (ByteString)
 import Data.Vect.Float hiding (Vector)
 import Data.List
+import Data.Maybe
 import Foreign
 import Data.Set (Set)
 import Data.Map (Map)
@@ -70,6 +71,7 @@ data GPUBSP
   , gpubspIndexBuffer   :: Buffer
   , gpubspLightmaps     :: Vector TextureData
   , gpubspSurfaces      :: [(String,Primitive,IndexStream Buffer,Map String (Stream Buffer),Maybe TextureData)]
+  , gpubspShaders       :: Set String
   }
 
 uploadBSP :: BSPLevel -> IO GPUBSP
@@ -100,7 +102,6 @@ uploadBSP BSPLevel{..} = do
       indices     = SV.convert $ V.map fromIntegral drawI' :: SV.Vector Word32
       vertexCount = V.length drawV'
 
-  putStrLn "compile vertex buffer"
   vertexBuffer <- compileBuffer $
       [ Array ArrFloat (3 * vertexCount) $ attribute dvPosition
       , Array ArrFloat (2 * vertexCount) $ attribute dvDiffuseUV
@@ -108,7 +109,6 @@ uploadBSP BSPLevel{..} = do
       , Array ArrFloat (3 * vertexCount) $ attribute dvNormal
       , Array ArrFloat (4 * vertexCount) $ attribute dvColor
       ]
-  putStrLn "compile index buffer"
   indexBuffer <- compileBuffer [Array ArrWord32 (SV.length indices) $ withV SV.unsafeWith indices]
 
   -- upload light maps
@@ -117,8 +117,7 @@ uploadBSP BSPLevel{..} = do
   lightMapTextures <- fmap V.fromList $ forM (V.toList blLightmaps) $ \(Lightmap d) ->
     uploadTexture2DToGPU' True False True True $ ImageRGB8 $ Image 128 128 $ byteStringToVector d
 
-  let lightMapTexturesSize = V.length lightMapTextures
-      gpuSurface (lmIdx,startV,countV,startI,countI,prim,SB8.unpack -> name) = (name,prim,index,attrs,lightmap) where
+  let gpuSurface (lmIdx,startV,countV,startI,countI,prim,SB8.unpack -> name) = (name,prim,index,attrs,lightmap) where
         attrs = Map.fromList
             [ ("position",      Stream Attribute_V3F vertexBuffer 0 startV countV)
             , ("diffuseUV",     Stream Attribute_V2F vertexBuffer 1 startV countV)
@@ -127,8 +126,7 @@ uploadBSP BSPLevel{..} = do
             , ("color",         Stream Attribute_V4F vertexBuffer 4 startV countV)
             ]
         index = IndexStream indexBuffer 0 startI countI
-        isValidIdx i = i >= 0 && i < lightMapTexturesSize
-        lightmap = if isValidIdx lmIdx then Just (lightMapTextures V.! lmIdx) else Nothing
+        lightmap = lightMapTextures V.!? lmIdx
 
       surfaces = map gpuSurface $ reverse objs
 
@@ -137,6 +135,7 @@ uploadBSP BSPLevel{..} = do
     , gpubspIndexBuffer   = indexBuffer
     , gpubspLightmaps     = lightMapTextures
     , gpubspSurfaces      = surfaces
+    , gpubspShaders       = Set.fromList [name | (name,_,_,_,_) <- surfaces]
     }
 
 data BSPInstance
@@ -154,19 +153,16 @@ addGPUBSP whiteTexture storage GPUBSP{..} = do
   -- add to storage
   let obj surfaceIdx (name,prim,index,attrs,lightmap) = do
           let objUnis = ["LightMap","worldMat"]
-          putStrLn $ "add surface " ++ show surfaceIdx
+          --putStrLn $ "add surface " ++ show surfaceIdx
           o <- addObject' storage name prim (Just index) attrs objUnis
           o1 <- addObject storage "LightMapOnly" prim (Just index) attrs objUnis
-          let lightMap a = forM_ [o,o1] $ \b -> uniformFTexture2D "LightMap" (objectUniformSetter b) a
           {-
               #define LIGHTMAP_2D			-4		// shader is for 2D rendering
               #define LIGHTMAP_BY_VERTEX	-3		// pre-lit triangle models
               #define LIGHTMAP_WHITEIMAGE	-2
               #define	LIGHTMAP_NONE		-1
           -}
-          case lightmap of
-              Nothing -> lightMap whiteTexture
-              Just tx -> lightMap tx
+          forM_ [o,o1] $ \b -> uniformFTexture2D "LightMap" (objectUniformSetter b) $ fromMaybe whiteTexture lightmap
           return [o,o1]
   BSPInstance <$> V.imapM obj (V.fromList gpubspSurfaces)
 

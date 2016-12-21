@@ -53,11 +53,11 @@ inputFun Event{..} w = w & wInput .~ i' where
     , shoot       = ksShoot
     }
 
-emptyWorld ents = World ents [] emptyInput (pureMT 123456789) where emptyInput = Input 0 0 0 False 0 0
+emptyWorld ents mapfile = World ents [] emptyInput (pureMT 123456789) mapfile where emptyInput = Input 0 0 0 False 0 0
 
 main = do
-  (pk3,ents) <- loadMap
-  play pk3 (emptyWorld ents) renderFun inputFun stepFun
+  (pk3,ents,mapfile) <- loadMap
+  play pk3 (emptyWorld ents mapfile) renderFun inputFun stepFun
 
 play :: Map String Entry -> World -> (World -> Scene) -> (Event -> World -> World) -> (Float -> World -> World) -> IO ()
 play pk3 world0 render_ input_ step_ = do
@@ -118,7 +118,7 @@ loadMap = do
   let ents = case E.parseEntities bspName $ blEntities bsp of
           Left err -> error err
           Right x -> x
-  return (pk3Data,loadEntities ents)
+  return (pk3Data,loadEntities ents,fullBSPName)
 
 initWindow :: String -> Int -> Int -> IO Window
 initWindow title width height = do

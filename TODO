@@ -18,14 +18,14 @@ minigame integration:
 render system
   detailed:
     ok - reuse table textures
-    - split addBSP to upload and addGPUBSP
-    - introduce LCBSP
-    - better name for LCBSP and LCMD3 e.g. instance
+    ok - split addBSP to upload and addGPUBSP
+    ok - introduce LCBSP
+    ok - better name for LCBSP and LCMD3 e.g. instance
+    ok - new renderable: BSPMap
     - add and use renderable parameters (entityRGB,entityAlpha,worldMat)
     - add camera attributes (view,proj,viewOrigin,viewport size)
     - add time to scene
-    - cache GPUBSP
-    - new renderables: BSPMap, BSPInlineModel
+    - new renderable: BSPInlineModel
   high level
     ok - render materials
     - unsolved:
@@ -35,6 +35,7 @@ render system
         - gpubsp, bsp cache
         - new renderables: BSPMap, BSPModel
     - character support: player character
+    - precache support
     - case insensitive names: convert names to lower case in parsers/loaders/zip map
     - performance benchmark, if necessary use resource references and make the interface monadic
     - restructure code: engine, game; design engine architecture (submodules, api, sample code)
