@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, OverloadedStrings #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings, RecordWildCards #-}
 module GameEngine.Graphics.Storage where
 
 import Data.Map (Map)
@@ -26,35 +26,50 @@ import GameEngine.Utils
 
 import Paths_lambdacube_quake3
 
+data TableTextures
+  = TableTextures
+  { ttSin             :: TextureData
+  , ttSquare          :: TextureData
+  , ttSawTooth        :: TextureData
+  , ttInverseSawTooth :: TextureData
+  , ttTriangle        :: TextureData
+  , ttNoise           :: TextureData
+  }
+
 -- Utility code
-tableTexture :: [Float] -> GLUniformName -> Map GLUniformName InputSetter -> IO ()
-tableTexture t n s = do
-    let width       = length t
+initTableTextures :: IO TableTextures
+initTableTextures = do
+  let funcTableSize = 1024 :: Float
+      sinTexture              = [sin (i*2*pi/(funcTableSize-1)) | i <- [0..funcTableSize-1]]
+      squareTexture           = [if i < funcTableSize / 2 then 1 else -1 | i <- [0..funcTableSize-1]]
+      sawToothTexture         = [i / funcTableSize | i <- [0..funcTableSize-1]]
+      inverseSawToothTexture  = reverse [i / funcTableSize | i <- [0..funcTableSize-1]]
+      triangleTexture         = l1 ++ map ((-1)*) l1 where
+        n = funcTableSize / 4
+        l0 = [i / n | i <- [0..n-1]]
+        l1 = l0 ++ reverse l0
+      noiseTexture = sinTexture -- TODO
+
+      tableTexture t = uploadTexture2DToGPU' True False False False $ ImageRGB8 $ generateImage bitmap width 1 where
+        width       = length t
         v           = V.fromList t
         bitmap x y  = let a = floor $ min 255 $ max 0 $ 128 + 128 * v V.! x in PixelRGB8 a a a
-        texture     = uniformFTexture2D n s
 
-    tex <- uploadTexture2DToGPU' True False False False $ ImageRGB8 $ generateImage bitmap width 1
-    texture tex
+  TableTextures <$> tableTexture sinTexture
+                <*> tableTexture squareTexture
+                <*> tableTexture sawToothTexture
+                <*> tableTexture inverseSawToothTexture
+                <*> tableTexture triangleTexture
+                <*> tableTexture noiseTexture
 
-setupTables :: Map GLUniformName InputSetter -> IO ()
-setupTables s = do
-    let funcTableSize = 1024 :: Float
-        sinTexture              = [sin (i*2*pi/(funcTableSize-1)) | i <- [0..funcTableSize-1]]
-        squareTexture           = [if i < funcTableSize / 2 then 1 else -1 | i <- [0..funcTableSize-1]]
-        sawToothTexture         = [i / funcTableSize | i <- [0..funcTableSize-1]]
-        inverseSawToothTexture  = reverse [i / funcTableSize | i <- [0..funcTableSize-1]]
-        triangleTexture         = l1 ++ map ((-1)*) l1
-          where
-            n = funcTableSize / 4
-            l0 = [i / n | i <- [0..n-1]]
-            l1 = l0 ++ reverse l0
-    
-    tableTexture sinTexture "SinTable" s
-    tableTexture squareTexture "SquareTable" s
-    tableTexture sawToothTexture "SawToothTable" s
-    tableTexture inverseSawToothTexture "InverseSawToothTable" s
-    tableTexture triangleTexture "TriangleTable" s
+setupTableTextures :: Map GLUniformName InputSetter -> TableTextures -> IO ()
+setupTableTextures uniformMap TableTextures{..} = do
+  uniformFTexture2D "SinTable" uniformMap ttSin
+  uniformFTexture2D "SquareTable" uniformMap ttSquare
+  uniformFTexture2D "SawToothTable" uniformMap ttSawTooth
+  uniformFTexture2D "InverseSawToothTable" uniformMap ttInverseSawTooth
+  uniformFTexture2D "TriangleTable" uniformMap ttTriangle
+  uniformFTexture2D "Noise" uniformMap ttNoise
 
 loadQ3Texture :: Bool -> Bool -> TextureData -> Map String Entry -> String -> String -> IO TextureData
 loadQ3Texture isMip isClamped defaultTex ar shName name = do

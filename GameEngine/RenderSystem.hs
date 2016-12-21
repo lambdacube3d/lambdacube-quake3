@@ -62,6 +62,7 @@ data RenderSystem
   { rsFileSystem        :: Map String Entry
   , rsShaderMap         :: Map String CommonAttrs
   , rsCheckerTexture    :: TextureData
+  , rsTableTextures     :: TableTextures
   , rsMD3Cache          :: IORef MD3Cache
   , rsInstanceCache     :: IORef InstanceCache
   , rsShaderCache       :: IORef ShaderCache
@@ -80,7 +81,6 @@ initRenderSystem pk3 = do
   shMap <- shaderMap pk3
   let (inputSchema,_) = createRenderInfo shMap mempty mempty
   storage <- allocStorage inputSchema
-  initStorageDefaultValues storage
   renderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
   rendererRef <- newIORef renderer
   storageRef <- newIORef storage
@@ -88,10 +88,13 @@ initRenderSystem pk3 = do
   -- default texture
   let redBitmap x y = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
   checkerTexture <- uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage redBitmap 2 2
+  tableTextures <- initTableTextures
+  initStorageDefaultValues tableTextures storage
   pure $ RenderSystem
     { rsFileSystem        = pk3
     , rsShaderMap         = shMap
     , rsCheckerTexture    = checkerTexture
+    , rsTableTextures     = tableTextures
     , rsMD3Cache          = md3Cache
     , rsInstanceCache     = instanceCache
     , rsShaderCache       = shaderCache
@@ -108,7 +111,7 @@ loadMD3 pk3 name = case Map.lookup name pk3 of
 setNub :: Ord a => [a] -> [a]
 setNub = Set.toList . Set.fromList
 
-initStorageDefaultValues storage = do
+initStorageDefaultValues tableTextures storage = do
   let slotU           = uniformSetter storage
       entityRGB       = uniformV3F "entityRGB" slotU
       entityAlpha     = uniformFloat "entityAlpha" slotU
@@ -120,7 +123,7 @@ initStorageDefaultValues storage = do
   entityRGB $ V3 1 1 1
   entityAlpha 1
   identityLight $ 1 / (2 ^ overbrightBits)
-  setupTables slotU
+  setupTableTextures slotU tableTextures
 
 updateMD3Cache RenderSystem{..} renderables = do
   md3Cache <- readIORef rsMD3Cache
@@ -178,9 +181,9 @@ updateRenderCache renderSystem@RenderSystem{..} newModels = do
 
       let (inputSchema,usedMaterials) = createRenderInfo rsShaderMap Set.empty shaderCache'
       storage <- allocStorage inputSchema
-      -- TODO: load new images and set storage texture uniforms
+      -- load new images and set storage texture uniforms
       initStorageTextures renderSystem storage usedMaterials
-      initStorageDefaultValues storage
+      initStorageDefaultValues rsTableTextures storage
       writeIORef rsStorage storage
       writeIORef rsInstanceCache mempty
 

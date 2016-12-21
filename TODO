@@ -16,6 +16,17 @@ minigame integration:
     ok - implement rendering in similar style as it was with gloss
 
 render system
+  detailed:
+    ok - reuse table textures
+    - split addBSP to upload and addGPUBSP
+    - introduce LCBSP
+    - better name for LCBSP and LCMD3 e.g. instance
+    - add and use renderable parameters (entityRGB,entityAlpha,worldMat)
+    - add camera attributes (view,proj,viewOrigin,viewport size)
+    - add time to scene
+    - cache GPUBSP
+    - new renderables: BSPMap, BSPInlineModel
+  high level
     ok - render materials
     - unsolved:
       pass viewport/window size - include in camera

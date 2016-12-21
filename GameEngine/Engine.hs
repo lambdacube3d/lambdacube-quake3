@@ -176,7 +176,7 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
     entityRGB $ V3 1 1 1
     entityAlpha 1
     identityLight $ 1 / (2 ^ overbrightBits)
-    setupTables slotU
+    initTableTextures >>= setupTableTextures slotU
 
     -- default texture
     let redBitmap x y = let v = if (x+y) `mod` 2 == 0 then 255 else 0 in PixelRGB8 v v 0
