@@ -3,7 +3,8 @@ module GameEngine.Graphics.Storage where
 
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Set (Set)
+import Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
 import qualified Data.Set as Set
 import qualified Data.Vector as V
 import Data.ByteString.Char8 (ByteString)
@@ -151,7 +152,7 @@ drawLoadingScreen w h (storage,renderer,defaultTexture) pk3Data bspName = do
       "LoadingImage" @= return textureData
     renderFrame renderer
 
-createRenderInfo :: Map FilePath CommonAttrs -> Set FilePath -> Set FilePath -> (PipelineSchema, Map FilePath CommonAttrs)
+createRenderInfo :: Map FilePath CommonAttrs -> HashSet FilePath -> HashSet FilePath -> (PipelineSchema, Map FilePath CommonAttrs)
 createRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTexSlot) where
   mkShader hasLightmap n = case Map.lookup n shMap' of
     Just s -> (n,s)
@@ -174,8 +175,8 @@ createRenderInfo shMap' levelMaterials modelMaterials = (inputSchema,shMapTexSlo
         , saRGBGen  = RGB_IdentityLighting
         }
 
-  shMap = Map.fromList [mkShader True n | n <- Set.toList levelMaterials] `Map.union`
-          Map.fromList [mkShader False n | n <- Set.toList modelMaterials]
+  shMap = Map.fromList [mkShader True n | n <- HashSet.toList levelMaterials] `Map.union`
+          Map.fromList [mkShader False n | n <- HashSet.toList modelMaterials]
 
   shMapTexSlot = mangleCA <$> shMap
     where

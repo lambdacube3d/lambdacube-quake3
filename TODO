@@ -22,6 +22,7 @@ render system
     ok - introduce LCBSP
     ok - better name for LCBSP and LCMD3 e.g. instance
     ok - new renderable: BSPMap
+    ok - switch to unordered containers
     - add and use renderable parameters (entityRGB,entityAlpha,worldMat)
     - add camera attributes (view,proj,viewOrigin,viewport size)
     - add time to scene

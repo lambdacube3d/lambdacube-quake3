@@ -12,12 +12,15 @@ import Data.Vect hiding (Vector)
 import Data.Maybe (fromJust)
 import Data.IORef
 import Data.List (foldl')
-import Data.Set (Set)
+import Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
+import qualified Data.Set as Set
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import qualified Data.ByteString.Lazy as LB
-import Data.ByteString.Char8 (pack,unpack,ByteString)
+import qualified Data.ByteString.Char8 as SB
 import Codec.Picture
 import Data.Vector (Vector)
 import qualified Data.Vector as V
@@ -62,13 +65,13 @@ data Renderable
   | BSPInlineModel String Int
   deriving Show
 
-type BSPCache = Map String GPUBSP
-type BSPInstanceCache = Map String [BSPInstance]
-type MD3Cache = Map String GPUMD3
-type MD3InstanceCache = Map String [MD3Instance]
-type ShaderCache = Set String
-type TextureCache = Map (String,Bool,Bool) TextureData
-type AnimatedTexture = (Float, SetterFun TextureData, Vector TextureData)
+type BSPCache         = HashMap String GPUBSP
+type BSPInstanceCache = HashMap String [BSPInstance]
+type MD3Cache         = HashMap String GPUMD3
+type MD3InstanceCache = HashMap String [MD3Instance]
+type ShaderCache      = HashSet String
+type TextureCache     = HashMap (String,Bool,Bool) TextureData
+type AnimatedTexture  = (Float, SetterFun TextureData, Vector TextureData)
 
 data RenderSystem
   = RenderSystem
@@ -94,13 +97,13 @@ data RenderSystem
 
 initRenderSystem :: Map String Entry -> IO RenderSystem
 initRenderSystem pk3 = do
-  bspCache <- newIORef Map.empty
-  bspInstanceCache <- newIORef Map.empty
-  bspShaderCache <- newIORef Set.empty
-  md3Cache <- newIORef Map.empty
-  md3InstanceCache <- newIORef Map.empty
-  md3ShaderCache <- newIORef Set.empty
-  textureCache <- newIORef Map.empty
+  bspCache <- newIORef mempty
+  bspInstanceCache <- newIORef mempty
+  bspShaderCache <- newIORef mempty
+  md3Cache <- newIORef mempty
+  md3InstanceCache <- newIORef mempty
+  md3ShaderCache <- newIORef mempty
+  textureCache <- newIORef mempty
   shMap <- shaderMap pk3
   let (inputSchema,_) = createRenderInfo shMap mempty mempty
   storage <- allocStorage inputSchema
@@ -160,16 +163,16 @@ initStorageTextures RenderSystem{..} storage usedMaterials = do
       cachedTexture isMip isClamped shaderName imageName = do
         textureCache <- readIORef rsTextureCache
         let key = (imageName,isMip,isClamped)
-        case Map.lookup key textureCache of
+        case HashMap.lookup key textureCache of
           Just texture -> return texture
           Nothing -> do
             texture <- loadQ3Texture isMip isClamped rsCheckerTexture rsFileSystem shaderName imageName
-            writeIORef rsTextureCache $ Map.insert key texture textureCache
+            writeIORef rsTextureCache $ HashMap.insert key texture textureCache
             return texture
   putStrLn "loading textures:"
   -- load textures
   animatedTextures <- fmap concat $ forM usedTextures $ \(shName,stageTex,texSlotName,noMip) -> do
-      let texSetter = uniformFTexture2D (pack texSlotName) (uniformSetter storage)
+      let texSetter = uniformFTexture2D (SB.pack texSlotName) (uniformSetter storage)
           setTex isClamped img = texSetter =<< cachedTexture (not noMip) isClamped shName img
       case stageTex of
           ST_Map img          -> setTex False img >> return []
@@ -185,29 +188,29 @@ initStorageTextures RenderSystem{..} storage usedMaterials = do
 updateModelCache RenderSystem{..} renderables = do
   -- load new md3 models
   md3Cache <- readIORef rsMD3Cache
-  let newModelNames = setNub [name | MD3 _ name <- renderables, Map.notMember name md3Cache]
+  let newModelNames = setNub [name | MD3 _ name <- renderables, not $ HashMap.member name md3Cache]
   newModels <- forM newModelNames $ loadMD3 rsFileSystem
-  let md3Cache' = md3Cache `Map.union` Map.fromList (zip newModelNames newModels)
+  let md3Cache' = md3Cache `HashMap.union` HashMap.fromList (zip newModelNames newModels)
   unless (null newModelNames) $ putStrLn $ unlines $ "new models:" : newModelNames
   writeIORef rsMD3Cache md3Cache'
 
   -- load new bsp maps
   bspCache <- readIORef rsBSPCache
-  let newBSPNames = setNub [name | BSPMap name <- renderables, Map.notMember name bspCache]
+  let newBSPNames = setNub [name | BSPMap name <- renderables, not $ HashMap.member name bspCache]
   newBSPs <- forM newBSPNames $ loadBSP rsFileSystem
-  let bspCache' = bspCache `Map.union` Map.fromList (zip newBSPNames newBSPs)
+  let bspCache' = bspCache `HashMap.union` HashMap.fromList (zip newBSPNames newBSPs)
   unless (null newBSPNames) $ putStrLn $ unlines $ "new bsp maps:" : newBSPNames
   writeIORef rsBSPCache bspCache'
 
   -- collect new materials
   md3ShaderCache <- readIORef rsMD3ShaderCache
   bspShaderCache <- readIORef rsBSPShaderCache
-  let newMD3Materials = Set.unions (map gpumd3Shaders newModels) `Set.difference` md3ShaderCache
-      newBSPMaterials = Set.unions (map gpubspShaders newBSPs) `Set.difference` bspShaderCache
+  let newMD3Materials = HashSet.unions (map gpumd3Shaders newModels) `HashSet.difference` md3ShaderCache
+      newBSPMaterials = HashSet.unions (map gpubspShaders newBSPs) `HashSet.difference` bspShaderCache
   return (newMD3Materials,newBSPMaterials,md3Cache',bspCache')
 
 updateRenderCache renderSystem@RenderSystem{..} newMD3Materials newBSPMaterials
-  | Set.null newMD3Materials && Set.null newBSPMaterials = do
+  | HashSet.null newMD3Materials && HashSet.null newBSPMaterials = do
       md3InstanceCache <- readIORef rsMD3InstanceCache
       bspInstanceCache <- readIORef rsBSPInstanceCache
       storage <- readIORef rsStorage
@@ -215,13 +218,13 @@ updateRenderCache renderSystem@RenderSystem{..} newMD3Materials newBSPMaterials
       return (storage,renderer,md3InstanceCache,bspInstanceCache)
   | otherwise = do
       md3ShaderCache <- readIORef rsMD3ShaderCache
-      putStrLn $ unlines $ "new md3 materials:" : Set.toList newMD3Materials
-      let md3ShaderCache' = md3ShaderCache `Set.union` newMD3Materials
+      putStrLn $ unlines $ "new md3 materials:" : HashSet.toList newMD3Materials
+      let md3ShaderCache' = md3ShaderCache `HashSet.union` newMD3Materials
       writeIORef rsMD3ShaderCache md3ShaderCache'
 
       bspShaderCache <- readIORef rsBSPShaderCache
-      putStrLn $ unlines $ "new bsp materials:" : Set.toList newBSPMaterials
-      let bspShaderCache' = bspShaderCache `Set.union` newBSPMaterials
+      putStrLn $ unlines $ "new bsp materials:" : HashSet.toList newBSPMaterials
+      let bspShaderCache' = bspShaderCache `HashSet.union` newBSPMaterials
       writeIORef rsBSPShaderCache bspShaderCache'
 
       let (inputSchema,usedMaterials) = createRenderInfo rsShaderMap bspShaderCache' md3ShaderCache'
@@ -231,7 +234,7 @@ updateRenderCache renderSystem@RenderSystem{..} newMD3Materials newBSPMaterials
       initStorageDefaultValues rsTableTextures storage
 
       writeSampleMaterial usedMaterials
-      let filename = show (crc32 . pack $ show usedMaterials) ++ "_ppl.json"
+      let filename = show (crc32 . SB.pack $ show usedMaterials) ++ "_ppl.json"
       compileQuake3GraphicsCached filename >>= \ok -> unless ok $ fail "no renderer"
       renderer <- fromJust <$> loadQuake3Graphics storage filename
       disposeRenderer =<< readIORef rsRenderer
@@ -252,35 +255,35 @@ render renderSystem@RenderSystem{..} time Scene{..} = do
   (storage,renderer,md3InstanceCache,bspInstanceCache) <- updateRenderCache renderSystem newMD3Materials newBSPMaterials
 
   -- create new instances
-  let addInstance ((new,old),bsp) md3@(MD3 _ name) = case Map.lookup name old of
+  let addInstance ((new,old),bsp) md3@(MD3 _ name) = case HashMap.lookup name old of
         Just (model:_) -> do
           setupMD3Instance model md3
-          return ((new,Map.adjust tail name old),bsp)
+          return ((new,HashMap.adjust tail name old),bsp)
 
         _ -> do
           model <- newMD3Instance name
           setupMD3Instance model md3
-          return ((Map.insertWith (++) name [model] new,old),bsp)
-      addInstance (md3,(new,old)) (BSPMap name) = case Map.lookup name old of
+          return ((HashMap.insertWith (++) name [model] new,old),bsp)
+      addInstance (md3,(new,old)) (BSPMap name) = case HashMap.lookup name old of
         Just (model:_) -> do
           setupBSPInstance model
-          return (md3,(new,Map.adjust tail name old))
+          return (md3,(new,HashMap.adjust tail name old))
 
         _ -> do
           model <- newBSPInstance name
           setupBSPInstance model
-          return (md3,(Map.insertWith (++) name [model] new,old))
+          return (md3,(HashMap.insertWith (++) name [model] new,old))
       addInstance a _ = return a -- TODO
 
       newMD3Instance name = do
         -- creates new instance from model cache
         putStrLn $ "new instance: " ++ name
-        addGPUMD3 storage (md3Cache Map.! name) mempty ["worldMat"]
+        addGPUMD3 storage (md3Cache HashMap.! name) mempty ["worldMat"]
 
       newBSPInstance name = do
         -- creates new instance from model cache
         putStrLn $ "new instance: " ++ name
-        bspInstance@BSPInstance{..} <- addGPUBSP rsWhiteTexture storage (bspCache Map.! name)
+        bspInstance@BSPInstance{..} <- addGPUBSP rsWhiteTexture storage (bspCache HashMap.! name)
         -- set bsp map world matrix
         forM_ bspinstanceSurfaces $ mapM_ (\o -> uniformM44F "worldMat" (objectUniformSetter o) $ mat4ToM44F idmtx)
         return bspInstance
@@ -296,13 +299,13 @@ render renderSystem@RenderSystem{..} time Scene{..} = do
         -- TODO: do BSP cull on surfaces
         --forM_ bspinstanceSurfaces $ mapM_ (flip enableObject True)
 
-  ((newMD3Instances,unusedMD3Instances),(newBSPInstances,unusedBSPInstances)) <- foldM addInstance ((Map.empty,md3InstanceCache),(Map.empty,bspInstanceCache)) renderables
-  writeIORef rsMD3InstanceCache $ Map.unionWith (++) md3InstanceCache newMD3Instances
-  writeIORef rsBSPInstanceCache $ Map.unionWith (++) bspInstanceCache newBSPInstances
+  ((newMD3Instances,unusedMD3Instances),(newBSPInstances,unusedBSPInstances)) <- foldM addInstance ((HashMap.empty,md3InstanceCache),(HashMap.empty,bspInstanceCache)) renderables
+  writeIORef rsMD3InstanceCache $ HashMap.unionWith (++) md3InstanceCache newMD3Instances
+  writeIORef rsBSPInstanceCache $ HashMap.unionWith (++) bspInstanceCache newBSPInstances
 
   -- hide unused instances
-  forM_ (concat $ Map.elems unusedMD3Instances) $ \MD3Instance{..} -> forM_ md3instanceObject $ flip enableObject False
-  forM_ (concat $ Map.elems unusedBSPInstances) $ \BSPInstance{..} -> forM_ bspinstanceSurfaces $ mapM_ (flip enableObject False)
+  forM_ (concat $ HashMap.elems unusedMD3Instances) $ \MD3Instance{..} -> forM_ md3instanceObject $ flip enableObject False
+  forM_ (concat $ HashMap.elems unusedBSPInstances) $ \BSPInstance{..} -> forM_ bspinstanceSurfaces $ mapM_ (flip enableObject False)
 
   setFrameUniforms time cameraOrigin camera storage =<< readIORef rsAnimatedTextures
 

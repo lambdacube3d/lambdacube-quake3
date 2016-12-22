@@ -32,6 +32,7 @@ import qualified Data.ByteString.Lazy as LB
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as SB
 import qualified Data.Set as Set
+import qualified Data.HashSet as HashSet
 import qualified Data.Vector as V
 
 import Text.Show.Pretty (ppShow)
@@ -135,8 +136,8 @@ engineInit pk3Data fullBSPName = do
         allShName = map shName $ V.toList $ blShaders bsp
         (selectedMaterials,ignoredMaterials) = partition (\n -> or $ [SB.isInfixOf k n | k <- ["floor","wall","door","trim","block"]]) allShName
 
-    let levelMaterials = Set.map SB.unpack shNames
-        modelMaterials = Set.map SB.unpack (md3Materials `Set.union` characterSkinMaterials)
+    let levelMaterials = HashSet.fromList . Set.toList $ Set.map SB.unpack shNames
+        modelMaterials = HashSet.fromList . Set.toList $ Set.map SB.unpack (md3Materials `Set.union` characterSkinMaterials)
         (inputSchema,shMapTexSlot) = createRenderInfo shMap levelMaterials modelMaterials
     --putStrLn $ "all materials:  " ++ show (Map.size shMap')
     --putStrLn $ "used materials: " ++ show (Map.size shMap)

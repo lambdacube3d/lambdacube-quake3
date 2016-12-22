@@ -20,10 +20,10 @@ import Data.Vect.Float hiding (Vector)
 import Data.List
 import Data.Maybe
 import Foreign
-import Data.Set (Set)
+import Data.HashSet (HashSet)
 import Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Data.Set as Set
+import qualified Data.HashSet as HashSet
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable.Mutable as SMV
@@ -71,7 +71,7 @@ data GPUBSP
   , gpubspIndexBuffer   :: Buffer
   , gpubspLightmaps     :: Vector TextureData
   , gpubspSurfaces      :: [(String,Primitive,IndexStream Buffer,Map String (Stream Buffer),Maybe TextureData)]
-  , gpubspShaders       :: Set String
+  , gpubspShaders       :: HashSet String
   , gpubspBSPLevel      :: BSPLevel
   }
 
@@ -136,7 +136,7 @@ uploadBSP bsp@BSPLevel{..} = do
     , gpubspIndexBuffer   = indexBuffer
     , gpubspLightmaps     = lightMapTextures
     , gpubspSurfaces      = surfaces
-    , gpubspShaders       = Set.fromList [name | (name,_,_,_,_) <- surfaces]
+    , gpubspShaders       = HashSet.fromList [name | (name,_,_,_,_) <- surfaces]
     , gpubspBSPLevel      = bsp
     }
 
@@ -187,7 +187,7 @@ data GPUMD3
   , gpumd3Surfaces  :: [(IndexStream Buffer,Map String (Stream Buffer))] -- index stream, attribute streams
   , gpumd3Frames    :: V.Vector [(Int,Array)]
   , gpumd3Model     :: MD3Model
-  , gpumd3Shaders   :: Set String
+  , gpumd3Shaders   :: HashSet String
   }
 
 {-
@@ -243,7 +243,7 @@ uploadMD3 model@MD3Model{..} = do
     , gpumd3Surfaces  = zipWith surfaceData [0..] (V.toList mdSurfaces)
     , gpumd3Frames    = frames
     , gpumd3Model     = model
-    , gpumd3Shaders   = Set.fromList $ concat [map (SB8.unpack . MD3.shName) $ V.toList srShaders | MD3.Surface{..} <- V.toList mdSurfaces]
+    , gpumd3Shaders   = HashSet.fromList $ concat [map (SB8.unpack . MD3.shName) $ V.toList srShaders | MD3.Surface{..} <- V.toList mdSurfaces]
     }
 
 addMD3 :: GLStorage -> MD3Model -> MD3Skin -> [String] -> IO MD3Instance
