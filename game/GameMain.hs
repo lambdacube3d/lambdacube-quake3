@@ -57,6 +57,7 @@ emptyWorld ents mapfile = World ents [] emptyInput (pureMT 123456789) mapfile wh
 
 main = do
   (pk3,ents,mapfile) <- loadMap
+  putStrLn $ "entity count: " ++ show (length ents)
   play pk3 (emptyWorld ents mapfile) renderFun inputFun stepFun
 
 play :: Map String Entry -> World -> (World -> Scene) -> (Event -> World -> World) -> (Float -> World -> World) -> IO ()

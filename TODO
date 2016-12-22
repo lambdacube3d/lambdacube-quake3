@@ -40,6 +40,11 @@ render system
     - case insensitive names: convert names to lower case in parsers/loaders/zip map
     - performance benchmark, if necessary use resource references and make the interface monadic
     - restructure code: engine, game; design engine architecture (submodules, api, sample code)
+    - manual pipeline optimization: use per object unforms for each layers of stage textures
+    - draw hud
+    - audio support
+    - font/text support
+
 
 game
     - 3d spectator camera, 3d item positions
