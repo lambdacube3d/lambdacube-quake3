@@ -231,9 +231,6 @@ updateRenderInput :: EngineGraphics -> (Vec3, Vec3, Vec3) -> Int -> Int -> Float
 updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,lcMD3Weapon,animTex) (camPos,camTarget,camUp) w h time noBSPCull = do
             let slotU = uniformSetter storage
 
-            let legAnimType = LEGS_SWIM
-                torsoAnimType = TORSO_STAND2
-
             let matSetter   = uniformM44F "viewProj" slotU
                 viewOrigin  = uniformV3F "viewOrigin" slotU
                 orientation = uniformM44F "orientation" slotU
@@ -284,6 +281,51 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
                 CG_PositionRotatedEntityOnTag( &torso, &legs, ci->legsModel, "tag_torso");
                 CG_PositionRotatedEntityOnTag( &head, &torso, ci->torsoModel, "tag_head");
               -}
+              -- minBound, maxBound :: a
+              -- fromEnum :: a -> Int
+              -- toEnum :: Int -> a
+
+              let bothAnim = [BOTH_DEATH1, BOTH_DEAD1, BOTH_DEATH2, BOTH_DEAD2, BOTH_DEATH3, BOTH_DEAD3]
+                  anims = V.fromList $
+                    [ (TORSO_GESTURE,LEGS_IDLE)
+                    , (TORSO_ATTACK,LEGS_IDLE)
+                    , (TORSO_ATTACK2,LEGS_IDLE)
+                    , (TORSO_DROP,LEGS_IDLE)
+                    , (TORSO_RAISE,LEGS_IDLE)
+                    , (TORSO_STAND,LEGS_IDLE)
+                    , (TORSO_STAND2,LEGS_IDLE)
+                    , (TORSO_GETFLAG,LEGS_IDLE)
+                    , (TORSO_GUARDBASE,LEGS_IDLE)
+                    , (TORSO_PATROL,LEGS_IDLE)
+                    , (TORSO_FOLLOWME,LEGS_IDLE)
+                    , (TORSO_AFFIRMATIVE,LEGS_IDLE)
+                    , (TORSO_NEGATIVE,LEGS_IDLE)
+
+                    , (TORSO_STAND,LEGS_WALKCR)
+                    , (TORSO_STAND,LEGS_WALK)
+                    , (TORSO_STAND,LEGS_RUN)
+                    , (TORSO_STAND,LEGS_BACK)
+                    , (TORSO_STAND,LEGS_SWIM)
+
+                    , (TORSO_STAND,LEGS_JUMP)
+                    , (TORSO_STAND,LEGS_LAND)
+
+                    , (TORSO_STAND,LEGS_JUMPB)
+                    , (TORSO_STAND,LEGS_LANDB)
+
+                    , (TORSO_STAND,LEGS_IDLE)
+                    , (TORSO_STAND,LEGS_IDLECR)
+
+                    , (TORSO_STAND,LEGS_TURN)
+
+
+                    , (TORSO_STAND,LEGS_BACKCR)
+                    , (TORSO_STAND,LEGS_BACKWALK)
+                    ] ++ zip bothAnim bothAnim
+
+              let t100 = floor $ time / 4
+                  (torsoAnimType,legAnimType) = anims V.! (t100 `mod` V.length anims)
+
               -- torso = upper
               --  transform torso to legs
               --  transform head to torso (and legs)
@@ -297,7 +339,7 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
                   hMat = (tagToMat4 $ (MD3.mdTags uMD3 V.! torsoFrame) Map.! "tag_head") .*. uMat
                   uMat = (tagToMat4 $ (MD3.mdTags lMD3 V.! legFrame) Map.! "tag_torso")
                   lMat = one :: Proj4
-                  lcMat m = mat4ToM44F $ fromProjective $ m .*. rotationEuler (Vec3 time 0 0) .*. mat
+                  lcMat m = mat4ToM44F $ fromProjective $ m .*. rotationEuler (Vec3 (time/5) 0 0) .*. mat
               forM_ (md3instanceObject hLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat hMat
               forM_ (md3instanceObject uLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat uMat
               forM_ (md3instanceObject lLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat lMat

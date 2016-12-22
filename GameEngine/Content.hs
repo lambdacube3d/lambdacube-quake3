@@ -83,10 +83,11 @@ shaderMap ar = do
         snap part: lower, upper, head
         set body part rotation: upper, head
         optional: snap weapon to hand
--}
 
 loadGameCharacter :: String -> String -> GameCharacter
 loadGameCharacter name skin = undefined
+-}
+
 
 readCharacters :: Map String Entry -> Vec3 -> IO (Set ByteString, [[(Proj4, (Map String String, String))]], [Character])
 readCharacters pk3Data p0 = do
