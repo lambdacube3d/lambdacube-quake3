@@ -248,8 +248,10 @@ updateRenderCache renderSystem@RenderSystem{..} newMD3Materials newBSPMaterials
 
 render :: RenderSystem -> Float -> Scene -> IO ()
 render a b c = do
-  printTimeDiff "scene process time: " (render' a b c)
-  printTimeDiff "render time: " (renderFrame =<< readIORef (rsRenderer a))
+  --printTimeDiff "scene process time: " $ do
+    render' a b c
+  --printTimeDiff "render time: " $ do
+    renderFrame =<< readIORef (rsRenderer a)
 
 render' :: RenderSystem -> Float -> Scene -> IO ()
 render' renderSystem@RenderSystem{..} time Scene{..} = do
