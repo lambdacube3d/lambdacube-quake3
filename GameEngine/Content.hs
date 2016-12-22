@@ -52,6 +52,42 @@ shaderMap ar = do
       writeFile (lc_q3_cache </> "shader.log") $ unlines $ concat w
       return . Map.fromList . concat $ x
 
+
+{-
+  character:
+    skin: default, blue, red  -- SKIN
+    name: anarki
+    resources:
+      md3 models: head, upper, lower -- BODYPART
+      skin: BODYPART_SKIN.skin
+      animation: animation.cfg
+
+    loaded resources:
+      - we can not reuse/share geometry data because we mutate it's content with current animation frame
+        FIXME: improve lambdacube-gl API to support update object's stream input
+      GPUCharacter -- not possible yet
+        Character
+        skinMap :: Map String String
+        head    :: GPUMD3
+        upper   :: GPUMD3
+        lower   :: GPUMD3
+
+      CharacterInstance
+        Character
+        head  :: MD3Instance
+        upper :: MD3Instance
+        lower :: MD3Instance
+
+      setupCharacterInstance
+        set animation frames
+        snap part: lower, upper, head
+        set body part rotation: upper, head
+        optional: snap weapon to hand
+-}
+
+loadGameCharacter :: String -> String -> GameCharacter
+loadGameCharacter name skin = undefined
+
 readCharacters :: Map String Entry -> Vec3 -> IO (Set ByteString, [[(Proj4, (Map String String, String))]], [Character])
 readCharacters pk3Data p0 = do
   let --characterNames = characterNamesFull

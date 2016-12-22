@@ -9,22 +9,26 @@ replace q3mapviewer
 
 render system
   detailed:
+    - create character instance type and loader function
+    - add character instance cache
     - add and use renderable parameters (entityRGB,entityAlpha,worldMat)
     - add camera attributes (view,proj,viewOrigin,viewport size)
     - add time to scene
     - new renderable: BSPInlineModel
   high level
+    - character support: player character
+      - instance cache
+      - add renderable; question: how to control animation?
+    - draw hud
     - unsolved:
       pass viewport/window size - include in camera
       pass time - include in scene
     - support BSPInlineModel
-    - character support: player character
     - precache support
     - case insensitive names: convert names to lower case in parsers/loaders/zip map
     - performance benchmark, if necessary use resource references and make the interface monadic
     - restructure code: engine, game; design engine architecture (submodules, api, sample code)
     - manual pipeline optimization: use per object unforms for each layers of stage textures
-    - draw hud
     - audio support
     - font/text support
 
