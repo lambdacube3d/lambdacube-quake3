@@ -9,8 +9,8 @@ replace q3mapviewer
 
 render system
   detailed:
-    - create character instance type and loader function
-    - add character instance cache
+    ok - create character instance type and loader function
+    - add character instance cache and instance setup function
     - add and use renderable parameters (entityRGB,entityAlpha,worldMat)
     - add camera attributes (view,proj,viewOrigin,viewport size)
     - add time to scene
