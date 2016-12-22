@@ -43,6 +43,7 @@ library
                        GameEngine.Loader.Zip
                        GameEngine.Graphics.Culling
                        GameEngine.Graphics.Frustum
+                       GameEngine.Graphics.GameCharacter
                        GameEngine.Graphics.Render
                        GameEngine.Graphics.Storage
                        GameEngine.Engine
