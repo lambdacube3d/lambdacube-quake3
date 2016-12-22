@@ -1,37 +1,19 @@
-minigame integration:
-  reuse:
-    Entities.hs
-    GameLogic.hs
-    Visuals.hs
-    World.hs
-  ignore:
-    Collision.hs
-    Graphics.hs
-    LensMiniGame.hs
-  TODO:
-    ok - add reusable modules to project and make it compile
-    ok - construct the initial game world from map's entity list
-    ok - move game logic under Logic namespace
-    ok - create new main loop using the new game logic
-    ok - implement rendering in similar style as it was with gloss
+replace q3mapviewer
+  - 3d look and move
+  - collision
+  - gravity
+  - debug render
+  - character support
+  - audio support
+  - render player's current weapon
 
 render system
   detailed:
-    ok - reuse table textures
-    ok - split addBSP to upload and addGPUBSP
-    ok - introduce LCBSP
-    ok - better name for LCBSP and LCMD3 e.g. instance
-    ok - new renderable: BSPMap
-    ok - switch to unordered containers
     - add and use renderable parameters (entityRGB,entityAlpha,worldMat)
     - add camera attributes (view,proj,viewOrigin,viewport size)
     - add time to scene
     - new renderable: BSPInlineModel
   high level
-    ok - render materials
-    ok - static geometry support: load and render
-        ok - gpubsp, bsp cache
-        ok - new renderables: BSPMap
     - unsolved:
       pass viewport/window size - include in camera
       pass time - include in scene
@@ -46,7 +28,6 @@ render system
     - audio support
     - font/text support
 
-
 game
     - 3d spectator camera, 3d item positions
       new input: mouse position
@@ -56,42 +37,13 @@ game
     - refactor entities to use q3 item types
 
 refactor notes:
-  ok - Q3Patch.hs - rename (e.g. BezierSurface)
-  ok - Items.hs - add record names to list (with ppShow)
-  ok - Collision.hs
-  ok - Zip.hs
-  ok - BSP.hs - split data definition from loader
-  ok - MD3.hs - split data definition and loader
-  Character.hs
-    ok - split data definition from loader
-    ok - rename to GameCharacter or CharacterAnimation
-    ok - use megaparsec
-  Render.hs
-    ok - move out patch tesselation
-    ok - move out frustum handling
-    ok - move out object culling (render optimization)
-  Entity.hs
-    ok - use megaparsec; use code from lambdacube-quake3-new
-    ok - separate Entity parser from ShaderParser
-
-  ShaderParser.hs
-    ok - use megaparsec
-    ok - refactor/speedup grammar
-
+  - use proper resource monad
+  - manage subsystems elegantly
   Binary: BSP.hs, MD3.hs
     - factor out common functions from BSP and MD3 loaders
   Megaparsec: Character.hs. Entity.hs, ShaderParser.hs
     - factor out common parts
     - use same floating number parser
-
-  Engine.hs
-    ok - add data structure to store internal data
-    ok - move graphics related functions to separate module
-    ok - use String instead of ByteString in Materials and ShaderMap
-    ok - factor out a function what creates SampleMaterial.lc and the PipelineSchema from Set of material names
-
-    - use proper resource monad
-    - manage subsystems elegantly
 
   Material.hs
     - rename CommonAttrs and StageAttrs (also modify Graphics.lc)

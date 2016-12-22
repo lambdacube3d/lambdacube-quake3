@@ -100,8 +100,8 @@ timeDiff m = (\s x e -> (diffUTCTime e s, x))
   <*> m
   <*> getCurrentTime
 
-printTimeDiff s a = do
-  putStr s
-  (t,r) <- timeDiff a
+printTimeDiff message m = do
+  (t,r) <- timeDiff m
+  putStr message
   putStrLn $ showTime t
   return r

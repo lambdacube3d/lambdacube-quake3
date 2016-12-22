@@ -247,7 +247,12 @@ updateRenderCache renderSystem@RenderSystem{..} newMD3Materials newBSPMaterials
       return (storage,renderer,mempty,mempty)
 
 render :: RenderSystem -> Float -> Scene -> IO ()
-render renderSystem@RenderSystem{..} time Scene{..} = do
+render a b c = do
+  printTimeDiff "scene process time: " (render' a b c)
+  printTimeDiff "render time: " (renderFrame =<< readIORef (rsRenderer a))
+
+render' :: RenderSystem -> Float -> Scene -> IO ()
+render' renderSystem@RenderSystem{..} time Scene{..} = do
   -- load new models
   (newMD3Materials,newBSPMaterials,md3Cache,bspCache) <- updateModelCache renderSystem renderables
 
@@ -309,7 +314,7 @@ render renderSystem@RenderSystem{..} time Scene{..} = do
 
   setFrameUniforms time cameraOrigin camera storage =<< readIORef rsAnimatedTextures
 
-  renderFrame renderer
+  --renderFrame renderer
 
 setFrameUniforms :: Float -> Vec3 -> Mat4 -> GLStorage -> [AnimatedTexture] -> IO ()
 setFrameUniforms time cameraOrigin camera storage animatedTextures = do
