@@ -28,7 +28,11 @@ render system
     - case insensitive names: convert names to lower case in parsers/loaders/zip map
     - performance benchmark, if necessary use resource references and make the interface monadic
     - restructure code: engine, game; design engine architecture (submodules, api, sample code)
-    - manual pipeline optimization: use per object unforms for each layers of stage textures
+    - manual pipeline optimization:
+      - use per object unforms for each layers of stage textures
+      - use dedicated shader for default materials: lightmap + diffuse; diffuse
+      - precompile and cache all non-default shaders
+      - optimize lambdacube-gl: skip pipeline setup commands before empty slots; avoid useless state changes; this may require to change the IR
     - audio support
     - font/text support
 
