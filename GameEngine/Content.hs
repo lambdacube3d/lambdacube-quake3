@@ -2,6 +2,7 @@
 module GameEngine.Content where
 
 import Control.Monad
+import Text.Printf
 import Data.Set (Set)
 import Data.Map (Map)
 import Data.ByteString.Char8 (ByteString)
@@ -13,7 +14,7 @@ import qualified Data.Vector as V
 import System.FilePath
 import System.Directory
 import Data.Char
-import Data.List (isPrefixOf,elemIndex)
+import Data.List (isPrefixOf,elemIndex,stripPrefix)
 import Data.Vect
 import Data.Maybe
 
@@ -54,9 +55,21 @@ shaderMap ar = do
 
 readCharacters :: Map String Entry -> Vec3 -> IO (Set ByteString, [[(Proj4, (Map String String, String))]], [Character])
 readCharacters pk3Data p0 = do
-  let --characterNames = characterNamesFull
-      characterNames = characterNamesDemo
-
+  let characterNames = Set.toList $ Set.fromList
+        [ name 
+        | path <- Map.keys pk3Data
+        , entry <- maybeToList $ stripPrefix "models/players/" path
+        , let name = takeWhile (/='/') entry
+        , not . null $ name
+        , all (flip Map.member pk3Data) $ characterFiles name
+        ]
+      characterFiles name = printf "models/players/%s/animation.cfg" name : concat
+                            [ [ printf "models/players/%s/%s_default.skin" name part
+                              , printf "models/players/%s/%s.md3" name part
+                              ]
+                            | part <- characterParts
+                            ]
+      characterParts = ["head","upper","lower"]
       characterNamesFull = [ "anarki","biker","bitterman","bones","crash","doom","grunt","hunter","keel","klesk","lucy","major","mynx"
                            , "orbb","ranger","razor","sarge","slash","sorlag","tankjr","uriel","visor","xaero"
                            ]
@@ -79,7 +92,7 @@ readCharacters pk3Data p0 = do
   characterSkinMap <- evaluate =<< (force . Map.fromList <$> sequence
     [ ((name,part),) <$> readCharacterModelSkin name part 
     | name <- characterNames
-    , part <- ["head","upper","lower"]
+    , part <- characterParts
     ])
 
   let characterModelSkin name part = case Map.lookup (name,part) characterSkinMap of
