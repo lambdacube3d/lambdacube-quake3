@@ -118,7 +118,6 @@ loadQuake3Graphics storage name = do
         Left err -> fail err
         Right ppl -> allocRenderer ppl
     printTimeDiff "setStorage..." $ setStorage renderer storage
-    --sortSlotObjects storage
     return $ Just renderer
 
 createLoadingScreen :: IO (GLStorage, GLRenderer, TextureData)
