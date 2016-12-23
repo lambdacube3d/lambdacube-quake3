@@ -51,8 +51,9 @@ shaderMap ar = do
   case l of
     Left err -> fail err
     Right (unzip -> (x,w)) -> do
-      writeFile (lc_q3_cache </> "shader.log") $ unlines $ concat w
-      return . Map.fromList . concat $ x
+      let shaders = Map.fromList . concat $ x
+      writeFile (lc_q3_cache </> "shader.log") $ unlines $ printf "%d shaders" (Map.size shaders) : concat w
+      return shaders
 
 readCharacters :: Map String Entry -> Vec3 -> IO (Set ByteString, [[(Proj4, (Map String String, String))]], [Character])
 readCharacters pk3Data p0 = do
