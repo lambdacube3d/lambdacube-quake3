@@ -56,27 +56,30 @@ shaderMap ar = do
 readCharacters :: Map String Entry -> Vec3 -> IO (Set ByteString, [[(Proj4, (Map String String, String))]], [Character])
 readCharacters pk3Data p0 = do
   let characterNames = Set.toList $ Set.fromList
-        [ name 
+        [ (name, skin)
         | path <- Map.keys pk3Data
         , entry <- maybeToList $ stripPrefix "models/players/" path
         , let name = takeWhile (/='/') entry
         , not . null $ name
-        , all (flip Map.member pk3Data) $ characterFiles name
+        , skin <- characterSkins name
+        , all (flip Map.member pk3Data) $ characterFiles name skin
         ]
-      characterFiles name = printf "models/players/%s/animation.cfg" name : concat
-                            [ [ printf "models/players/%s/%s_default.skin" name part
+      characterSkins name = [tail . dropWhile (/='_') $ takeBaseName n | n <- Map.keys pk3Data, isPrefixOf prefix n, ".skin" == takeExtension n ] where prefix = printf "models/players/%s/" name
+      characterFiles name skin = printf "models/players/%s/animation.cfg" name : concat
+                            [ [ printf "models/players/%s/%s_%s.skin" name part skin
                               , printf "models/players/%s/%s.md3" name part
                               ]
                             | part <- characterParts
                             ]
       characterParts = ["head","upper","lower"]
+{-
       characterNamesFull = [ "anarki","biker","bitterman","bones","crash","doom","grunt","hunter","keel","klesk","lucy","major","mynx"
                            , "orbb","ranger","razor","sarge","slash","sorlag","tankjr","uriel","visor","xaero"
                            ]
       characterNamesDemo = ["major","visor","sarge","grunt"]
-
-      readCharacterModelSkin name part = do
-        let fname = "models/players/" ++ name ++ "/" ++ part ++ "_default.skin"
+-}
+      readCharacterModelSkin name skin part = do
+        let fname = printf "models/players/%s/%s_%s.skin" name part skin
         txt <- case Map.lookup fname pk3Data of
           Nothing -> fail $ "missing skin: " ++ fname
           Just e -> readEntry e
@@ -90,26 +93,26 @@ readCharacters pk3Data p0 = do
           ]
 
   characterSkinMap <- evaluate =<< (force . Map.fromList <$> sequence
-    [ ((name,part),) <$> readCharacterModelSkin name part 
-    | name <- characterNames
+    [ ((name,skin,part),) <$> readCharacterModelSkin name skin part
+    | (name,skin) <- characterNames
     , part <- characterParts
     ])
 
-  let characterModelSkin name part = case Map.lookup (name,part) characterSkinMap of
+  let characterModelSkin name skin part = case Map.lookup (name,skin,part) characterSkinMap of
         Nothing -> error $ unwords ["missing skin for", name, "body part", part]
         Just skin -> skin
 
-      characterSkinMaterials = Set.fromList $ concat [map SB.pack . Map.elems $ characterModelSkin name part | name <- characterNames, part <- ["head","upper","lower"]]
+      characterSkinMaterials = Set.fromList $ concat [map SB.pack . Map.elems $ characterModelSkin name skin part | (name,skin) <- characterNames, part <- ["head","upper","lower"]]
       characterObjs = [[(mkWorldMat (x + r * sin (angle i)) (y + r * cos (angle i)) z, m) | m <- ml] | (i,ml) <- zip [0..] characterModels]
         where
           r = (200 / 24) * (fromIntegral $ length characterNames)
           angle i = fromIntegral i / (fromIntegral $ length characterNames) * pi * 2
           Vec3 x y z = p0
-          characterModels = [[(characterModelSkin name part,"models/players/" ++ name ++ "/" ++ part ++ ".md3") | part <- ["head","upper","lower"]] | name <- characterNames]
+          characterModels = [[(characterModelSkin name skin part,printf "models/players/%s/%s.md3" name part) | part <- ["head","upper","lower"]] | (name,skin) <- characterNames]
 
   charactersResult <- sequence <$> sequence
     [ parseCharacter fname <$> readEntry e
-    | name <- characterNames
+    | (name,skin) <- characterNames
     , let fname = "models/players/" ++ name ++ "/animation.cfg"
           e = maybe (error $ "missing " ++ fname) id $ Map.lookup fname pk3Data
     ]
