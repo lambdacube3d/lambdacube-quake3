@@ -16,6 +16,7 @@ import System.Directory
 import Data.Char
 import Data.List (isPrefixOf,elemIndex,stripPrefix)
 import Data.Vect
+import Data.Vect.Float.Instances
 import Data.Maybe
 
 import Control.Exception (evaluate)
@@ -103,11 +104,15 @@ readCharacters pk3Data p0 = do
         Just skin -> skin
 
       characterSkinMaterials = Set.fromList $ concat [map SB.pack . Map.elems $ characterModelSkin name skin part | (name,skin) <- characterNames, part <- ["head","upper","lower"]]
-      characterObjs = [[(mkWorldMat (x + r * sin (angle i)) (y + r * cos (angle i)) z, m) | m <- ml] | (i,ml) <- zip [0..] characterModels]
+      characterObjs = [[(mkWorldMat' (p0 + pos i), m) | m <- ml] | (i,ml) <- zip [0..] characterModels]
         where
-          r = (200 / 24) * (fromIntegral $ length characterNames)
-          angle i = fromIntegral i / (fromIntegral $ length characterNames) * pi * 2
-          Vec3 x y z = p0
+          step = 80
+          size = floor . sqrt . fromIntegral $ length characterModels
+          half = size `div` 2
+          pos i = Vec3 (fromIntegral $ (x - half) * step) (fromIntegral $ (y - half) * step) 0 where (x,y) = i `divMod` size
+          --r = (200 / 24) * (fromIntegral $ length characterNames)
+          --angle i = fromIntegral i / (fromIntegral $ length characterNames) * pi * 2
+          --Vec3 x y z = p0
           characterModels = [[(characterModelSkin name skin part,printf "models/players/%s/%s.md3" name part) | part <- ["head","upper","lower"]] | (name,skin) <- characterNames]
 
   charactersResult <- sequence <$> sequence
