@@ -19,10 +19,11 @@ import Data.Aeson (encode,eitherDecode)
 import LambdaCube.Compiler (compileMain, Backend(..))
 
 import LambdaCube.GL
-import Codec.Picture
+import Codec.Picture hiding (decodeImage)
 
 import GameEngine.Data.Material
 import GameEngine.Loader.Zip
+import GameEngine.Loader.Image
 import GameEngine.Utils
 
 import Paths_lambdacube_quake3
@@ -83,7 +84,7 @@ loadQ3Texture isMip isClamped defaultTex ar shName name = do
     case Map.lookup fname ar of
         Nothing -> putStrLn ("    unknown texure: " ++ fname ++ " in shader: " ++ shName) >> return defaultTex
         Just entry  -> do
-            eimg <- decodeImage <$> readEntry entry
+            eimg <- decodeImage =<< readEntry entry
             putStrLn $ "  load: " ++ fname
             case eimg of
                 Left msg    -> putStrLn ("    error: " ++ msg) >> return defaultTex
