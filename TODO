@@ -29,10 +29,12 @@ render system
     - performance benchmark, if necessary use resource references and make the interface monadic
     - restructure code: engine, game; design engine architecture (submodules, api, sample code)
     - manual pipeline optimization:
+      ok - optimize lambdacube-gl: skip pipeline setup commands before empty slots; avoid useless state changes; this may require to change the IR
+            result: minor preformance improvement
       - use per object texture unforms for each layers of stage textures
       - use dedicated shader for default materials: lightmap + diffuse; diffuse
       - precompile and cache all non-default shaders
-      - optimize lambdacube-gl: skip pipeline setup commands before empty slots; avoid useless state changes; this may require to change the IR
+      - minimize render call count: build shared vertex and index buffer; use instanced rendering; use uniform block for each instance; build texture atlas
     - audio support
     - font/text support
 
