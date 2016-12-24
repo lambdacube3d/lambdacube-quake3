@@ -143,9 +143,6 @@ loadBSP pk3 name = case Map.lookup name pk3 of
   Nothing -> fail $ "file not found: " ++ name
   Just a -> readBSP . LB.fromStrict <$> readEntry a >>= uploadBSP
 
-setNub :: Ord a => [a] -> [a]
-setNub = Set.toList . Set.fromList
-
 initStorageDefaultValues tableTextures storage = do
   let slotU           = uniformSetter storage
       overbrightBits  = 0

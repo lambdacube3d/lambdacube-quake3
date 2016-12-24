@@ -29,7 +29,7 @@ render system
     - performance benchmark, if necessary use resource references and make the interface monadic
     - restructure code: engine, game; design engine architecture (submodules, api, sample code)
     - manual pipeline optimization:
-      - use per object unforms for each layers of stage textures
+      - use per object texture unforms for each layers of stage textures
       - use dedicated shader for default materials: lightmap + diffuse; diffuse
       - precompile and cache all non-default shaders
       - optimize lambdacube-gl: skip pipeline setup commands before empty slots; avoid useless state changes; this may require to change the IR
@@ -37,6 +37,7 @@ render system
     - font/text support
 
 game
+    - split rendering and game logic into separated threads
     - 3d spectator camera, 3d item positions
       new input: mouse position
       questions: how to pass camera info to render system => add to scene

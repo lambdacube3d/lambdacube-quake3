@@ -259,15 +259,15 @@ addGPUMD3 r GPUMD3{..} skin unis = do
               Nothing -> SB8.unpack $ MD3.shName s
               Just a  -> a
         objList <- concat <$> forM (V.toList $ MD3.srShaders sf) (\s -> do
-          a <- addObject' r (materialName s) TriangleList (Just index) attrs $ nub $"worldMat":unis
-          b <- addObject r "LightMapOnly" TriangleList (Just index) attrs $ nub $ "worldMat":unis
+          a <- addObject' r (materialName s) TriangleList (Just index) attrs $ setNub $ "worldMat":unis
+          b <- addObject r "LightMapOnly" TriangleList (Just index) attrs $ setNub $ "worldMat":unis
           return [a,b])
 
         -- add collision geometry
         collisionObjs <- case V.toList mdFrames of
           (MD3.Frame{..}:_) -> do
-            sphereObj <- uploadMeshToGPU (sphere (V4 1 0 0 1) 4 frRadius) >>= addMeshToObjectArray r "CollisionShape" (nub $ ["worldMat","origin"] ++ unis)
-            boxObj <- uploadMeshToGPU (bbox (V4 0 0 1 1) frMins frMaxs) >>= addMeshToObjectArray r "CollisionShape" (nub $ ["worldMat","origin"] ++ unis)
+            sphereObj <- uploadMeshToGPU (sphere (V4 1 0 0 1) 4 frRadius) >>= addMeshToObjectArray r "CollisionShape" (setNub $ ["worldMat","origin"] ++ unis)
+            boxObj <- uploadMeshToGPU (bbox (V4 0 0 1 1) frMins frMaxs) >>= addMeshToObjectArray r "CollisionShape" (setNub $ ["worldMat","origin"] ++ unis)
             --when (frOrigin /= zero) $ putStrLn $ "frOrigin: " ++ show frOrigin
             return [sphereObj,boxObj]
           _ -> return []

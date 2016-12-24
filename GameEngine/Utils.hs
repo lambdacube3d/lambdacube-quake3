@@ -7,6 +7,7 @@ import Data.Vect.Float
 import Data.Vect.Float.Instances
 import qualified Data.Vector as V
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import System.FilePath
 import LambdaCube.Linear
@@ -105,3 +106,7 @@ printTimeDiff message m = do
   putStr message
   putStrLn $ showTime t
   return r
+
+setNub :: Ord a => [a] -> [a]
+setNub = Set.toList . Set.fromList
+
