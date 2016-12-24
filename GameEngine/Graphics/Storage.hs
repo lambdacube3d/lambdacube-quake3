@@ -15,6 +15,7 @@ import Control.Monad
 import System.FilePath
 import System.Directory
 import Text.Show.Pretty (ppShow)
+import Text.Printf
 import Data.Aeson (encode,eitherDecode)
 import LambdaCube.Compiler (compileMain, Backend(..))
 
@@ -82,13 +83,15 @@ loadQ3Texture isMip isClamped defaultTex ar shName name = do
         b2 = Map.member n2 ar
         fname   = if b0 then name else if b1 then n1 else n2
     case Map.lookup fname ar of
-        Nothing -> putStrLn ("    unknown texure: " ++ fname ++ " in shader: " ++ shName) >> return defaultTex
-        Just entry  -> do
-            eimg <- decodeImage =<< readEntry entry
-            putStrLn $ "  load: " ++ fname
-            case eimg of
-                Left msg    -> putStrLn ("    error: " ++ msg) >> return defaultTex
-                Right img   -> uploadTexture2DToGPU' True True isMip isClamped img
+        Nothing -> putStrLn (printf "unknown texure: %s in shader: %s" fname shName) >> return defaultTex
+        Just entry  -> readEntry entry >>= decodeImage >>= \case
+                Left msg -> putStrLn (printf "error: %s - %s" fname msg) >> return defaultTex
+                Right img -> do
+                  let (w,h) = case img of
+                        ImageRGB8 (Image w h _) -> (w,h)
+                        ImageRGBA8 (Image w h _) -> (w,h)
+                  putStrLn $ printf "load (%u x %u): %s" w h fname
+                  uploadTexture2DToGPU' True True isMip isClamped img
 
 compileQuake3GraphicsCached :: FilePath -> IO Bool
 compileQuake3GraphicsCached name = doesFileExist (lc_q3_cache </> name) >>= \case
