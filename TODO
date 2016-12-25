@@ -17,8 +17,12 @@ render system
     - new renderable: BSPInlineModel
   high level
     - character support: player character
-      - instance cache
-      - add renderable; question: how to control animation?
+      ok - instance cache
+      ok - add renderable
+      - snap body parts
+      - load materials
+      - cache loaded model to speed up instantiation; store multiple models to feed instances from
+      - control animation
     - draw hud
     - unsolved:
       pass viewport/window size - include in camera

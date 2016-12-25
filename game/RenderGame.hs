@@ -43,5 +43,5 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera cameraOrigin cam
     EAmmo a     -> add [MD3 (a^.aPosition) "models/powerups/ammo/shotgunam.md3"]
     EArmor a    -> add [MD3 (a^.rPosition) "models/powerups/armor/armor_red.md3"]
     EHealth a   -> add [MD3 pos "models/powerups/health/medium_cross.md3", MD3 pos "models/powerups/health/medium_sphere.md3"] where pos = a^.hPosition
-
+    ETarget a   -> add [MD3Character (a^.ttPosition) "visor" "default"]
     _ -> return ()

@@ -17,7 +17,7 @@ import qualified Data.ByteString.Lazy as LB
 import qualified Data.Map as Map
 
 import GameEngine.Utils (lc_q3_cache)
-import GameEngine.Content
+import GameEngine.Content (loadPK3)
 import GameEngine.Data.BSP
 import GameEngine.Loader.BSP
 import GameEngine.Loader.Zip
