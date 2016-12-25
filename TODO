@@ -34,7 +34,7 @@ render system
       - use per object texture unforms for each layers of stage textures
       - use dedicated shader for default materials: lightmap + diffuse; diffuse
       - precompile and cache all non-default shaders
-      - minimize render call count: build shared vertex and index buffer; use instanced rendering; use uniform block for each instance; build texture atlas
+      - minimize render call count: build shared vertex and index buffer; use instanced rendering; use uniform block or instanced arrays; build texture atlas
     - audio support
     - font/text support
 
