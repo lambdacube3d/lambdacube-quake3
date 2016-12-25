@@ -166,7 +166,6 @@ uploadBSP shaderMap bsp@BSPLevel{..} = do
 
       surfaces = map gpuSurface $ reverse objs
 
-  putStrLn $ printf "surface count: %d" (length surfaces)
   return $ GPUBSP
     { gpubspVertexBuffer  = vertexBuffer
     , gpubspIndexBuffer   = indexBuffer
@@ -192,7 +191,6 @@ addGPUBSP whiteTexture storage GPUBSP{..} = do
   -- add to storage
   let obj surfaceIdx (name,prim,index,attrs,lightmap) = do
           let objUnis = ["LightMap","worldMat"]
-          --putStrLn $ "add surface " ++ show surfaceIdx
           o <- addObject' storage name prim (Just index) attrs objUnis
           o1 <- addObject storage "LightMapOnly" prim (Just index) attrs objUnis
           {-
@@ -202,9 +200,10 @@ addGPUBSP whiteTexture storage GPUBSP{..} = do
               #define	LIGHTMAP_NONE		-1
           -}
           forM_ [o,o1] $ \b -> uniformFTexture2D "LightMap" (objectUniformSetter b) $ fromMaybe whiteTexture lightmap
-          putStrLn $ printf "add surface #%d to storage" surfaceIdx
           return [o,o1]
-  BSPInstance gpubspBSPLevel <$> V.imapM obj (V.fromList gpubspSurfaces)
+      surfaceVector = V.fromList gpubspSurfaces
+  putStrLn $ printf "add %d bsp surfaces to storage" $ V.length surfaceVector
+  BSPInstance gpubspBSPLevel <$> V.imapM obj surfaceVector
 
 data MD3Instance
   = MD3Instance
