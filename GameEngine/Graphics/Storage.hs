@@ -90,6 +90,7 @@ loadQ3Texture isMip isClamped defaultTex ar shName name = do
                   let (w,h) = case img of
                         ImageRGB8 (Image w h _) -> (w,h)
                         ImageRGBA8 (Image w h _) -> (w,h)
+                        _ -> (0,0)
                   putStrLn $ printf "load (%u x %u): %s" w h fname
                   uploadTexture2DToGPU' True True isMip isClamped img
 
