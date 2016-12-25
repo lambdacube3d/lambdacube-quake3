@@ -75,29 +75,57 @@ data GPUBSP
   , gpubspBSPLevel      :: BSPLevel
   }
 
+data BSPSurface
+  = BSPTriangleSoup Int Int Int Int -- lightmapIndex, firstVertex, firstIndex, indexCount
+  | BSPPatch        Int (Vector DrawVertex) (Vector Int) -- lightmapIndex
+
+{-
+  TODO:
+    - build index buffer
+    - build vertex buffer: bsp vertices + patch verices
+    - build lightmap atlas
+    - update lightmap uv coordinates
+-}
+batchBSP BSPLevel{..} = (result 0 (Map.keys surfaces) indices,V.concat indices) where
+  result _ [] [] = []
+  result offset (name:xs) (v:ys) = (lightmapIndex,0,V.length blDrawVertices,offset,V.length v,TriangleList,name) : result (offset + V.length v) xs ys
+  indices = map join $ Map.elems surfaces
+  lightmapIndex = 0 :: Int-- TODO
+  join l = V.concat [(firstVertex +) <$> V.slice firstIndex indexCount blDrawIndices | BSPTriangleSoup lightmap firstVertex firstIndex indexCount <- l]
+  surfaces = foldl (\m s -> Map.insertWith (++) (shName $ blShaders V.! srShaderNum s) (bspSurface s) m) mempty blSurfaces
+  bspSurface s@Surface{..} = if noDraw then [] else case srSurfaceType of
+          Patch -> [BSPPatch srLightmapNum v i] where (v,i) = tessellatePatch blDrawVertices s 5
+          Flare -> []
+          _    -> [BSPTriangleSoup srLightmapNum srFirstVertex srFirstIndex srNumIndices]
+        where
+          surfaceFlags = shSurfaceFlags $ blShaders V.! srShaderNum
+          noDraw = surfaceFlags .&. 0x80 /= 0
+
 uploadBSP :: BSPLevel -> IO GPUBSP
 uploadBSP bsp@BSPLevel{..} = do
   -- construct vertex and index buffer
-  let convertSurface (objs,lenV,arrV,lenI,arrI) sf = if noDraw then skip else case srSurfaceType sf of
+  let convertSurface (objs,lenV,arrV,lenI,arrI) s@Surface{..} = if noDraw then skip else case srSurfaceType of
           Planar          -> objs'
           TriangleSoup    -> objs'
           -- tessellate, concatenate vertex and index data to fixed vertex and index buffer
-          Patch           -> ((lmIdx, lenV, lenV', lenI, lenI', TriangleStrip, name):objs, lenV+lenV', v:arrV, lenI+lenI', i:arrI)
+          Patch           -> ((srLightmapNum, lenV, lenV', lenI, lenI', TriangleStrip, name):objs, lenV+lenV', v:arrV, lenI+lenI', i:arrI)
             where
-              (v,i) = tessellatePatch blDrawVertices sf 5
+              (v,i) = tessellatePatch blDrawVertices s 5
               lenV' = V.length v
               lenI' = V.length i
           Flare           -> skip
         where
-          lmIdx = srLightmapNum sf
-          skip  = ((lmIdx,srFirstVertex sf, srNumVertices sf, srFirstIndex sf, 0, TriangleList, name):objs, lenV, arrV, lenI, arrI)
-          objs' = ((lmIdx,srFirstVertex sf, srNumVertices sf, srFirstIndex sf, srNumIndices sf, TriangleList, name):objs, lenV, arrV, lenI, arrI)
-          Shader name sfFlags _ = blShaders V.! (srShaderNum sf)
+          skip  = ((srLightmapNum,srFirstVertex, srNumVertices, srFirstIndex, 0, TriangleList, name):objs, lenV, arrV, lenI, arrI)
+          objs' = ((srLightmapNum,srFirstVertex, srNumVertices, srFirstIndex, srNumIndices, TriangleList, name):objs, lenV, arrV, lenI, arrI)
+          Shader name sfFlags _ = blShaders V.! srShaderNum
           noDraw = sfFlags .&. 0x80 /= 0
       (objs,_,drawVl,_,drawIl) = V.foldl' convertSurface ([],V.length blDrawVertices,[blDrawVertices],V.length blDrawIndices,[blDrawIndices]) blSurfaces
       drawV' = V.concat $ reverse drawVl
       drawI' = V.concat $ reverse drawIl
-
+      {-
+      (objs,drawI') = batchBSP bsp
+      drawV' = blDrawVertices
+      -}
       withV w a f = w a (\p -> f $ castPtr p)
       attribute f = withV SV.unsafeWith $ SV.convert $ V.map f drawV'
       indices     = SV.convert $ V.map fromIntegral drawI' :: SV.Vector Word32
