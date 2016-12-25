@@ -1,3 +1,5 @@
+FOCUS: architecture & API
+
 replace q3mapviewer
   - 3d look and move
   - collision
@@ -19,19 +21,22 @@ render system
     - character support: player character
       ok - instance cache
       ok - add renderable
-      - snap body parts
+      ok - snap body parts
       - load materials
       - cache loaded model to speed up instantiation; store multiple models to feed instances from
       - control animation
-    - draw hud
     - unsolved:
       pass viewport/window size - include in camera
       pass time - include in scene
-    - support BSPInlineModel
-    - precache support
-    - case insensitive names: convert names to lower case in parsers/loaders/zip map
     - performance benchmark, if necessary use resource references and make the interface monadic
     - restructure code: engine, game; design engine architecture (submodules, api, sample code)
+    - support BSPInlineModel
+
+    - case insensitive names: convert names to lower case in parsers/loaders/zip map
+    - precache support
+    - draw hud
+    - audio support
+    - font/text support
     - manual pipeline optimization:
       ok - optimize lambdacube-gl: skip pipeline setup commands before empty slots; avoid useless state changes; this may require to change the IR
             result: minor preformance improvement
@@ -39,8 +44,6 @@ render system
       - use dedicated shader for default materials: lightmap + diffuse; diffuse
       - precompile and cache all non-default shaders
       - minimize render call count: build shared vertex and index buffer; use instanced rendering; use uniform block or instanced arrays; build texture atlas
-    - audio support
-    - font/text support
 
 game
     - split rendering and game logic into separated threads
@@ -49,6 +52,7 @@ game
       questions: how to pass camera info to render system => add to scene
     - collision detection
     - gravity
+    - door handling; need inline model support
     - refactor entities to use q3 item types
 
 refactor notes:

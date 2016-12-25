@@ -31,7 +31,8 @@ data MD3Instance
   = MD3Instance
   { md3instanceObject :: [Object]
   , md3instanceBuffer :: Buffer
-  , md3instanceFrames :: V.Vector [(Int,Array)]
+  , md3instanceFrames :: Vector [(Int,Array)]
+  , md3instanceModel  :: MD3Model
   }
 
 type MD3Skin = Map String String
@@ -40,7 +41,7 @@ data GPUMD3
   = GPUMD3
   { gpumd3Buffer    :: Buffer
   , gpumd3Surfaces  :: [(IndexStream Buffer,Map String (Stream Buffer))] -- index stream, attribute streams
-  , gpumd3Frames    :: V.Vector [(Int,Array)]
+  , gpumd3Frames    :: Vector [(Int,Array)]
   , gpumd3Model     :: MD3Model
   , gpumd3Shaders   :: HashSet String
   }
@@ -137,6 +138,7 @@ addGPUMD3 r GPUMD3{..} skin unis = do
         { md3instanceObject = concat objs
         , md3instanceBuffer = gpumd3Buffer
         , md3instanceFrames = gpumd3Frames
+        , md3instanceModel  = gpumd3Model
         }
 
 addMD3 :: GLStorage -> MD3Model -> MD3Skin -> [String] -> IO MD3Instance

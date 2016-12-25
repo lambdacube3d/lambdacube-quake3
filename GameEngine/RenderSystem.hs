@@ -339,14 +339,9 @@ render' renderSystem@RenderSystem{..} time Scene{..} = do
         --forM_ bspinstanceSurfaces $ mapM_ (flip enableObject True)
 
       -- TODO: snap body parts
-      setupCharacterInstance CharacterInstance{..} (MD3Character (Vec2 x y) _ _) = do
-        let mat = mat4ToM44F $ fromProjective $ (translation $ Vec3 x y 0)
-            setup MD3Instance{..} = forM_ md3instanceObject $ \obj -> do
-              enableObject obj True
-              uniformM44F "worldMat" (objectUniformSetter obj) mat
-        setup characterinstanceHeadModel
-        setup characterinstanceUpperModel
-        setup characterinstanceLowerModel
+      setupCharacterInstance character (MD3Character (Vec2 x y) _ _) = do
+        let mat = translation $ Vec3 x y 0
+        setupGameCharacter character time mat
 
   InstanceCache{..} <- execStateT (mapM_ addInstance renderables) (initCache md3InstanceCache bspInstanceCache characterCache)
   writeIORef rsMD3InstanceCache $ HashMap.unionWith (++) md3InstanceCache newMD3
