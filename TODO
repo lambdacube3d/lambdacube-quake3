@@ -12,6 +12,10 @@ replace q3mapviewer
 render system
   detailed:
     ok - create character instance type and loader function
+    - collision:
+        entity's shape (box,sphere,ray or rays)
+        collides with static level and each other
+        collision result (content flags, entity type) is passed to interact
     - add character instance cache and instance setup function
     - add and use renderable parameters (entityRGB,entityAlpha,worldMat)
     - add camera attributes (view,proj,viewOrigin,viewport size)
