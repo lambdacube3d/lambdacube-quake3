@@ -245,3 +245,17 @@ writeSampleMaterial shMapTexSlot = writeFile (lc_q3_cache </> "SampleMaterial.lc
   , "sampleMaterial ="
   , unlines . map ("  "++) . lines . ppShow . Map.toList $ shMapTexSlot
   ]
+
+addObjectWithMaterial :: GLStorage -> String -> Primitive -> Maybe (IndexStream Buffer) -> Map String (Stream Buffer) -> [String] -> IO Object
+addObjectWithMaterial rndr name prim idx attrs unis = addObject rndr name' prim idx attrs' unis
+  where
+    attrs'  = Map.filterWithKey (\n _ -> elem n renderAttrs) attrs
+    setters = objectArrays . schema $ rndr
+    alias   = dropExtension name
+    name'
+      | Map.member name setters = name
+      | Map.member alias setters = alias
+      | otherwise = "missing shader"
+    renderAttrs = Map.keys $ case Map.lookup name' setters of
+        Just (ObjectArraySchema _ x)  -> x
+        _           -> error $ "material not found: " ++ show name'

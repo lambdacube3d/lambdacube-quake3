@@ -10,10 +10,10 @@ import qualified Data.ByteString.Lazy as LB
 import Data.ByteString.Char8 (ByteString,unpack)
 import Text.Printf
 import GameEngine.Data.GameCharacter
-import GameEngine.Graphics.Render
 import GameEngine.Loader.MD3
 import GameEngine.Loader.GameCharacter
 import GameEngine.Loader.Zip
+import GameEngine.Graphics.MD3
 import LambdaCube.GL
 
 {-

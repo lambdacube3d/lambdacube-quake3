@@ -30,9 +30,10 @@ import GameEngine.Utils
 import GameEngine.Content (loadShaderMap)
 import GameEngine.Data.Material hiding (Vec3)
 import GameEngine.Graphics.Storage
-import GameEngine.Graphics.Render
 import GameEngine.Graphics.Frustum
 import GameEngine.Graphics.Culling
+import GameEngine.Graphics.MD3
+import GameEngine.Graphics.BSP
 import GameEngine.Loader.Zip
 import GameEngine.Loader.BSP (readBSP)
 import GameEngine.Loader.MD3 (readMD3)

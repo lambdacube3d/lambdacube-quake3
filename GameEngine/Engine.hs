@@ -48,8 +48,9 @@ import GameEngine.Content
 import GameEngine.Entity
 import GameEngine.Graphics.Culling
 import GameEngine.Graphics.Frustum
-import GameEngine.Graphics.Render
 import GameEngine.Graphics.Storage
+import GameEngine.Graphics.BSP
+import GameEngine.Graphics.MD3
 import GameEngine.Loader.BSP
 import GameEngine.Loader.Zip
 import GameEngine.Utils

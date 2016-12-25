@@ -46,7 +46,8 @@ library
                        GameEngine.Graphics.Culling
                        GameEngine.Graphics.Frustum
                        GameEngine.Graphics.GameCharacter
-                       GameEngine.Graphics.Render
+                       GameEngine.Graphics.BSP
+                       GameEngine.Graphics.MD3
                        GameEngine.Graphics.Storage
                        GameEngine.Engine
                        GameEngine.Content
