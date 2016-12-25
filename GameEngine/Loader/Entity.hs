@@ -100,10 +100,10 @@ parseEntities fname src = case parse entities fname src of
   Right e   -> Right e
 
 entities :: Parser [EntityData]
-entities = spaceConsumer *> many entity <* eof
+entities = newlineConsumer *> many entity <* eof
 
 entity :: Parser EntityData
-entity = foldr ($) emptyEntityData <$> between (symbol "{") (symbol "}") (some value)
+entity = foldr ($) emptyEntityData <$> between (newlineSymbol "{") (newlineSymbol "}") (some $ choice [line value, line unknownAttribute])
 
 value :: Parser (EntityData -> EntityData)
 value = stringLiteral >>= \case
@@ -164,13 +164,19 @@ blockComment :: Parser ()
 blockComment = L.skipBlockComment "/*" "*/"
 
 spaceConsumer :: Parser ()
-spaceConsumer = L.space (void spaceChar) lineComment blockComment
+spaceConsumer = L.space (void $ oneOf (" \t" :: String)) lineComment blockComment
+
+newlineConsumer :: Parser ()
+newlineConsumer = L.space (void spaceChar) lineComment blockComment
+
+symbol :: String -> Parser String
+symbol = L.symbol spaceConsumer -- do not consumes line breaks
+
+newlineSymbol :: String -> Parser String
+newlineSymbol = L.symbol newlineConsumer -- consumes line breaks
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme spaceConsumer
-
-symbol :: String -> Parser String
-symbol = L.symbol spaceConsumer
 
 quoted :: Parser a -> Parser a
 quoted = between (lexeme $ char '"') (lexeme $ char '"')
@@ -191,3 +197,23 @@ floatLiteral = realToFrac <$> L.signed spaceConsumer (lexeme float) where
 
 vector3 :: Parser Vec3
 vector3 = Vec3 <$> floatLiteral <*> floatLiteral <*> floatLiteral
+
+line :: Parser a -> Parser a
+line p = p <* skipTillEol <* newlineConsumer
+
+skipTillEol :: Parser ()
+skipTillEol = do
+  let n = lookAhead (choice [eol, string "{", string "}"])
+  pos <- getPosition
+  cmd <- manyTill anyChar n
+  --unless (null cmd) $ tell ["LEFTOVER - " ++ sourcePosPretty pos ++ ": " ++ cmd]
+  return ()
+
+unknownAttribute :: Parser (a -> a)
+unknownAttribute = do
+  let n = lookAhead eol
+  pos <- getPosition
+  cmd <- some alphaNumChar
+  args <- manyTill anyChar n
+  --tell ["IGNORE - " ++ sourcePosPretty pos ++ ": " ++ cmd ++ args]
+  return id
