@@ -27,7 +27,7 @@ import qualified Data.Vector as V
 import Data.Digest.CRC32 (crc32)
 
 import GameEngine.Utils
-import GameEngine.Content (shaderMap)
+import GameEngine.Content (loadShaderMap)
 import GameEngine.Data.Material hiding (Vec3)
 import GameEngine.Graphics.Storage
 import GameEngine.Graphics.Render
@@ -104,7 +104,7 @@ initRenderSystem pk3 = do
   md3InstanceCache <- newIORef mempty
   md3ShaderCache <- newIORef mempty
   textureCache <- newIORef mempty
-  shMap <- shaderMap pk3
+  shMap <- loadShaderMap pk3
   let (inputSchema,_) = createRenderInfo shMap mempty mempty
   storage <- allocStorage inputSchema
   renderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
@@ -139,9 +139,9 @@ loadMD3 pk3 name = case Map.lookup name pk3 of
   Nothing -> fail $ "file not found: " ++ name
   Just a -> readMD3 . LB.fromStrict <$> readEntry a >>= uploadMD3
 
-loadBSP pk3 name = case Map.lookup name pk3 of
+loadBSP shaderMap pk3 name = case Map.lookup name pk3 of
   Nothing -> fail $ "file not found: " ++ name
-  Just a -> readBSP . LB.fromStrict <$> readEntry a >>= uploadBSP
+  Just a -> readBSP . LB.fromStrict <$> readEntry a >>= uploadBSP (Map.keysSet shaderMap)
 
 initStorageDefaultValues tableTextures storage = do
   let slotU           = uniformSetter storage
@@ -194,7 +194,7 @@ updateModelCache RenderSystem{..} renderables = do
   -- load new bsp maps
   bspCache <- readIORef rsBSPCache
   let newBSPNames = setNub [name | BSPMap name <- renderables, not $ HashMap.member name bspCache]
-  newBSPs <- forM newBSPNames $ loadBSP rsFileSystem
+  newBSPs <- forM newBSPNames $ loadBSP rsShaderMap rsFileSystem
   let bspCache' = bspCache `HashMap.union` HashMap.fromList (zip newBSPNames newBSPs)
   unless (null newBSPNames) $ putStrLn $ unlines $ "new bsp maps:" : newBSPNames
   writeIORef rsBSPCache bspCache'

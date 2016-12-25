@@ -127,7 +127,7 @@ engineInit pk3Data fullBSPName = do
         True -> putStrLn "load shader cache" >> decodeFile q3shader_cache
         False -> do
                   putStrLn "create shader cache"
-                  sm <- shaderMap pk3Data
+                  sm <- loadShaderMap pk3Data
                   encodeFile q3shader_cache sm
                   return sm
     let
@@ -199,7 +199,7 @@ setupStorage pk3Data (bsp,md3Map,md3Objs,characterObjs,characters,shMapTexSlot,_
             _ -> return []
 
     putStrLn "add bsp to storage"
-    surfaceObjs <- bspinstanceSurfaces <$> addBSP storage bsp
+    surfaceObjs <- bspinstanceSurfaces <$> addBSP (Map.keysSet shMapTexSlot) storage bsp
 
     -- add entities
     let addMD3Obj (mat,(skin,name)) = case Map.lookup (SB.pack name) md3Map of
@@ -247,6 +247,7 @@ updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,
                 far  = 100/s
                 fovDeg = 60
                 frust = frustum fovDeg (fromIntegral w / fromIntegral h) near far camPos camTarget camUp
+                cullObject obj p = enableObject obj (pointInFrustum p frust)
 
             -- set uniforms
             timeSetter $ time / 1
@@ -263,7 +264,11 @@ updateRenderInput (storage,lcMD3Objs,characters,lcCharacterObjs,surfaceObjs,bsp,
               uniformM44F "viewProj" (objectUniformSetter obj) $ mat4ToM44F $! rot .*. (fromProjective $ translation (Vec3 3 (-10) (-5))) .*. sm .*. pm
               uniformM44F "worldMat" (objectUniformSetter obj) invCM
             forM_ lcMD3Objs $ \(mat,lcmd3) -> do
-              forM_ (md3instanceObject lcmd3) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ mat4ToM44F $ fromProjective $ (rotationEuler (Vec3 time 0 0) .*. mat)
+              forM_ (md3instanceObject lcmd3) $ \obj -> do
+                let m = mat4ToM44F $ fromProjective $ (rotationEuler (Vec3 time 0 0) .*. mat)
+                    p = trim . _4 $ fromProjective mat
+                uniformM44F "worldMat" (objectUniformSetter obj) m
+                cullObject obj p
 
             forM_ (zip characters lcCharacterObjs) $ \(Character{..},(mat,(hMD3,hLC),(uMD3,uLC),(lMD3,lLC))) -> do
               {-
@@ -339,10 +344,14 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
                   hMat = (tagToMat4 $ (MD3.mdTags uMD3 V.! torsoFrame) Map.! "tag_head") .*. uMat
                   uMat = (tagToMat4 $ (MD3.mdTags lMD3 V.! legFrame) Map.! "tag_torso")
                   lMat = one :: Proj4
-                  lcMat m = mat4ToM44F $ fromProjective $ m .*. rotationEuler (Vec3 (time/5) 0 0) .*. mat
-              forM_ (md3instanceObject hLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat hMat
-              forM_ (md3instanceObject uLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat uMat
-              forM_ (md3instanceObject lLC) $ \obj -> uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat lMat
+                  lcMat m = mat4ToM44F . fromProjective $ m .*. rotationEuler (Vec3 (time/5) 0 0) .*. mat
+                  p = trim . _4 $ fromProjective mat
+                  setup m obj = do
+                    uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat m
+                    cullObject obj p
+              forM_ (md3instanceObject hLC) $ setup hMat
+              forM_ (md3instanceObject uLC) $ setup uMat
+              forM_ (md3instanceObject lLC) $ setup lMat
               --setMD3Frame hLC frame
               setMD3Frame uLC torsoFrame
               setMD3Frame lLC legFrame

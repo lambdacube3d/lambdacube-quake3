@@ -24,6 +24,8 @@ import Data.HashSet (HashSet)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.HashSet as HashSet
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable.Mutable as SMV
@@ -32,6 +34,7 @@ import qualified Data.ByteString as SB
 import qualified Data.ByteString.Char8 as SB8
 import Codec.Picture
 import Debug.Trace
+import Text.Printf
 import System.FilePath
 
 import LambdaCube.GL
@@ -86,13 +89,15 @@ data BSPSurface
     - build lightmap atlas
     - update lightmap uv coordinates
 -}
-batchBSP BSPLevel{..} = (result 0 (Map.keys surfaces) indices,V.concat indices) where
+batchBSP shaderMap BSPLevel{..} = (result 0 (Map.toList surfaces) indices,V.concat indices) where
   result _ [] [] = []
-  result offset (name:xs) (v:ys) = (lightmapIndex,0,V.length blDrawVertices,offset,V.length v,TriangleList,name) : result (offset + V.length v) xs ys
+  result offset ((name,l):xs) (v:ys) = (lightmapIndex l,0,V.length blDrawVertices,offset,V.length v,TriangleList,name) : result (offset + V.length v) xs ys
   indices = map join $ Map.elems surfaces
-  lightmapIndex = 0 :: Int-- TODO
+  lightmapIndex ((BSPTriangleSoup i _ _ _):_) = i
+  lightmapIndex ((BSPPatch i _ _ ):_) = i
+  lightmapIndex _ = 0 :: Int-- TODO
   join l = V.concat [(firstVertex +) <$> V.slice firstIndex indexCount blDrawIndices | BSPTriangleSoup lightmap firstVertex firstIndex indexCount <- l]
-  surfaces = foldl (\m s -> Map.insertWith (++) (shName $ blShaders V.! srShaderNum s) (bspSurface s) m) mempty blSurfaces
+  surfaces = foldl (\m s -> Map.insertWith (++) (let name = shName $ blShaders V.! srShaderNum s in if Set.member (SB8.unpack name) shaderMap then name else "missing shader") (bspSurface s) m) mempty blSurfaces
   bspSurface s@Surface{..} = if noDraw then [] else case srSurfaceType of
           Patch -> [BSPPatch srLightmapNum v i] where (v,i) = tessellatePatch blDrawVertices s 5
           Flare -> []
@@ -101,8 +106,8 @@ batchBSP BSPLevel{..} = (result 0 (Map.keys surfaces) indices,V.concat indices) 
           surfaceFlags = shSurfaceFlags $ blShaders V.! srShaderNum
           noDraw = surfaceFlags .&. 0x80 /= 0
 
-uploadBSP :: BSPLevel -> IO GPUBSP
-uploadBSP bsp@BSPLevel{..} = do
+uploadBSP :: Set String -> BSPLevel -> IO GPUBSP
+uploadBSP shaderMap bsp@BSPLevel{..} = do
   -- construct vertex and index buffer
   let convertSurface (objs,lenV,arrV,lenI,arrI) s@Surface{..} = if noDraw then skip else case srSurfaceType of
           Planar          -> objs'
@@ -119,11 +124,13 @@ uploadBSP bsp@BSPLevel{..} = do
           objs' = ((srLightmapNum,srFirstVertex, srNumVertices, srFirstIndex, srNumIndices, TriangleList, name):objs, lenV, arrV, lenI, arrI)
           Shader name sfFlags _ = blShaders V.! srShaderNum
           noDraw = sfFlags .&. 0x80 /= 0
+      
       (objs,_,drawVl,_,drawIl) = V.foldl' convertSurface ([],V.length blDrawVertices,[blDrawVertices],V.length blDrawIndices,[blDrawIndices]) blSurfaces
       drawV' = V.concat $ reverse drawVl
       drawI' = V.concat $ reverse drawIl
+      
       {-
-      (objs,drawI') = batchBSP bsp
+      (objs,drawI') = batchBSP shaderMap bsp
       drawV' = blDrawVertices
       -}
       withV w a f = w a (\p -> f $ castPtr p)
@@ -159,6 +166,7 @@ uploadBSP bsp@BSPLevel{..} = do
 
       surfaces = map gpuSurface $ reverse objs
 
+  putStrLn $ printf "surface count: %d" (length surfaces)
   return $ GPUBSP
     { gpubspVertexBuffer  = vertexBuffer
     , gpubspIndexBuffer   = indexBuffer
@@ -174,10 +182,10 @@ data BSPInstance
   , bspinstanceSurfaces :: Vector [Object]
   }
 
-addBSP :: GLStorage -> BSPLevel -> IO BSPInstance
-addBSP storage bsp = do
+addBSP :: Set String -> GLStorage -> BSPLevel -> IO BSPInstance
+addBSP shaderMap storage bsp = do
   whiteTexture <- uploadTexture2DToGPU' False False False False $ ImageRGB8 $ generateImage (\_ _ -> PixelRGB8 255 255 255) 1 1
-  addGPUBSP whiteTexture storage =<< uploadBSP bsp
+  addGPUBSP whiteTexture storage =<< uploadBSP shaderMap bsp
 
 addGPUBSP :: TextureData -> GLStorage -> GPUBSP -> IO BSPInstance
 addGPUBSP whiteTexture storage GPUBSP{..} = do
@@ -194,6 +202,7 @@ addGPUBSP whiteTexture storage GPUBSP{..} = do
               #define	LIGHTMAP_NONE		-1
           -}
           forM_ [o,o1] $ \b -> uniformFTexture2D "LightMap" (objectUniformSetter b) $ fromMaybe whiteTexture lightmap
+          putStrLn $ printf "add surface #%d to storage" surfaceIdx
           return [o,o1]
   BSPInstance gpubspBSPLevel <$> V.imapM obj (V.fromList gpubspSurfaces)
 

@@ -45,8 +45,8 @@ loadPK3 = do
       isPrefixOfCI a b = isPrefixOf a $ map toLower b
   Map.unions <$> (mapM readArchive =<< filter (\n -> ".pk3" == takeExtensionCI n) <$> getDirectoryContents ".")
 
-shaderMap :: Map String Entry -> IO (Map String CommonAttrs)
-shaderMap ar = do
+loadShaderMap :: Map String Entry -> IO (Map String CommonAttrs)
+loadShaderMap ar = do
   l <- sequence <$> forM [(n,e) | (n,e) <- Map.toList ar, ".shader" == takeExtension n, isPrefixOf "scripts" n] (\(n,e) -> parseShaders (eArchiveName e ++ ":" ++ n) <$> readEntry e)
   case l of
     Left err -> fail err

@@ -264,6 +264,7 @@ initWindow title width height = do
     Just win <- createWindow width height title Nothing Nothing
     makeContextCurrent $ Just win
     glEnable GL_FRAMEBUFFER_SRGB
+    swapInterval 0
     return win
 
 -- FPS tracking

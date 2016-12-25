@@ -18,7 +18,6 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera cameraOrigin cam
   add l = tell (l,Last Nothing)
   setCamera c = tell ([],Last $ Just c)
   (renderables,Last (Just (camera,cameraOrigin,cameraFrustum))) = execWriter . forM_ (w^.wEntities) $ \case
-    EBullet b   -> add [MD3 (b^.bPosition) "models/ammo/rocket/rocket.md3"]
     EPlayer a   -> setCamera (cm .*. sm .*. pm,camPos,frust){- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
       cm = fromProjective (lookat camPos camTarget camUp)
       pm = perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h)
@@ -39,6 +38,7 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera cameraOrigin cam
       unitVectorAtAngle = sinCos
       degToRad a = a/180*pi
 
+    EBullet b   -> add [MD3 (b^.bPosition) "models/ammo/rocket/rocket.md3"]
     EWeapon a   -> add [MD3 (a^.wPosition) "models/weapons2/shotgun/shotgun.md3"]
     EAmmo a     -> add [MD3 (a^.aPosition) "models/powerups/ammo/shotgunam.md3"]
     EArmor a    -> add [MD3 (a^.rPosition) "models/powerups/armor/armor_red.md3"]
