@@ -9,7 +9,7 @@ import qualified Data.Map as Map
 import Data.Vect
 
 import Entities
-import GameEngine.Data.Items
+import Items
 import qualified GameEngine.Loader.Entity as E
 
 loadEntities :: [E.EntityData] -> [Entity]

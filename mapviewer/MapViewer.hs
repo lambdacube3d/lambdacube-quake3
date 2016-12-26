@@ -21,7 +21,7 @@ import LambdaCube.GL as GL
 import Sound.ProteaAudio
 
 import Camera
-import GameEngine.Engine
+import Engine
 import GameEngine.Loader.Zip
 import qualified Data.ByteString.Char8 as SB8
 

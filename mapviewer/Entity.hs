@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase, RecordWildCards, OverloadedStrings, ViewPatterns #-}
-module GameEngine.Entity where
+module Entity where
 
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as SB
@@ -8,7 +8,7 @@ import qualified Data.Map as Map
 import Data.Vect
 import Data.Maybe
 
-import GameEngine.Data.Items
+import Items
 import GameEngine.Loader.Entity
 
 data Entity

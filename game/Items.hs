@@ -1,4 +1,4 @@
-module GameEngine.Data.Items where
+module Items where
 
 data Powerup
   = PW_QUAD

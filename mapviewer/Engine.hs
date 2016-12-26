@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase, ViewPatterns, RecordWildCards, TupleSections, PackageImports, OverloadedStrings #-}
-module GameEngine.Engine
+module Engine
   ( loadPK3
   , createLoadingScreen
   , drawLoadingScreen
@@ -44,9 +44,8 @@ import LambdaCube.GL as GL
 
 import GameEngine.Data.BSP
 import GameEngine.Data.GameCharacter
-import GameEngine.Data.Material hiding (Vec3)
+import GameEngine.Data.Material hiding (Vec3,Entity)
 import GameEngine.Content
-import GameEngine.Entity
 import GameEngine.Graphics.Culling
 import GameEngine.Graphics.Frustum
 import GameEngine.Graphics.Storage
@@ -57,6 +56,9 @@ import GameEngine.Loader.Zip
 import GameEngine.Utils
 import qualified GameEngine.Data.MD3 as MD3
 import qualified GameEngine.Loader.Entity as E
+
+import Entity
+import Content
 
 import Paths_lambdacube_quake3
 
@@ -69,7 +71,7 @@ type EngineContent =
   , Map String CommonAttrs
   , [Vec3]
   , V.Vector Int
-  , ([GameEngine.Entity.Entity], Map ByteString GameEngine.Entity.Entity)
+  , ([Entity], Map ByteString Entity)
   , Maybe String
   )
 
