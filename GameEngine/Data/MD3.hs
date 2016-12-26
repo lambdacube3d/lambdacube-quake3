@@ -1,10 +1,10 @@
 module GameEngine.Data.MD3 where
 
 import Data.Int
-import Data.Map
+import Data.HashMap.Strict
 import Data.Vect hiding (Vector)
 import Data.Vector (Vector)
-import qualified Data.ByteString.Char8 as SB
+import Data.ByteString (ByteString)
 import qualified Data.Vector.Storable as SV
 
 data Frame
@@ -13,12 +13,12 @@ data Frame
     , frMaxs    :: !Vec3
     , frOrigin  :: !Vec3
     , frRadius  :: !Float
-    , frName    :: !SB.ByteString
+    , frName    :: !ByteString
     } deriving Show
 
 data Tag
     = Tag
-    { tgName    :: !SB.ByteString
+    { tgName    :: !ByteString
     , tgOrigin  :: !Vec3
     , tgAxisX   :: !Vec3
     , tgAxisY   :: !Vec3
@@ -27,13 +27,13 @@ data Tag
 
 data Shader
     = Shader
-    { shName    :: !SB.ByteString
+    { shName    :: !ByteString
     , shIndex   :: !Int
     } deriving Show
 
 data Surface
     = Surface
-    { srName        :: !SB.ByteString
+    { srName        :: !ByteString
     , srShaders     :: !(Vector Shader)
     , srTriangles   :: !(SV.Vector Int32)
     , srTexCoords   :: !(SV.Vector Vec2)
@@ -43,6 +43,6 @@ data Surface
 data MD3Model
     = MD3Model
     { mdFrames      :: !(Vector Frame)
-    , mdTags        :: !(Vector (Map SB.ByteString Tag))
+    , mdTags        :: !(Vector (HashMap ByteString Tag))
     , mdSurfaces    :: !(Vector Surface)
     } deriving Show

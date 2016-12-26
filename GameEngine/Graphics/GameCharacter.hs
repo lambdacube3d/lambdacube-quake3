@@ -7,6 +7,7 @@ import Data.List
 import Data.Maybe
 import Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Data.HashMap.Strict as HashMap
 import Data.ByteString.Char8 (ByteString,unpack)
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Vector as V
@@ -149,14 +150,14 @@ setupGameCharacter CharacterInstance{..} time worldMat = do
       --  transform head to torso (and legs)
       t = floor $ time * 15
       Character{..} = characterinstanceCharacter
-      legAnim = animationMap Map.! legAnimType
+      legAnim = animationMap HashMap.! legAnimType
       legFrame = aFirstFrame legAnim + t `mod` aNumFrames legAnim
-      torsoAnim = animationMap Map.! torsoAnimType
+      torsoAnim = animationMap HashMap.! torsoAnimType
       torsoFrame = aFirstFrame torsoAnim + t `mod` aNumFrames torsoAnim
 
       lcMat m = mat4ToM44F . fromProjective $ m .*. rotationEuler (Vec3 (time/5) 0 0) .*. worldMat
       tagToProj4 Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ Mat3 tgAxisX tgAxisY tgAxisZ)
-      getTagProj4 MD3Instance{..} frame name = case mdTags md3instanceModel V.!? frame >>= Map.lookup name of
+      getTagProj4 MD3Instance{..} frame name = case mdTags md3instanceModel V.!? frame >>= HashMap.lookup name of
         Nothing -> idmtx
         Just tag -> tagToProj4 tag
 

@@ -5,8 +5,8 @@ module GameEngine.Loader.GameCharacter
 
 import Control.Applicative
 import Control.Monad
-import Data.Map (Map,(!))
-import qualified Data.Map as Map
+import Data.HashMap.Strict (HashMap,(!))
+import qualified Data.HashMap.Strict as HashMap
 import Data.ByteString (ByteString)
 import Text.Megaparsec hiding (count)
 import Text.Megaparsec.ByteString
@@ -95,14 +95,14 @@ character = do
   -- properties
   setAttribs <- characterAttributes
   -- animations
-  anim <- Map.fromList <$> forM (enumFromTo BOTH_DEATH1 LEGS_TURN) (\a -> (a,) <$> animation)
+  anim <- HashMap.fromList <$> forM (enumFromTo BOTH_DEATH1 LEGS_TURN) (\a -> (a,) <$> animation)
   let torsoGesture = (anim ! TORSO_GESTURE) {aReversed = False, aFlipFlop = False}
       skip = aFirstFrame (anim ! LEGS_WALKCR) - aFirstFrame (anim ! TORSO_GESTURE)
-      anim1 = foldr (Map.adjust (\a -> a {aFirstFrame = aFirstFrame a - skip})) anim (enumFromTo LEGS_WALKCR LEGS_TURN)
+      anim1 = foldr (HashMap.adjust (\a -> a {aFirstFrame = aFirstFrame a - skip})) anim (enumFromTo LEGS_WALKCR LEGS_TURN)
   -- unify the map
-  animParsed <- (mappend anim1 . Map.fromList) <$> forM (enumFromTo TORSO_GETFLAG TORSO_NEGATIVE) (\a -> (a,) <$> (animation <|> pure torsoGesture))
+  animParsed <- (mappend anim1 . HashMap.fromList) <$> forM (enumFromTo TORSO_GETFLAG TORSO_NEGATIVE) (\a -> (a,) <$> (animation <|> pure torsoGesture))
   -- postprocess
-  let animCalculated = Map.fromList
+  let animCalculated = HashMap.fromList
         [ (LEGS_BACKCR, (anim ! LEGS_WALKCR) {aReversed = True})
         , (LEGS_BACKWALK, (anim ! LEGS_WALK) {aReversed = True})
         , (FLAG_RUN, Animation

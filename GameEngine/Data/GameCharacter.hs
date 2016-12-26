@@ -1,7 +1,10 @@
+{-# LANGUAGE DeriveGeneric #-}
 module GameEngine.Data.GameCharacter where
 
+import GHC.Generics (Generic)
+import Data.Hashable
+import Data.HashMap.Strict
 import LambdaCube.Linear (V3(..))
-import Data.Map
 
 data Animation
   = Animation
@@ -79,16 +82,18 @@ data AnimationType
   | FLAG_RUN
   | FLAG_STAND
   | FLAG_STAND2RUN
-  deriving (Show, Eq, Ord, Bounded, Enum)
+  deriving (Show, Eq, Ord, Bounded, Enum, Generic)
+
+instance Hashable AnimationType
 
 data Character
   = Character
-  { animationMap  :: !(Map AnimationType Animation)
+  { animationMap  :: !(HashMap AnimationType Animation)
   , gender        :: !Gender
   , footStep      :: !FootStep
   , headOffset    :: !(V3 Float)
   , fixedLegs     :: !Bool
   , fixedTorso    :: !Bool
   }
-  deriving (Show, Eq, Ord)
+  deriving Show
 

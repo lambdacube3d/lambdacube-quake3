@@ -7,7 +7,7 @@ module GameEngine.Loader.MD3
 import Control.Monad
 import Data.Int
 
-import qualified Data.Map as Map
+import qualified Data.HashMap.Strict as HashMap
 import Data.Binary as B
 import Data.Binary.Get as B
 import Data.Binary.IEEE754
@@ -79,7 +79,7 @@ getMD3Model = do
     [oFrames,oTags,oSurfaces,oEnd] <- replicateM 4 getInt
     return $ MD3Model
       { mdFrames    = getV oFrames nFrames getFrame dat
-      , mdTags      = (\v -> Map.fromList [(tgName t,t) | t <- V.toList v]) <$> getV oTags nFrames (V.replicateM nTags getTag) dat
+      , mdTags      = (\v -> HashMap.fromList [(tgName t,t) | t <- V.toList v]) <$> getV oTags nFrames (V.replicateM nTags getTag) dat
       , mdSurfaces  = getV oSurfaces nSurfaces getSurface dat
       }
 

@@ -26,6 +26,7 @@ import Data.Map (Map)
 import System.FilePath
 import System.Directory
 
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
 import Data.Binary (encodeFile,decodeFile)
 import qualified Data.ByteString.Lazy as LB
@@ -336,14 +337,14 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
               --  transform torso to legs
               --  transform head to torso (and legs)
               let t = floor $ time * 15
-                  legAnim = animationMap Map.! legAnimType
+                  legAnim = animationMap HashMap.! legAnimType
                   legFrame = aFirstFrame legAnim + t `mod` aNumFrames legAnim
-                  torsoAnim = animationMap Map.! torsoAnimType
+                  torsoAnim = animationMap HashMap.! torsoAnimType
                   torsoFrame = aFirstFrame torsoAnim + t `mod` aNumFrames torsoAnim
 
                   tagToMat4 MD3.Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ Mat3 tgAxisX tgAxisY tgAxisZ)
-                  hMat = (tagToMat4 $ (MD3.mdTags uMD3 V.! torsoFrame) Map.! "tag_head") .*. uMat
-                  uMat = (tagToMat4 $ (MD3.mdTags lMD3 V.! legFrame) Map.! "tag_torso")
+                  hMat = (tagToMat4 $ (MD3.mdTags uMD3 V.! torsoFrame) HashMap.! "tag_head") .*. uMat
+                  uMat = (tagToMat4 $ (MD3.mdTags lMD3 V.! legFrame) HashMap.! "tag_torso")
                   lMat = one :: Proj4
                   lcMat m = mat4ToM44F . fromProjective $ m .*. rotationEuler (Vec3 (time/5) 0 0) .*. mat
                   p = trim . _4 $ fromProjective mat

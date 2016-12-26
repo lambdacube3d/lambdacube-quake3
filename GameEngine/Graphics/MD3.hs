@@ -22,8 +22,7 @@ import Foreign
 import LambdaCube.GL
 import LambdaCube.GL.Mesh
 
-import GameEngine.Data.MD3 (MD3Model(..))
-import qualified GameEngine.Data.MD3 as MD3
+import GameEngine.Data.MD3
 import GameEngine.Graphics.Storage
 import GameEngine.Utils
 
@@ -63,8 +62,8 @@ setMD3Frame (MD3Instance{..}) idx = updateBuffer md3instanceBuffer $ md3instance
 -}
 uploadMD3 :: MD3Model -> IO GPUMD3
 uploadMD3 model@MD3Model{..} = do
-  let cvtSurface :: MD3.Surface -> (Array,Array,Vector (Array,Array))
-      cvtSurface MD3.Surface{..} =
+  let cvtSurface :: Surface -> (Array,Array,Vector (Array,Array))
+      cvtSurface Surface{..} =
         ( Array ArrWord32 (SV.length srTriangles) (withV srTriangles)
         , Array ArrFloat (2 * SV.length srTexCoords) (withV srTexCoords)
         , V.map cvtPosNorm srXyzNormal
@@ -82,7 +81,7 @@ uploadMD3 model@MD3Model{..} = do
   buffer <- compileBuffer (concat [il,tl,pl,nl])
 
   let numSurfaces = V.length mdSurfaces
-      surfaceData idx MD3.Surface{..} = (index,attributes) where
+      surfaceData idx Surface{..} = (index,attributes) where
         index = IndexStream buffer idx 0 (SV.length srTriangles)
         countV = SV.length srTexCoords
         attributes = Map.fromList $
@@ -102,35 +101,30 @@ uploadMD3 model@MD3Model{..} = do
     , gpumd3Surfaces  = zipWith surfaceData [0..] (V.toList mdSurfaces)
     , gpumd3Frames    = frames
     , gpumd3Model     = model
-    , gpumd3Shaders   = HashSet.fromList $ concat [map (SB8.unpack . MD3.shName) $ V.toList srShaders | MD3.Surface{..} <- V.toList mdSurfaces]
+    , gpumd3Shaders   = HashSet.fromList $ concat [map (SB8.unpack . shName) $ V.toList srShaders | Surface{..} <- V.toList mdSurfaces]
     }
 
 addGPUMD3 :: GLStorage -> GPUMD3 -> MD3Skin -> [String] -> IO MD3Instance
 addGPUMD3 r GPUMD3{..} skin unis = do
     let MD3Model{..} = gpumd3Model
     objs <- forM (zip gpumd3Surfaces $ V.toList mdSurfaces) $ \((index,attrs),sf) -> do
-        let materialName s = case Map.lookup (SB8.unpack $ MD3.srName sf) skin of
-              Nothing -> SB8.unpack $ MD3.shName s
+        let materialName s = case Map.lookup (SB8.unpack $ srName sf) skin of
+              Nothing -> SB8.unpack $ shName s
               Just a  -> a
-        objList <- concat <$> forM (V.toList $ MD3.srShaders sf) (\s -> do
+        objList <- concat <$> forM (V.toList $ srShaders sf) (\s -> do
           a <- addObjectWithMaterial r (materialName s) TriangleList (Just index) attrs $ setNub $ "worldMat":unis
           b <- addObject r "LightMapOnly" TriangleList (Just index) attrs $ setNub $ "worldMat":unis
           return [a,b])
 
         -- add collision geometry
         collisionObjs <- case V.toList mdFrames of
-          (MD3.Frame{..}:_) -> do
+          (Frame{..}:_) -> do
             sphereObj <- uploadMeshToGPU (sphere (V4 1 0 0 1) 4 frRadius) >>= addMeshToObjectArray r "CollisionShape" (setNub $ ["worldMat","origin"] ++ unis)
             boxObj <- uploadMeshToGPU (bbox (V4 0 0 1 1) frMins frMaxs) >>= addMeshToObjectArray r "CollisionShape" (setNub $ ["worldMat","origin"] ++ unis)
             --when (frOrigin /= zero) $ putStrLn $ "frOrigin: " ++ show frOrigin
             return [sphereObj,boxObj]
           _ -> return []
-        {-
-          uploadMeshToGPU
-          addMeshToObjectArray
-          updateMesh :: GPUMesh -> [(String,MeshAttribute)] -> Maybe MeshPrimitive -> IO ()
-        -}
-        
+
         return $ objList ++ collisionObjs
     -- question: how will be the referred shaders loaded?
     --           general problem: should the gfx network contain all passes (every possible materials)?
