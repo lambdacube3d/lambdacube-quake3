@@ -3,9 +3,7 @@ module GameEngine.Data.BSP where
 import Data.Word
 import Data.Vector (Vector)
 import Data.Vect hiding (Vector)
-
-import qualified Data.ByteString as SB
-import qualified Data.ByteString.Char8 as SB8
+import Data.ByteString
 
 {-
 Information:
@@ -25,7 +23,7 @@ data Model
 
 data Shader
     = Shader
-    { shName         :: !SB8.ByteString
+    { shName         :: !ByteString
     , shSurfaceFlags :: !Int
     , shContentFlags :: !Int
     }
@@ -71,7 +69,7 @@ data Brush
 
 data Fog
     = Fog
-    { fgName        :: !SB8.ByteString
+    { fgName        :: !ByteString
     , fgBrushNum    :: !Int
     , fgVisibleSide :: !Int
     }
@@ -112,7 +110,7 @@ data Surface
 
 data Lightmap
     = Lightmap
-    { lmMap :: !SB.ByteString
+    { lmMap :: !ByteString
     }
 
 data LightGrid
@@ -127,7 +125,7 @@ data Visibility
 
 data BSPLevel
     = BSPLevel
-    { blEntities     :: !SB8.ByteString
+    { blEntities     :: !ByteString
     , blShaders      :: !(Vector Shader)
     , blPlanes       :: !(Vector Plane)
     , blNodes        :: !(Vector Node)
