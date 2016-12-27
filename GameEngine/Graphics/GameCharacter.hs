@@ -67,9 +67,9 @@ data CharacterInstance
 readSkin :: ByteString -> Map String String
 readSkin txt = Map.fromList
   [ (head k,head v)
-  | l <- lines $ unpack txt
+  | l <- lines . map toLower $ unpack txt
   , i <- maybeToList $ elemIndex ',' l
-  , let (words . map toLower -> k,words . map toLower . tail -> v) = splitAt i l
+  , let (words -> k,words . tail -> v) = splitAt i l
   , not . null $ k
   , not . null $ v
   ]

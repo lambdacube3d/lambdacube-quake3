@@ -5,7 +5,9 @@ module GameEngine.Loader.Entity
   ) where
 
 import Control.Monad (void)
+import Data.Char
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as SB8
 import Text.Megaparsec hiding (count)
 import Text.Megaparsec.ByteString
 import qualified Text.Megaparsec.Lexer as L
@@ -95,7 +97,7 @@ emptyEntityData = EntityData
 
 -- quake 3 entity parser
 parseEntities :: String -> ByteString -> Either String [EntityData]
-parseEntities fname src = case parse entities fname src of
+parseEntities fname src = case parse entities fname $ SB8.map toLower src of
   Left err  -> Left (parseErrorPretty err)
   Right e   -> Right e
 
@@ -113,8 +115,8 @@ value = stringLiteral >>= \case
   "target"      -> (\v e -> e {target = Just v}) <$> stringLiteral
   "targetname"  -> (\v e -> e {targetname = Just v}) <$> stringLiteral
   "team"        -> (\v e -> e {team = Just v}) <$> stringLiteral
-  "targetShaderName"    -> (\v e -> e {targetShaderName = Just v}) <$> stringLiteral
-  "targetShaderNewName" -> (\v e -> e {targetShaderNewName = Just v}) <$> stringLiteral
+  "targetshadername"    -> (\v e -> e {targetShaderName = Just v}) <$> stringLiteral
+  "targetshadernewname" -> (\v e -> e {targetShaderNewName = Just v}) <$> stringLiteral
 
   "spawnflags"  -> (\v e -> e {spawnflags = v}) <$> quoted integerLiteral
 

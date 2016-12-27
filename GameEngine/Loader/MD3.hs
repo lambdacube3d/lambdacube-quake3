@@ -6,21 +6,23 @@ module GameEngine.Loader.MD3
 
 import Control.Monad
 import Data.Int
+import Data.Char
 
 import qualified Data.HashMap.Strict as HashMap
 import Data.Binary as B
 import Data.Binary.Get as B
 import Data.Binary.IEEE754
 import Data.Vect hiding (Vector)
-import qualified Data.ByteString.Char8 as SB
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as SB8
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
 
 import GameEngine.Data.MD3
 
-getString :: Int -> Get SB.ByteString
-getString = fmap (SB.takeWhile (/= '\0')) . getByteString
+getLowerCaseString :: Int -> Get ByteString
+getLowerCaseString len = SB8.map toLower . SB8.takeWhile (/= '\0') <$> getByteString len
 
 getUByte    = B.get :: Get Word8
 getFloat    = getFloat32le :: Get Float
@@ -40,9 +42,9 @@ getV o n f dat = runGet (V.replicateM n f) (LB.drop (fromIntegral o) dat)
 getSV :: SV.Storable a => Int -> Int -> Get a -> LB.ByteString -> SV.Vector a
 getSV o n f dat = runGet (SV.replicateM n f) (LB.drop (fromIntegral o) dat)
 
-getFrame    = Frame <$> getVec3 <*> getVec3 <*> getVec3 <*> getFloat <*> getString 64 :: Get Frame
-getTag      = Tag <$> getString 64 <*> getVec3 <*> getVec3 <*> getVec3 <*> getVec3 :: Get Tag
-getShader   = Shader <$> getString 64 <*> getInt  :: Get Shader
+getFrame    = Frame <$> getVec3 <*> getVec3 <*> getVec3 <*> getFloat <*> getLowerCaseString 64 :: Get Frame
+getTag      = Tag <$> getLowerCaseString 64 <*> getVec3 <*> getVec3 <*> getVec3 <*> getVec3 :: Get Tag
+getShader   = Shader <$> getLowerCaseString 64 <*> getInt  :: Get Shader
 
 getXyzNormal :: Get (Vec3, Vec3)
 getXyzNormal = do
@@ -56,8 +58,8 @@ getSurface = (\(o,v) -> skip o >> return v) =<< lookAhead getSurface'
   where
     getSurface' = do
         dat <- lookAhead getRemainingLazyByteString
-        "IDP3" <- getString 4
-        name <- getString 64
+        "IDP3" <- getByteString 4
+        name <- getLowerCaseString 64
         flags <- getInt
         [nFrames,nShaders,nVerts,nTris] <- replicateM 4 getInt
         [oTris,oShaders,oTexCoords,oXyzNormals,oEnd] <- replicateM 5 getInt
@@ -70,10 +72,10 @@ getSurface = (\(o,v) -> skip o >> return v) =<< lookAhead getSurface'
 getMD3Model :: Get MD3Model
 getMD3Model = do
     dat <- lookAhead getRemainingLazyByteString
-    "IDP3" <- getString 4
+    "IDP3" <- getByteString 4
     version <- getInt
     when (version /= 15) $ fail "unsupported md3 version"
-    name <- getString 64
+    name <- getLowerCaseString 64
     flags <- getInt
     [nFrames,nTags,nSurfaces,nSkins] <- replicateM 4 getInt
     [oFrames,oTags,oSurfaces,oEnd] <- replicateM 4 getInt

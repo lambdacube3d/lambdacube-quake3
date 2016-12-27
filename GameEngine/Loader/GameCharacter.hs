@@ -5,9 +5,11 @@ module GameEngine.Loader.GameCharacter
 
 import Control.Applicative
 import Control.Monad
+import Data.Char
 import Data.HashMap.Strict (HashMap,(!))
 import qualified Data.HashMap.Strict as HashMap
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as SB8
 import Text.Megaparsec hiding (count)
 import Text.Megaparsec.ByteString
 import qualified Text.Megaparsec.Lexer as L
@@ -27,7 +29,7 @@ import GameEngine.Data.GameCharacter
 -}
 
 parseCharacter :: String -> ByteString -> Either String Character
-parseCharacter fname src = case parse (spaceConsumer *> character <* eof) fname src of
+parseCharacter fname src = case parse (spaceConsumer *> character <* eof) fname $ SB8.map toLower src of
   Left err  -> Left (parseErrorPretty err)
   Right e   -> Right e
 

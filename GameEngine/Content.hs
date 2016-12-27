@@ -18,7 +18,6 @@ import GameEngine.Utils
 loadPK3 :: IO (Map String Entry)
 loadPK3 = do
   let takeExtensionCI = map toLower . takeExtension
-      isPrefixOfCI a b = isPrefixOf a $ map toLower b
   Map.unions <$> (mapM readArchive =<< filter (\n -> ".pk3" == takeExtensionCI n) <$> getDirectoryContents ".")
 
 loadShaderMap :: Map String Entry -> IO (Map String CommonAttrs)

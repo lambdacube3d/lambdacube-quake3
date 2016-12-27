@@ -5,7 +5,6 @@ replace q3mapviewer
   - collision
   - gravity
   - debug render
-  - character support
   - audio support
   - render player's current weapon
 
@@ -14,7 +13,6 @@ render system
     - add and use renderable parameters (entityRGB,entityAlpha,position/quaternion)
     - add camera data type; attributes: position/quaternion,proj4,viewport size
     - add time to scene; sceneTime/animationTime/effectTime
-    - case insensitive names: convert names to lower case in parsers/loaders/zip map
   big:
     - collision:
         entity's shape (box,sphere,ray or rays)
@@ -27,6 +25,7 @@ render system
     - precache support
     - new renderable: BSPInlineModel
   high level, to be elaborated
+    - pass optional debug options to render system; e.g. collision geometry and lightmap only
     - control game character animation
     - performance benchmark
     - restructure code: engine, game; design engine architecture (submodules, api, sample code)

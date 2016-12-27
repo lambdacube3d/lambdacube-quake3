@@ -15,6 +15,7 @@ import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString as SB
 import qualified Data.ByteString.Char8 as SB8
 import qualified Data.ByteString.Lazy as LB
+import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Control.Monad
 
@@ -26,8 +27,8 @@ Information:
   http://www.mralligator.com/q3/
 -}
 
-getString :: Int -> Get ByteString
-getString   = fmap (SB8.takeWhile (/= '\0')) . getByteString
+getLowerCaseString :: Int -> Get ByteString
+getLowerCaseString len = SB8.map toLower . SB8.takeWhile (/= '\0') <$> getByteString len
 
 getFloat  = getFloat32le :: Get Float
 getWord   = getWord32le :: Get Word32
@@ -48,12 +49,12 @@ getInt = fromIntegral <$> getInt' :: Get Int
 
 getInt2 = (,) <$> getInt <*> getInt :: Get (Int,Int)
 
-getItems :: Monad m => Int -> m a -> Int -> m (V.Vector a)
+getItems :: Monad m => Int -> m a -> Int -> m (Vector a)
 getItems elemSize a byteCount = V.replicateM (byteCount `div` elemSize) a
 
 getHeader :: Get [(Int, Int)]
 getHeader = do
-    magic <- getString 4
+    magic <- getByteString 4
     case magic == "IBSP" of
         True    -> return ()
         _       -> fail "Invalid format."
@@ -68,26 +69,26 @@ getSurfaceType  = getInt >>= \i -> case i of
     4 -> return Flare
     _ -> fail "Invalid surface type"
 
-getEntities l   = getString l :: Get ByteString
-getShaders      = getItems  72 $ Shader     <$> (SB8.map toLower <$> getString 64) <*> getInt <*> getInt        :: Int -> Get (V.Vector Shader)
-getPlanes       = getItems  16 $ Plane      <$> getVec3 <*> getFloat                                            :: Int -> Get (V.Vector Plane)
-getNodes        = getItems  36 $ Node       <$> getInt <*> getInt2 <*> getVec3i <*> getVec3i                    :: Int -> Get (V.Vector Node)
+getEntities l   = getLowerCaseString l :: Get ByteString
+getShaders      = getItems  72 $ Shader     <$> getLowerCaseString 64 <*> getInt <*> getInt                     :: Int -> Get (Vector Shader)
+getPlanes       = getItems  16 $ Plane      <$> getVec3 <*> getFloat                                            :: Int -> Get (Vector Plane)
+getNodes        = getItems  36 $ Node       <$> getInt <*> getInt2 <*> getVec3i <*> getVec3i                    :: Int -> Get (Vector Node)
 getLeaves       = getItems  48 $ Leaf       <$> getInt <*> getInt <*> getVec3i <*> getVec3i <*> getInt
-                                            <*> getInt <*> getInt <*> getInt                                    :: Int -> Get (V.Vector Leaf)
-getLeafSurfaces = getItems   4   getInt                                                                         :: Int -> Get (V.Vector Int)
+                                            <*> getInt <*> getInt <*> getInt                                    :: Int -> Get (Vector Leaf)
+getLeafSurfaces = getItems   4   getInt                                                                         :: Int -> Get (Vector Int)
 getLeafBrushes  = getItems   4   getInt
-getModels       = getItems  40 $ Model      <$> getVec3 <*> getVec3 <*> getInt <*> getInt <*> getInt <*> getInt :: Int -> Get (V.Vector Model)
-getBrushes      = getItems  12 $ Brush      <$> getInt <*> getInt <*> getInt                                    :: Int -> Get (V.Vector Brush)
-getBrushSides   = getItems   8 $ BrushSide  <$> getInt <*> getInt                                               :: Int -> Get (V.Vector BrushSide)
-getDrawVertices = getItems  44 $ DrawVertex <$> getVec3 <*> getVec2 <*> getVec2 <*> getVec3 <*> getVec4RGBA     :: Int -> Get (V.Vector DrawVertex)
-getDrawIndices  = getItems   4   getInt                                                                         :: Int -> Get (V.Vector Int)
-getFogs         = getItems  72 $ Fog        <$> getString 64 <*> getInt <*> getInt
+getModels       = getItems  40 $ Model      <$> getVec3 <*> getVec3 <*> getInt <*> getInt <*> getInt <*> getInt :: Int -> Get (Vector Model)
+getBrushes      = getItems  12 $ Brush      <$> getInt <*> getInt <*> getInt                                    :: Int -> Get (Vector Brush)
+getBrushSides   = getItems   8 $ BrushSide  <$> getInt <*> getInt                                               :: Int -> Get (Vector BrushSide)
+getDrawVertices = getItems  44 $ DrawVertex <$> getVec3 <*> getVec2 <*> getVec2 <*> getVec3 <*> getVec4RGBA     :: Int -> Get (Vector DrawVertex)
+getDrawIndices  = getItems   4   getInt                                                                         :: Int -> Get (Vector Int)
+getFogs         = getItems  72 $ Fog        <$> getLowerCaseString 64 <*> getInt <*> getInt
 getSurfaces     = getItems 104 $ Surface    <$> getInt <*> getInt <*> getSurfaceType <*> getInt <*> getInt
                                             <*> getInt <*> getInt <*> getInt <*> getVec2i <*> getVec2i
-                                            <*> getVec3 <*> getVec3 <*> getVec3 <*> getVec3 <*> getInt2         :: Int -> Get (V.Vector Surface)
-getLightmaps    = getItems (128*128*3) (Lightmap <$> (getByteString $ 128*128*3))                               :: Int -> Get (V.Vector Lightmap)
+                                            <*> getVec3 <*> getVec3 <*> getVec3 <*> getVec3 <*> getInt2         :: Int -> Get (Vector Surface)
+getLightmaps    = getItems (128*128*3) (Lightmap <$> (getByteString $ 128*128*3))                               :: Int -> Get (Vector Lightmap)
 
-getLightGrid :: Int -> Get (V.Vector LightGrid)
+getLightGrid :: Int -> Get (Vector LightGrid)
 getLightGrid = getItems 8 $ do
     ambient     <- getUByte3
     directional <- getUByte3
