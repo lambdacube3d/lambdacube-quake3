@@ -52,6 +52,7 @@ library
                        GameEngine.Content
                        GameEngine.Collision
                        GameEngine.Utils
+                       GameEngine.Scene
                        GameEngine.RenderSystem
 
   other-modules:       Paths_lambdacube_quake3

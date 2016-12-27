@@ -10,9 +10,6 @@ replace q3mapviewer
 
 render system
   small and obvious:
-    - add and use renderable parameters (entityRGB,entityAlpha,position/quaternion)
-    - add camera data type; attributes: position/quaternion,proj4,viewport size
-    - add time to scene; sceneTime/animationTime/effectTime
   big:
     - collision:
         entity's shape (box,sphere,ray or rays)
@@ -33,6 +30,7 @@ render system
     - draw hud
     - audio support
     - font/text support
+
     - manual pipeline optimization:
       ok - optimize lambdacube-gl: skip pipeline setup commands before empty slots; avoid useless state changes; this may require to change the IR
             result: minor preformance improvement
@@ -40,6 +38,8 @@ render system
       - use dedicated shader for default materials: lightmap + diffuse; diffuse
       - precompile and cache all non-default shaders
       - minimize render call count: build shared vertex and index buffer; use instanced rendering; use uniform block or instanced arrays; build texture atlas
+        draw call >= shader count
+        draw call = different models * instance count; however instance count may differ for models
 
 game
   small and obvious:

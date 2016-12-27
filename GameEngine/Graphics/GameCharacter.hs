@@ -13,6 +13,7 @@ import qualified Data.ByteString.Lazy as LB
 import qualified Data.Vector as V
 import Text.Printf
 import Data.Vect
+import Data.Vect.Float.Util.Quaternion
 
 import LambdaCube.GL
 
@@ -86,7 +87,7 @@ addCharacterInstance pk3 storage name skin = do
       loadInstance part = do
         model <- readMD3 . LB.fromStrict <$> getEntry (modelName part)
         skin <- readSkin <$> getEntry (skinName part)
-        addMD3 storage model skin ["worldMat"]
+        addMD3 storage model skin ["worldMat","entityRGB","entityAlpha"]
 
   character <- parseCharacter animationName <$> getEntry animationName >>= \case
     Left message  -> fail message
@@ -141,7 +142,8 @@ sampleCharacterAnimation = V.fromList $
   ] ++ zip bothAnim bothAnim where bothAnim = [BOTH_DEATH1, BOTH_DEAD1, BOTH_DEATH2, BOTH_DEAD2, BOTH_DEATH3, BOTH_DEAD3]
 
 -- TODO: design proper interface
-setupGameCharacter CharacterInstance{..} time worldMat = do
+setupGameCharacter :: CharacterInstance -> Float -> Vec3 -> UnitQuaternion -> Vec4 -> IO ()
+setupGameCharacter CharacterInstance{..} time position orientation rgba = do
   let t100 = floor $ time / 4
       (torsoAnimType,legAnimType) = sampleCharacterAnimation V.! (t100 `mod` V.length sampleCharacterAnimation)
 
@@ -155,6 +157,10 @@ setupGameCharacter CharacterInstance{..} time worldMat = do
       torsoAnim = animationMap HashMap.! torsoAnimType
       torsoFrame = aFirstFrame torsoAnim + t `mod` aNumFrames torsoAnim
 
+      rgb = trim rgba
+      alpha = _4 rgba
+      worldMat = toWorldMatrix position orientation
+
       lcMat m = mat4ToM44F . fromProjective $ m .*. rotationEuler (Vec3 (time/5) 0 0) .*. worldMat
       tagToProj4 Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ Mat3 tgAxisX tgAxisY tgAxisZ)
       getTagProj4 MD3Instance{..} frame name = case mdTags md3instanceModel V.!? frame >>= HashMap.lookup name of
@@ -167,6 +173,8 @@ setupGameCharacter CharacterInstance{..} time worldMat = do
       --p = trim . _4 $ fromProjective mat
       setup m obj = do
         uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat m
+        uniformV3F "entityRGB" (objectUniformSetter obj) $ vec3ToV3F rgb
+        uniformFloat "entityAlpha" (objectUniformSetter obj) alpha
         enableObject obj True
         --cullObject obj p
 

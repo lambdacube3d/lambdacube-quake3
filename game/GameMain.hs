@@ -61,7 +61,7 @@ main = do
   play pk3 (emptyWorld ents mapfile) renderFun inputFun stepFun
 
 play :: Map String Entry -> World -> (World -> Scene) -> (Event -> World -> World) -> (Float -> World -> World) -> IO ()
-play pk3 world0 render_ input_ step_ = do
+play pk3 world0 getScene processInput stepWorld = do
   -- init graphics
   win <- initWindow "LambdaCube 3D Shooter" 800 600
   renderSystem <- initRenderSystem pk3
@@ -70,7 +70,7 @@ play pk3 world0 render_ input_ step_ = do
       loop world = do
         pollEvents
         time <- maybe 0 realToFrac <$> getTime
-        render renderSystem time $ render_ world
+        renderScene renderSystem time $ getScene world
         swapBuffers win
         ks <- Event <$> keyIsPressed Key'W
                     <*> keyIsPressed Key'S
@@ -80,7 +80,7 @@ play pk3 world0 render_ input_ step_ = do
                     <*> keyIsPressed Key'Q
                     <*> keyIsPressed Key'Space
         quit <- keyIsPressed Key'Escape
-        unless quit $ loop $ step_ (1/30) $ input_ ks world
+        unless quit $ loop $ stepWorld (1/30) $ processInput ks world
   loop world0
 
   destroyWindow win

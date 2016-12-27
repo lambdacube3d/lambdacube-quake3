@@ -2,7 +2,7 @@
 module GameEngine.RenderSystem
   ( RenderSystem
   , initRenderSystem
-  , render
+  , renderScene
   , Renderable(..)
   , Scene(..)
   ) where
@@ -28,8 +28,8 @@ import qualified Data.Vector as V
 import Data.Digest.CRC32 (crc32)
 import Text.Printf
 
-import GameEngine.Utils
-import GameEngine.Content (loadShaderMap)
+import LambdaCube.GL
+
 import GameEngine.Data.Material hiding (Vec3)
 import GameEngine.Graphics.Storage
 import GameEngine.Graphics.Frustum
@@ -40,35 +40,9 @@ import GameEngine.Graphics.GameCharacter
 import GameEngine.Loader.Zip
 import GameEngine.Loader.BSP (readBSP)
 import GameEngine.Loader.MD3 (readMD3)
-import LambdaCube.GL
-
-data Scene
-  = Scene
-  { renderables   :: [Renderable]
-  , camera        :: Mat4
-  , cameraOrigin  :: Vec3
-  , cameraFrustum :: Frustum
-  }
-
-{-
-  renderable visual parameters:
-    entityRGB Vec3
-    entityAlpha Float
-    worldMat Mat4
--}
-data Renderable
-  = MD3 Vec2 String -- model
-{-
-  { rWorldMat :: Mat4
-  , rRGB      :: Vec3
-  , rAlpha    :: Float
-  , rModel    :: String
-  }
--}
-  | BSPMap String
-  | BSPInlineModel String Int
-  | MD3Character Vec2 String String
-  deriving Show
+import GameEngine.Content
+import GameEngine.Scene
+import GameEngine.Utils
 
 type BSPCache         = HashMap String GPUBSP
 type BSPInstanceCache = HashMap String [BSPInstance]
@@ -194,7 +168,7 @@ initStorageTextures RenderSystem{..} storage usedMaterials = do
 updateModelCache RenderSystem{..} renderables = do
   -- load new md3 models
   md3Cache <- readIORef rsMD3Cache
-  let newModelNames = setNub [name | MD3 _ name <- renderables, not $ HashMap.member name md3Cache]
+  let newModelNames = setNub [name | MD3 _ _ _ name <- renderables, not $ HashMap.member name md3Cache]
   newModels <- forM newModelNames $ loadMD3 rsFileSystem
   let md3Cache' = md3Cache `HashMap.union` HashMap.fromList (zip newModelNames newModels)
   unless (null newModelNames) $ putStrLn $ unlines $ "new models:" : newModelNames
@@ -254,10 +228,10 @@ updateRenderCache renderSystem@RenderSystem{..} newMD3Materials newBSPMaterials
       writeIORef rsCharacterCache mempty
       return (storage,renderer,mempty,mempty,mempty)
 
-render :: RenderSystem -> Float -> Scene -> IO ()
-render a b c = do
+renderScene :: RenderSystem -> Float -> Scene -> IO ()
+renderScene a b c = do
   --printTimeDiff "scene process time: " $ do
-    render' a b c
+    renderScene' a b c
   --printTimeDiff "render time: " $ do
     renderFrame =<< readIORef (rsRenderer a)
 
@@ -273,8 +247,8 @@ data InstanceCache
 
 initCache = InstanceCache mempty mempty mempty
 
-render' :: RenderSystem -> Float -> Scene -> IO ()
-render' renderSystem@RenderSystem{..} time Scene{..} = do
+renderScene' :: RenderSystem -> Float -> Scene -> IO ()
+renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
   -- load new models
   (newMD3Materials,newBSPMaterials,md3Cache,bspCache) <- updateModelCache renderSystem renderables
 
@@ -282,7 +256,7 @@ render' renderSystem@RenderSystem{..} time Scene{..} = do
   (storage,renderer,md3InstanceCache,bspInstanceCache,characterCache) <- updateRenderCache renderSystem newMD3Materials newBSPMaterials
 
   -- create new instances
-  let addInstance md3@(MD3 _ name) = gets oldMD3 >>= \old -> case HashMap.lookup name old of
+  let addInstance md3@(MD3 _ _ _ name) = gets oldMD3 >>= \old -> case HashMap.lookup name old of
         Just (model:_) -> do
           liftIO $ setupMD3Instance model md3
           modify' $ \s -> s {oldMD3 = HashMap.adjust tail name old}
@@ -299,7 +273,7 @@ render' renderSystem@RenderSystem{..} time Scene{..} = do
           model <- liftIO $ newBSPInstance name
           liftIO $ setupBSPInstance model
           modify' $ \s -> s {newBSP = HashMap.insertWith (++) name [model] $ newBSP s}
-      addInstance a@(MD3Character _ name skin) = gets oldCharacter >>= \old -> case HashMap.lookup (name,skin) old of
+      addInstance a@(MD3Character _ _ _ name skin) = gets oldCharacter >>= \old -> case HashMap.lookup (name,skin) old of
         Just (model:_) -> do
           liftIO $ setupCharacterInstance model a
           modify' $ \s -> s {oldCharacter = HashMap.adjust tail (name,skin) old}
@@ -312,7 +286,7 @@ render' renderSystem@RenderSystem{..} time Scene{..} = do
       newMD3Instance name = do
         -- creates new instance from model cache
         putStrLn $ "new instance: " ++ name
-        addGPUMD3 storage (md3Cache HashMap.! name) mempty ["worldMat"]
+        addGPUMD3 storage (md3Cache HashMap.! name) mempty ["worldMat","entityRGB","entityAlpha"]
 
       newBSPInstance name = do
         -- creates new instance from model cache
@@ -327,21 +301,23 @@ render' renderSystem@RenderSystem{..} time Scene{..} = do
         putStrLn $ printf "new instance: %s %s" name skin
         addCharacterInstance rsFileSystem storage name skin
 
-      setupMD3Instance MD3Instance{..} (MD3 (Vec2 x y) _) = do
+      setupMD3Instance MD3Instance{..} (MD3 position orientation rgba _) = do
         forM_ md3instanceObject $ \obj -> do
           enableObject obj True
           -- set model matrix
-          uniformM44F "worldMat" (objectUniformSetter obj) $ mat4ToM44F $ fromProjective $ (translation $ Vec3 x y 0)
+          uniformM44F "worldMat" (objectUniformSetter obj) . mat4ToM44F . fromProjective $ toWorldMatrix position orientation
+          uniformV3F "entityRGB" (objectUniformSetter obj) . vec3ToV3F $ trim rgba
+          uniformFloat "entityAlpha" (objectUniformSetter obj) $ _4 rgba
 
       setupBSPInstance BSPInstance{..} = do
-        cullSurfaces bspinstanceBSPLevel cameraOrigin cameraFrustum bspinstanceSurfaces
+        let Camera{..} = camera
+        cullSurfaces bspinstanceBSPLevel cameraPosition cameraFrustum bspinstanceSurfaces
         -- TODO: do BSP cull on surfaces
         --forM_ bspinstanceSurfaces $ mapM_ (flip enableObject True)
 
       -- TODO: snap body parts
-      setupCharacterInstance character (MD3Character (Vec2 x y) _ _) = do
-        let mat = translation $ Vec3 x y 0
-        setupGameCharacter character time mat
+      setupCharacterInstance character (MD3Character position orientation rgba _ _) = do
+        setupGameCharacter character effectTime position orientation rgba
 
   InstanceCache{..} <- execStateT (mapM_ addInstance renderables) (initCache md3InstanceCache bspInstanceCache characterCache)
   writeIORef rsMD3InstanceCache $ HashMap.unionWith (++) md3InstanceCache newMD3
@@ -357,42 +333,30 @@ render' renderSystem@RenderSystem{..} time Scene{..} = do
     hideMD3 characterinstanceUpperModel
     hideMD3 characterinstanceLowerModel
 
-  setFrameUniforms time cameraOrigin camera storage =<< readIORef rsAnimatedTextures
+  setFrameUniforms effectTime camera storage =<< readIORef rsAnimatedTextures
 
   --renderFrame renderer
 
-setFrameUniforms :: Float -> Vec3 -> Mat4 -> GLStorage -> [AnimatedTexture] -> IO ()
-setFrameUniforms time cameraOrigin camera storage animatedTextures = do
+setFrameUniforms :: Float -> Camera -> GLStorage -> [AnimatedTexture] -> IO ()
+setFrameUniforms time Camera{..} storage animatedTextures = do
   -- set uniforms
-  let slotU = uniformSetter storage
-      viewProj    = uniformM44F "viewProj" slotU
-      viewOrigin  = uniformV3F "viewOrigin" slotU
-      orientation = uniformM44F "orientation" slotU
-      viewMat     = uniformM44F "viewMat" slotU
-      timeSetter  = uniformFloat "time" slotU
+  let uniMap = uniformSetter storage
 
-      cm = fromProjective (lookat camPos camTarget camUp)
-      pm = perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h)
-      sm = fromProjective (scaling $ Vec3 s s s)
-      s  = 0.005
-      Vec3 cx cy cz = cameraOrigin
-      near = 0.00001/s
-      far  = 100/s
-      fovDeg = 60
-      --frust = frustum fovDeg (fromIntegral w / fromIntegral h) near far camPos camTarget camUp
-      --time = 1
-      w = 800
-      h = 600
-      camPos = Vec3 0 0 1000
-      camTarget = Vec3 0 0 0
-      camUp = Vec3 0 1 0
+      rot   = orthogonal $ leftOrthoU cameraOrientation
+      view  = fromProjective $ translateBefore4 (neg cameraPosition) rot
+      (w,h) = cameraViewportSize
 
-  timeSetter $ time / 1
-  viewOrigin $ V3 cx cy cz
-  viewMat $ mat4ToM44F cm
+      viewMat     = mat4ToM44F view
+      viewProj    = mat4ToM44F $ view .*. cameraProjection
+      orientation = mat4ToM44F . fromProjective $ rot
 
-  viewProj $! mat4ToM44F camera -- $! cm .*. sm .*. pm
-  setScreenSize storage w h
+  uniformFloat "time"        uniMap time
+  uniformV3F   "viewOrigin"  uniMap $ vec3ToV3F cameraPosition
+  uniformM44F  "viewMat"     uniMap viewMat
+  uniformM44F  "viewProj"    uniMap viewProj
+  uniformM44F  "orientation" uniMap orientation
+
+  setScreenSize storage (fromIntegral w) (fromIntegral h)
 
   forM_ animatedTextures $ \(animTime,texSetter,v) -> do
     let (_,i) = properFraction (time / animTime)

@@ -15,7 +15,7 @@ data Frustum
     , ftr       :: Vec3
     , fbl       :: Vec3
     , fbr       :: Vec3
-    }
+    } deriving Show
 
 pointInFrustum :: Vec3 -> Frustum -> Bool
 pointInFrustum p fr = foldl' (\b (n,d) -> b && d + n `dotprod` p >= 0) True $ frPlanes fr

@@ -5,6 +5,8 @@ import Text.Printf
 import Data.Bits
 import Data.Vect.Float
 import Data.Vect.Float.Instances
+import Data.Vect.Float.GramSchmidt
+import Data.Vect.Float.Util.Quaternion
 import qualified Data.Vector as V
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -78,8 +80,37 @@ lookat pos target up = translateBefore4 (neg pos) (orthogonal $ toOrthoUnsafe r)
     v = w &^ u
     r = transpose $ Mat3 u v w
 
+lookRotation :: Vec3   -- ^ Target position.
+             -> Vec3   -- ^ Upward direction.
+             -> UnitQuaternion
+lookRotation lookAt upDirection = unsafeToU $ Vec4 x y z w where
+  (forward,up) = gramSchmidtNormalize (lookAt,upDirection)
+  right = up `crossprod` forward
+
+  w = sqrt (1 + m00 + m11 + m22) * 0.5
+  w4_recip = 1 / (4 * w)
+  x = (m21 - m12) * w4_recip
+  y = (m02 - m20) * w4_recip
+  z = (m10 - m01) * w4_recip
+
+  m00 = _1 right
+  m01 = _1 up
+  m02 = _1 forward
+  m10 = _2 right
+  m11 = _2 up
+  m12 = _2 forward
+  m20 = _3 right
+  m21 = _3 up
+  m22 = _3 forward
+
+toWorldMatrix :: Vec3 -> UnitQuaternion -> Proj4
+toWorldMatrix position orientation = translateAfter4 position . orthogonal $ rightOrthoU orientation
+
 vec4ToV4F :: Vec4 -> V4F
 vec4ToV4F (Vec4 x y z w) = V4 x y z w
+
+vec3ToV3F :: Vec3 -> V3F
+vec3ToV3F (Vec3 x y z) = V3 x y z
 
 mat4ToM44F :: Mat4 -> M44F
 mat4ToM44F (Mat4 a b c d) = V4 (vec4ToV4F a) (vec4ToV4F b) (vec4ToV4F c) (vec4ToV4F d)

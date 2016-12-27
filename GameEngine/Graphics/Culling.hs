@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 module GameEngine.Graphics.Culling
   ( cullSurfaces
   ) where
@@ -11,6 +12,7 @@ import LambdaCube.GL
 
 import GameEngine.Data.BSP
 import GameEngine.Graphics.Frustum
+import GameEngine.Scene
 
 isClusterVisible :: BSPLevel -> Int -> Int -> Bool
 isClusterVisible bl a b
@@ -32,11 +34,11 @@ findLeafIdx bl camPos i
     dist    = plNormal plane `dotprod` camPos - plDist plane
 
 cullSurfaces :: BSPLevel -> Vec3 -> Frustum -> V.Vector [Object] -> IO ()
-cullSurfaces bsp cam frust objs = case leafIdx < 0 || leafIdx >= V.length leaves of
+cullSurfaces bsp cameraPosition cameraFrustum objs = case leafIdx < 0 || leafIdx >= V.length leaves of
     True    -> {-trace "findLeafIdx error" $ -}V.forM_ objs $ \objList -> forM_ objList $ \obj -> enableObject obj True
     False   -> {-trace ("findLeafIdx ok " ++ show leafIdx ++ " " ++ show camCluster) -}surfaceMask
   where
-    leafIdx = findLeafIdx bsp cam 0
+    leafIdx = findLeafIdx bsp cameraPosition 0
     leaves = blLeaves bsp
     camCluster = lfCluster $ leaves V.! leafIdx
     visibleLeafs = V.filter (\a -> (isClusterVisible bsp camCluster $ lfCluster a) && inFrustum a) leaves
@@ -46,4 +48,4 @@ cullSurfaces bsp cam frust objs = case leafIdx < 0 || leafIdx >= V.length leaves
         V.forM_ visibleLeafs $ \l ->
             V.forM_ (V.slice (lfFirstLeafSurface l) (lfNumLeafSurfaces l) leafSurfaces) $ \i ->
                 forM_ (objs V.! i) $ \obj -> enableObject obj True
-    inFrustum a = boxInFrustum (lfMaxs a) (lfMins a) frust
+    inFrustum a = boxInFrustum (lfMaxs a) (lfMins a) cameraFrustum
