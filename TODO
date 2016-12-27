@@ -10,34 +10,27 @@ replace q3mapviewer
   - render player's current weapon
 
 render system
-  detailed:
-    ok - create character instance type and loader function
+  small and obvious:
+    - add and use renderable parameters (entityRGB,entityAlpha,position/quaternion)
+    - add camera data type; attributes: position/quaternion,proj4,viewport size
+    - add time to scene; sceneTime/animationTime/effectTime
+    - case insensitive names: convert names to lower case in parsers/loaders/zip map
+  big:
     - collision:
         entity's shape (box,sphere,ray or rays)
         collides with static level and each other
         collision result (content flags, entity type) is passed to interact
-    - add character instance cache and instance setup function
-    - add and use renderable parameters (entityRGB,entityAlpha,worldMat)
-    - add camera attributes (view,proj,viewOrigin,viewport size)
-    - add time to scene
-    - new renderable: BSPInlineModel
-  high level
     - character support: player character
-      ok - instance cache
-      ok - add renderable
-      ok - snap body parts
       - load materials
-      - cache loaded model to speed up instantiation; store multiple models to feed instances from
-      - control animation
-    - unsolved:
-      pass viewport/window size - include in camera
-      pass time - include in scene
-    - performance benchmark, if necessary use resource references and make the interface monadic
-    - restructure code: engine, game; design engine architecture (submodules, api, sample code)
-    - support BSPInlineModel
-
-    - case insensitive names: convert names to lower case in parsers/loaders/zip map
+      - cache loaded model (GPUMD3) to speed up instantiation (CharacterInstance); store multiple models to feed instances from
+    - make the interface monadic; explicit resource allocation and release
     - precache support
+    - new renderable: BSPInlineModel
+  high level, to be elaborated
+    - control game character animation
+    - performance benchmark
+    - restructure code: engine, game; design engine architecture (submodules, api, sample code)
+
     - draw hud
     - audio support
     - font/text support
@@ -50,10 +43,12 @@ render system
       - minimize render call count: build shared vertex and index buffer; use instanced rendering; use uniform block or instanced arrays; build texture atlas
 
 game
-    - split rendering and game logic into separated threads
+  small and obvious:
     - 3d spectator camera, 3d item positions
       new input: mouse position
       questions: how to pass camera info to render system => add to scene
+  big:
+    - split rendering and game logic into separated threads
     - collision detection
     - gravity
     - door handling; need inline model support
@@ -71,9 +66,6 @@ refactor notes:
   Material.hs
     - rename CommonAttrs and StageAttrs (also modify Graphics.lc)
 
-  Render.hs
-    - move out storage setup
-
 install guide:
   - local build: lambdacube-quake3:
       works well, it finds the local lc directory and lambdacube-compiler finds the prelude in the installed place
@@ -83,17 +75,6 @@ install guide:
       note: lambdacube-quake3 devs dont need this, only compiler+quake3 devs
 
 ----
-refactor the code
-  - to be a game engine
-  NO - support multiple renderers:
-      - lambdacube edsl
-      - lambdacube dsl
-      - gpipe2
-
-rendering improvements:
-  done - character animation
-      done - parse animation.cfg
-      done - assemble characters according tags
   - sky rendering
   - fog rendering
   - projectile rendering
@@ -113,11 +94,6 @@ debug rendering:
 
 game engine:
   - level collision support (e.g. http://openzone.googlecode.com/git-history/f73bb8dfe8e6a16c13d39aba1c8f6537ee263d07/doc/Quake3BSP.html)
-      done - trace collision function
-      done - colliding camera
-      done - add remaining collision primitives (e.g. box, sphere)
-      done - render bounding box
-      done - render bounding sphere
       - ray, sphere, box collision with each other
           required for e.g.: bullet - model, player - ammo collision
       - collision for md3 models
