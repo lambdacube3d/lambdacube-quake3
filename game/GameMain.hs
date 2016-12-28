@@ -83,9 +83,11 @@ play pk3 world0 getScene processInput stepWorld = do
 
         -- step simulation
         let frameTime = newTime - oldTime
-            stepSimulation t w | t < deltaTime = (t,w)
+            batchedTime = frameTime + oldFraction
+        when (batchedTime > 10) $ putStrLn $ "WARNING: slow machine!"
+        let stepSimulation t w | t < deltaTime = (t,w)
                                | otherwise = stepSimulation (t - deltaTime) (stepWorld deltaTime w)
-            (newFractionTime,newWorld) = stepSimulation (frameTime + oldFraction) (processInput ks oldWorld)
+            (newFractionTime,newWorld) = stepSimulation batchedTime (processInput ks oldWorld)
 
         -- render current state
         renderScene renderSystem newTime $ getScene newWorld
