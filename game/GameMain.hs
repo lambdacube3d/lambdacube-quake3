@@ -67,11 +67,11 @@ play pk3 world0 getScene processInput stepWorld = do
   renderSystem <- initRenderSystem pk3
 
   let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
-      loop world = do
+      deltaTime = 1/60
+      loop oldFraction oldTime oldWorld = do
+        -- process input
         pollEvents
-        time <- maybe 0 realToFrac <$> getTime
-        renderScene renderSystem time $ getScene world
-        swapBuffers win
+        newTime <- maybe 0 realToFrac <$> getTime
         ks <- Event <$> keyIsPressed Key'W
                     <*> keyIsPressed Key'S
                     <*> keyIsPressed Key'D
@@ -80,8 +80,19 @@ play pk3 world0 getScene processInput stepWorld = do
                     <*> keyIsPressed Key'Q
                     <*> keyIsPressed Key'Space
         quit <- keyIsPressed Key'Escape
-        unless quit $ loop $ stepWorld (1/30) $ processInput ks world
-  loop world0
+
+        -- step simulation
+        let frameTime = newTime - oldTime
+            stepSimulation t w | t < deltaTime = (t,w)
+                               | otherwise = stepSimulation (t - deltaTime) (stepWorld deltaTime w)
+            (newFractionTime,newWorld) = stepSimulation (frameTime + oldFraction) (processInput ks oldWorld)
+
+        -- render current state
+        renderScene renderSystem newTime $ getScene newWorld
+        swapBuffers win
+        unless quit $ loop newFractionTime newTime newWorld
+  time0 <- maybe 0 realToFrac <$> getTime
+  loop 0 time0 world0
 
   destroyWindow win
 
