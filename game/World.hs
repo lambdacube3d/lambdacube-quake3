@@ -10,7 +10,6 @@ import Entities
 data Input
   = Input
   { forwardmove :: Float
-  , rightmove   :: Float
   , sidemove    :: Float
   , shoot       :: Bool
   , dtime       :: Float
@@ -42,7 +41,6 @@ initWorld ents mapfile random = World
 
 initInput = Input
   { forwardmove = 0
-  , rightmove   = 0
   , sidemove    = 0
   , shoot       = False
   , dtime       = 0

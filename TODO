@@ -1,7 +1,6 @@
 FOCUS: architecture & API
 
 replace q3mapviewer
-  - 3d look and move
   - collision
   - gravity
   - debug render
@@ -43,10 +42,6 @@ render system
 
 game
   small and obvious:
-    - 3d spectator camera, 3d item positions
-      new input: mouse position
-      questions: how to pass camera info to render system => add to scene
-    - window resize
   big:
     ok - make simulation independent from rendering: http://gafferongames.com/game-physics/fix-your-timestep/
     - collision detection

@@ -7,6 +7,7 @@ import System.Random.Mersenne.Pure64
 import Lens.Micro.Platform
 import Data.Vect
 import Data.Vect.Float.Instances
+import Data.Vect.Float.Util.Quaternion
 
 import Control.Monad.State.Strict
 import Control.Monad.Writer.Strict
@@ -150,9 +151,9 @@ updateEntities randGen input@Input{..} ents = (randGen',catMaybes (V.toList next
 
 initialPlayer = Player
   { _pPosition    = Vec3 0 0 0
+  , _pDirection   = Vec3 1 0 0
   , _pFVelocity   = 0
   , _pSVelocity   = 0
-  , _pAngle       = 0
   , _pHealth      = 100
   , _pAmmo        = 100
   , _pArmor       = 0
@@ -176,9 +177,12 @@ stepSpawn t dt = do
 stepPlayer :: Input -> EM Player ()
 stepPlayer input@Input{..} = do
   -- acceleration according input
-  pAngle += rightmove * dtime / 10
-  angle <- use pAngle
-  let direction = extendZero . unitVectorAtAngle $ degToRad angle
+  pDirection .= normalize (Vec3 0 0 (sin $ mouseY / 100) + rotU (Vec3 0 0 1) (-mouseX / 100) *. Vec3 1 0 0)
+  direction <- use pDirection
+  let up = Vec3 0 0 1
+      forward = Vec3 1 0 0
+      strafeDirection = normalize $ direction `crossprod` up
+
   pFVelocity += forwardmove * dtime
   pSVelocity += sidemove * dtime
   -- friction
@@ -195,7 +199,6 @@ stepPlayer input@Input{..} = do
   sideVelocity <- use pSVelocity
 
   pPosition += (dtime * forwardVelocity) *& direction
-  let strafeDirection = extendZero . unitVectorAtAngle $ degToRad (angle - 90)
   pPosition += (dtime * sideVelocity) *& strafeDirection
   -- shoot
   shootTime <- view pShootTime

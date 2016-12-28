@@ -2,6 +2,7 @@
 module Entities where
 
 import Data.Vect
+import Data.Vect.Float.Util.Quaternion
 import Lens.Micro.Platform
 
 -- entities for game logic
@@ -9,9 +10,9 @@ import Lens.Micro.Platform
 data Player
   = Player
   { _pPosition    :: Vec3
+  , _pDirection   :: Vec3
   , _pFVelocity   :: Float
   , _pSVelocity   :: Float
-  , _pAngle       :: Float
   , _pHealth      :: Int
   , _pAmmo        :: Int
   , _pArmor       :: Int

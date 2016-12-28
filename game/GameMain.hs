@@ -35,8 +35,6 @@ data Event
   = Event
   { ksMoveForward   :: Bool
   , ksMoveBackward  :: Bool
-  , ksTurnRight     :: Bool
-  , ksTurnLeft      :: Bool
   , ksMoveRight     :: Bool
   , ksMoveLeft      :: Bool
   , ksShoot         :: Bool
@@ -52,7 +50,6 @@ inputFun Event{..} w = w & wInput .~ i' where
   i@Input{..} = w^.wInput
   i' = i
     { forwardmove = f ksMoveForward - f ksMoveBackward
-    , rightmove   = f ksTurnLeft - f ksTurnRight
     , sidemove    = f ksMoveRight - f ksMoveLeft
     , shoot       = ksShoot
     , mouseX      = fst ksMousePosition
@@ -85,8 +82,6 @@ play pk3 world0 getScene processInput stepWorld = do
                     <*> keyIsPressed Key'S
                     <*> keyIsPressed Key'D
                     <*> keyIsPressed Key'A
-                    <*> keyIsPressed Key'E
-                    <*> keyIsPressed Key'Q
                     <*> keyIsPressed Key'Space
                     <*> (mapTuple realToFrac <$> getCursorPos win)
                     <*> getWindowSize win

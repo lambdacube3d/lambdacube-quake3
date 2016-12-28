@@ -7,6 +7,7 @@ import Data.Maybe
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Vect
+import Data.Vect.Float.Util.Quaternion
 
 import Entities
 import Items
@@ -16,9 +17,9 @@ loadEntities :: [E.EntityData] -> [Entity]
 loadEntities = (player0:) . catMaybes . map loadEntity where
   player0 = EPlayer $ Player
     { _pPosition    = Vec3 0 0 0
+    , _pDirection   = Vec3 1 0 0
     , _pFVelocity   = 0
     , _pSVelocity   = 0
-    , _pAngle       = 0
     , _pHealth      = 100
     , _pAmmo        = 10
     , _pArmor       = 0

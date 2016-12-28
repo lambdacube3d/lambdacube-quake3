@@ -11,6 +11,7 @@ import Entities
 import World
 import GameEngine.Scene
 import GameEngine.Utils
+import Debug.Trace
 
 renderFun :: World -> Scene
 renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
@@ -21,7 +22,7 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
     EPlayer a   -> setCamera camera {- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
       camera = Camera
         { cameraPosition      = camPos
-        , cameraOrientation   = rotU up $ degToRad angle
+        , cameraOrientation   = fun camTarget up
         , cameraProjection    = (fromProjective $ quakeToGL .*. sm) .*. pm
         , cameraFrustum       = frust
         , cameraViewportSize  = (windowWidth,windowHeight)
@@ -38,12 +39,7 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
       far  = 100/s
       fovDeg = 60
       camPos = a^.pPosition
-      camTarget = toVec3 direction
-      angle = a^.pAngle
-      direction = unitVectorAtAngle $ degToRad angle
-      toVec3 (Vec2 x y) = Vec3 x y 0
-      unitVectorAtAngle = sinCos
-      degToRad a = a/180*pi
+      camTarget = a^.pDirection
 
     EBullet b   -> add [MD3 (b^.bPosition) one white "models/ammo/rocket/rocket.md3"]
     EWeapon a   -> add [MD3 (a^.wPosition) one white "models/weapons2/shotgun/shotgun.md3"]
@@ -53,3 +49,53 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
                        ,MD3 pos one white "models/powerups/health/medium_sphere.md3"] where pos = a^.hPosition
     ETarget a   -> add [MD3Character (a^.ttPosition) one white "visor" "default"]
     _ -> return ()
+
+fun direction desiredUp = rot2 .*. rot1 where
+  rot1 = rotationBetweenVectors (Vec3 1 0 0) direction
+  right = direction `crossprod` desiredUp
+  desiredUp' = right `crossprod` direction
+  newUp = rot1 *. Vec3 0 0 1
+  rot2 = rotationBetweenVectors newUp desiredUp'
+
+rotationBetweenVectors start_ dest_ = U $ Vec4 (s * 0.5) (x * invs) (y * invs) (z * invs) where
+  start = normalize start_
+  dest = normalize dest_
+  cosTheta = start `dotprod` dest
+  Vec3 x y z = start `crossprod` dest
+  s = sqrt $ (1 + cosTheta) * 2
+  invs = 1 / s
+
+{-
+quat RotationBetweenVectors(vec3 start, vec3 dest){
+  start = normalize(start);
+  dest = normalize(dest);
+
+  float cosTheta = dot(start, dest);
+  vec3 rotationAxis;
+
+  if (cosTheta < -1 + 0.001f){
+    // special case when vectors in opposite directions:
+    // there is no "ideal" rotation axis
+    // So guess one; any will do as long as it's perpendicular to start
+    rotationAxis = cross(vec3(0.0f, 0.0f, 1.0f), start);
+    if (gtx::norm::length2(rotationAxis) < 0.01 ) // bad luck, they were parallel, try again!
+      rotationAxis = cross(vec3(1.0f, 0.0f, 0.0f), start);
+
+    rotationAxis = normalize(rotationAxis);
+    return gtx::quaternion::angleAxis(180.0f, rotationAxis);
+  }
+
+  rotationAxis = cross(start, dest);
+
+  float s = sqrt( (1+cosTheta)*2 );
+  float invs = 1 / s;
+
+  return quat(
+    s * 0.5f, 
+    rotationAxis.x * invs,
+    rotationAxis.y * invs,
+    rotationAxis.z * invs
+  );
+
+}
+-}
