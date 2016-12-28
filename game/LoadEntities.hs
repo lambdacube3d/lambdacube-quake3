@@ -15,7 +15,7 @@ import qualified GameEngine.Loader.Entity as E
 loadEntities :: [E.EntityData] -> [Entity]
 loadEntities = (player0:) . catMaybes . map loadEntity where
   player0 = EPlayer $ Player
-    { _pPosition    = Vec2 0 0
+    { _pPosition    = Vec3 0 0 0
     , _pFVelocity   = 0
     , _pSVelocity   = 0
     , _pAngle       = 0
@@ -32,27 +32,24 @@ loadEntities = (player0:) . catMaybes . map loadEntity where
 itemMap :: Map String Item
 itemMap = Map.fromList [(itClassName i,i) | i <- items]
 
-vec3vec2 :: Vec3 -> Vec2
-vec3vec2 v = Vec2 x y where Vec3 x y _ = v
-
 loadEntity :: E.EntityData -> Maybe Entity
 loadEntity E.EntityData{..} = case Map.lookup classname itemMap of
   Just Item{..} -> case itType of
     IT_HEALTH -> Just . EHealth $ Health
-      { _hPosition  = vec3vec2 origin
+      { _hPosition  = origin
       , _hQuantity  = itQuantity
       }
     IT_WEAPON _ -> Just . EWeapon $ Weapon
-      { _wPosition  = vec3vec2 origin
+      { _wPosition  = origin
       , _wDropped   = False
       }
     IT_AMMO _ -> Just . EAmmo $ Ammo
-      { _aPosition  = vec3vec2 origin
+      { _aPosition  = origin
       , _aQuantity  = itQuantity
       , _aDropped   = False
       }
     IT_ARMOR -> Just . EArmor $ Armor
-      { _rPosition  = vec3vec2 origin
+      { _rPosition  = origin
       , _rQuantity  = itQuantity
       , _rDropped   = False
       }
@@ -61,19 +58,19 @@ loadEntity E.EntityData{..} = case Map.lookup classname itemMap of
     "trigger_teleport" -> do
       target_ <- target
       Just . ETeleport $ Teleport
-        { _tPosition  = vec3vec2 origin
+        { _tPosition  = origin
         , _tTarget    = target_
         }
     "trigger_push" -> do 
       target_ <- target
       Just . ETeleport $ Teleport -- HACK
-        { _tPosition  = vec3vec2 origin
+        { _tPosition  = origin
         , _tTarget    = target_
         }
     _ | classname `elem` ["target_position","misc_teleporter_dest","info_notnull"] -> do
       targetname_ <- targetname
       Just . ETarget $ Target
-        { _ttPosition   = vec3vec2 origin
+        { _ttPosition   = origin
         , _ttTargetName = targetname_
         }
     _ -> Nothing

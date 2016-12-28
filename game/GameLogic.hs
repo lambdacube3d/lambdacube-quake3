@@ -149,7 +149,7 @@ updateEntities randGen input@Input{..} ents = (randGen',catMaybes (V.toList next
       return True
 
 initialPlayer = Player
-  { _pPosition    = Vec2 0 0
+  { _pPosition    = Vec3 0 0 0
   , _pFVelocity   = 0
   , _pSVelocity   = 0
   , _pAngle       = 0
@@ -178,7 +178,7 @@ stepPlayer input@Input{..} = do
   -- acceleration according input
   pAngle += rightmove * dtime / 10
   angle <- use pAngle
-  let direction = unitVectorAtAngle $ degToRad angle
+  let direction = extendZero . unitVectorAtAngle $ degToRad angle
   pFVelocity += forwardmove * dtime
   pSVelocity += sidemove * dtime
   -- friction
@@ -195,7 +195,7 @@ stepPlayer input@Input{..} = do
   sideVelocity <- use pSVelocity
 
   pPosition += (dtime * forwardVelocity) *& direction
-  let strafeDirection = unitVectorAtAngle $ degToRad (angle - 90)
+  let strafeDirection = extendZero . unitVectorAtAngle $ degToRad (angle - 90)
   pPosition += (dtime * sideVelocity) *& strafeDirection
   -- shoot
   shootTime <- view pShootTime
@@ -210,16 +210,16 @@ stepPlayer input@Input{..} = do
   unless (health > 0) $ playerDie time
 
 playerDie time = do
-    [x1,y1,x2,y2] <- replicateM 4 $ getRandomR (-50,50)
+    [rand1,rand2] <- replicateM 2 $ getRandomR (Vec3 (-50) (-50) (-50),Vec3 50 50 50)
     pos <- use pPosition
     ammo <- use pAmmo
     armor <- use pArmor
     addEntities
       [ PSpawn $ Spawn (time + 2) $ EPlayer initialPlayer
-      , EAmmo  $ Ammo (pos + Vec2 x1 y1) (ammo) True
-      , EArmor $ Armor (pos + Vec2 x2 y2) (armor) True
+      , EAmmo  $ Ammo (pos + rand1) (ammo) True
+      , EArmor $ Armor (pos + rand2) (armor) True
       ]
-    addVisuals [VParticle $ Particle pos (400 *& unitVectorAtAngle (pi / 50 * i)) 1 | i <- [0..100]]
+    addVisuals [VParticle $ Particle pos (400 *& (extendZero . unitVectorAtAngle $ pi / 50 * i)) 1 | i <- [0..100]]
     die
 
 stepBullet :: Time -> DTime -> EM Bullet ()

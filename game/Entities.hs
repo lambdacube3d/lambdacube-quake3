@@ -8,7 +8,7 @@ import Lens.Micro.Platform
 
 data Player
   = Player
-  { _pPosition    :: Vec2
+  { _pPosition    :: Vec3
   , _pFVelocity   :: Float
   , _pSVelocity   :: Float
   , _pAngle       :: Float
@@ -23,35 +23,35 @@ data Player
 
 data Bullet
   = Bullet
-  { _bPosition    :: Vec2
-  , _bDirection   :: Vec2
+  { _bPosition    :: Vec3
+  , _bDirection   :: Vec3
   , _bDamage      :: Int
   , _bLifeTime    :: Float
   } deriving Show
 
 data Weapon
   = Weapon
-  { _wPosition    :: Vec2
+  { _wPosition    :: Vec3
   , _wDropped     :: Bool
   } deriving Show
 
 data Ammo
   = Ammo
-  { _aPosition    :: Vec2
+  { _aPosition    :: Vec3
   , _aQuantity    :: Int
   , _aDropped     :: Bool
   } deriving Show
 
 data Armor
   = Armor
-  { _rPosition    :: Vec2
+  { _rPosition    :: Vec3
   , _rQuantity    :: Int
   , _rDropped     :: Bool
   } deriving Show
 
 data Health
   = Health
-  { _hPosition   :: Vec2
+  { _hPosition   :: Vec3
   , _hQuantity   :: Int
   } deriving Show
 
@@ -63,25 +63,25 @@ data Spawn
 
 data Lava
   = Lava
-  { _lPosition :: Vec2
+  { _lPosition :: Vec3
   , _lDamage   :: Int
   } deriving Show
 
 data Teleport
   = Teleport
-  { _tPosition  :: Vec2
+  { _tPosition  :: Vec3
   , _tTarget    :: String
   } deriving Show
 
 data Target
   = Target
-  { _ttPosition   :: Vec2
+  { _ttPosition   :: Vec3
   , _ttTargetName :: String
   } deriving Show
 
 data Killbox
   = Killbox
-  { _kPosition    :: Vec2
+  { _kPosition    :: Vec3
   , _kTargetName  :: String
   } deriving Show
 

@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, FlexibleContexts #-}
+{-# LANGUAGE LambdaCase, FlexibleContexts, RecordWildCards #-}
 module RenderGame where
 
 import Data.Monoid
@@ -24,20 +24,20 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
         , cameraOrientation   = rotU up $ degToRad angle
         , cameraProjection    = (fromProjective $ quakeToGL .*. sm) .*. pm
         , cameraFrustum       = frust
-        , cameraViewportSize  = (w,h)
+        , cameraViewportSize  = (windowWidth,windowHeight)
         }
+      Input{..} = w^.wInput
       up = Vec3 0 0 1
       quakeToGL = lookat zero (Vec3 1 0 0) up
-      pm = perspective near far (fovDeg / 180 * pi) (fromIntegral w / fromIntegral h)
+      apsectRatio = fromIntegral windowWidth / fromIntegral windowHeight
+      pm = perspective near far (fovDeg / 180 * pi) apsectRatio
       sm = scaling $ Vec3 s s s
-      frust = frustum fovDeg (fromIntegral w / fromIntegral h) near far camPos (camPos + camTarget) up
+      frust = frustum fovDeg apsectRatio near far camPos (camPos + camTarget) up
       s  = 0.005
       near = 0.00001/s
       far  = 100/s
       fovDeg = 60
-      w = 800
-      h = 600
-      camPos = toVec3 $ a^.pPosition
+      camPos = a^.pPosition
       camTarget = toVec3 direction
       angle = a^.pAngle
       direction = unitVectorAtAngle $ degToRad angle
@@ -45,11 +45,11 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
       unitVectorAtAngle = sinCos
       degToRad a = a/180*pi
 
-    EBullet b   -> add [MD3 (extendZero $ b^.bPosition) one white "models/ammo/rocket/rocket.md3"]
-    EWeapon a   -> add [MD3 (extendZero $ a^.wPosition) one white "models/weapons2/shotgun/shotgun.md3"]
-    EAmmo a     -> add [MD3 (extendZero $ a^.aPosition) one white "models/powerups/ammo/shotgunam.md3"]
-    EArmor a    -> add [MD3 (extendZero $ a^.rPosition) one white "models/powerups/armor/armor_red.md3"]
+    EBullet b   -> add [MD3 (b^.bPosition) one white "models/ammo/rocket/rocket.md3"]
+    EWeapon a   -> add [MD3 (a^.wPosition) one white "models/weapons2/shotgun/shotgun.md3"]
+    EAmmo a     -> add [MD3 (a^.aPosition) one white "models/powerups/ammo/shotgunam.md3"]
+    EArmor a    -> add [MD3 (a^.rPosition) one white "models/powerups/armor/armor_red.md3"]
     EHealth a   -> add [MD3 pos one white "models/powerups/health/medium_cross.md3"
-                       ,MD3 pos one white "models/powerups/health/medium_sphere.md3"] where pos = extendZero $ a^.hPosition
-    ETarget a   -> add [MD3Character (extendZero $ a^.ttPosition) one white "visor" "default"]
+                       ,MD3 pos one white "models/powerups/health/medium_sphere.md3"] where pos = a^.hPosition
+    ETarget a   -> add [MD3Character (a^.ttPosition) one white "visor" "default"]
     _ -> return ()

@@ -15,6 +15,10 @@ data Input
   , shoot       :: Bool
   , dtime       :: Float
   , time        :: Float
+  , mouseX      :: Float
+  , mouseY      :: Float
+  , windowWidth   :: Int
+  , windowHeight  :: Int
   } deriving Show
 
 data World
@@ -27,3 +31,24 @@ data World
   } deriving Show
 
 makeLenses ''World
+
+initWorld ents mapfile random = World
+  { _wEntities  = ents
+  , _wVisuals   = []
+  , _wInput     = initInput
+  , _wRandomGen = random
+  , _wMapFile   = mapfile
+  }
+
+initInput = Input
+  { forwardmove = 0
+  , rightmove   = 0
+  , sidemove    = 0
+  , shoot       = False
+  , dtime       = 0
+  , time        = 0
+  , mouseX      = 0
+  , mouseY      = 0
+  , windowWidth   = 0
+  , windowHeight  = 0
+  }

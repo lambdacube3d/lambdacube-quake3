@@ -1,4 +1,6 @@
 {-# LANGUAGE RecordWildCards, PackageImports #-}
+import Control.Monad
+import Control.Arrow
 import Control.Monad.State.Strict
 import System.Random.Mersenne.Pure64
 
@@ -38,6 +40,8 @@ data Event
   , ksMoveRight     :: Bool
   , ksMoveLeft      :: Bool
   , ksShoot         :: Bool
+  , ksMousePosition :: (Float,Float)
+  , ksWindowSize    :: (Int,Int)
   }
 
 inputFun :: Event -> World -> World
@@ -51,14 +55,19 @@ inputFun Event{..} w = w & wInput .~ i' where
     , rightmove   = f ksTurnLeft - f ksTurnRight
     , sidemove    = f ksMoveRight - f ksMoveLeft
     , shoot       = ksShoot
+    , mouseX      = fst ksMousePosition
+    , mouseY      = snd ksMousePosition
+    , windowWidth   = fst ksWindowSize
+    , windowHeight  = snd ksWindowSize
     }
 
-emptyWorld ents mapfile = World ents [] emptyInput (pureMT 123456789) mapfile where emptyInput = Input 0 0 0 False 0 0
+mapTuple :: (a -> b) -> (a,a) -> (b,b)
+mapTuple = join (***)
 
 main = do
   (pk3,ents,mapfile) <- loadMap
   putStrLn $ "entity count: " ++ show (length ents)
-  play pk3 (emptyWorld ents mapfile) renderFun inputFun stepFun
+  play pk3 (initWorld ents mapfile $ pureMT 123456789) renderFun inputFun stepFun
 
 play :: Map String Entry -> World -> (World -> Scene) -> (Event -> World -> World) -> (Float -> World -> World) -> IO ()
 play pk3 world0 getScene processInput stepWorld = do
@@ -79,6 +88,8 @@ play pk3 world0 getScene processInput stepWorld = do
                     <*> keyIsPressed Key'E
                     <*> keyIsPressed Key'Q
                     <*> keyIsPressed Key'Space
+                    <*> (mapTuple realToFrac <$> getCursorPos win)
+                    <*> getWindowSize win
         quit <- keyIsPressed Key'Escape
 
         -- step simulation
