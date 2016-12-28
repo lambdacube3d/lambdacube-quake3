@@ -17,17 +17,6 @@ import LambdaCube.Linear (V3(..))
 
 import GameEngine.Data.GameCharacter
 
-{-
-  TODO:
-    done - parse animation data
-    - animation playback machinery
-    - tag handling: join character according the tag info
-    - character action state machine
-        add character to storage
-        play animation
-        update
--}
-
 parseCharacter :: String -> ByteString -> Either String Character
 parseCharacter fname src = case parse (spaceConsumer *> character <* eof) fname $ SB8.map toLower src of
   Left err  -> Left (parseErrorPretty err)

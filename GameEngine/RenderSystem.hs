@@ -301,23 +301,24 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
         putStrLn $ printf "new instance: %s %s" name skin
         addCharacterInstance rsFileSystem storage name skin
 
+      Camera{..} = camera
+
       setupMD3Instance MD3Instance{..} (MD3 position orientation rgba _) = do
         forM_ md3instanceObject $ \obj -> do
-          enableObject obj True
+          enableObject obj $ pointInFrustum position cameraFrustum
           -- set model matrix
           uniformM44F "worldMat" (objectUniformSetter obj) . mat4ToM44F . fromProjective $ toWorldMatrix position orientation
           uniformV3F "entityRGB" (objectUniformSetter obj) . vec3ToV3F $ trim rgba
           uniformFloat "entityAlpha" (objectUniformSetter obj) $ _4 rgba
 
       setupBSPInstance BSPInstance{..} = do
-        let Camera{..} = camera
         cullSurfaces bspinstanceBSPLevel cameraPosition cameraFrustum bspinstanceSurfaces
         -- TODO: do BSP cull on surfaces
         --forM_ bspinstanceSurfaces $ mapM_ (flip enableObject True)
 
       -- TODO: snap body parts
       setupCharacterInstance character (MD3Character position orientation rgba _ _) = do
-        setupGameCharacter character effectTime position orientation rgba
+        setupGameCharacter character effectTime cameraFrustum position orientation rgba
 
   InstanceCache{..} <- execStateT (mapM_ addInstance renderables) (initCache md3InstanceCache bspInstanceCache characterCache)
   writeIORef rsMD3InstanceCache $ HashMap.unionWith (++) md3InstanceCache newMD3

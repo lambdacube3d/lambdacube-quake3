@@ -46,6 +46,7 @@ game
     - 3d spectator camera, 3d item positions
       new input: mouse position
       questions: how to pass camera info to render system => add to scene
+    - window resize
   big:
     - split rendering and game logic into separated threads
     - collision detection

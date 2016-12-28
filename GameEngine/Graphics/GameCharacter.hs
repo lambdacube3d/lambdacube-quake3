@@ -23,6 +23,7 @@ import GameEngine.Loader.MD3
 import GameEngine.Loader.GameCharacter
 import GameEngine.Loader.Zip
 import GameEngine.Graphics.MD3
+import GameEngine.Graphics.Frustum
 import GameEngine.Utils
 
 {-
@@ -142,8 +143,8 @@ sampleCharacterAnimation = V.fromList $
   ] ++ zip bothAnim bothAnim where bothAnim = [BOTH_DEATH1, BOTH_DEAD1, BOTH_DEATH2, BOTH_DEAD2, BOTH_DEATH3, BOTH_DEAD3]
 
 -- TODO: design proper interface
-setupGameCharacter :: CharacterInstance -> Float -> Vec3 -> UnitQuaternion -> Vec4 -> IO ()
-setupGameCharacter CharacterInstance{..} time position orientation rgba = do
+setupGameCharacter :: CharacterInstance -> Float -> Frustum -> Vec3 -> UnitQuaternion -> Vec4 -> IO ()
+setupGameCharacter CharacterInstance{..} time cameraFrustum position orientation rgba = do
   let t100 = floor $ time / 4
       (torsoAnimType,legAnimType) = sampleCharacterAnimation V.! (t100 `mod` V.length sampleCharacterAnimation)
 
@@ -175,7 +176,7 @@ setupGameCharacter CharacterInstance{..} time position orientation rgba = do
         uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat m
         uniformV3F "entityRGB" (objectUniformSetter obj) $ vec3ToV3F rgb
         uniformFloat "entityAlpha" (objectUniformSetter obj) alpha
-        enableObject obj True
+        enableObject obj $ pointInFrustum position cameraFrustum
         --cullObject obj p
 
   -- snap body parts
