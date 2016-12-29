@@ -206,7 +206,7 @@ stepPlayer input@Input{..} = do
   shootTime <- view pShootTime
   when (shoot && shootTime < time) $ do
     pos <- use pPosition
-    addEntities [EBullet $ Bullet (pos + 30 *& direction) (500 *& direction) 1 2]
+    addEntities [EBullet $ Bullet (pos + 50 *& direction) (500 *& direction) 1 2]
     pShootTime .= time + 0.1
 
   pHealth %= min 200

@@ -11,7 +11,7 @@ import Entities
 
 getCollisions :: RenderSystem -> [Entity] -> [(Int,Int)]
 getCollisions engine entities = result where
-  radius = 40
+  radius = 49
   distanceSquare = radius ^ 2
   result = [(aId,bId) | (aId,a):ents <- tails $ zip [0..] entities, (bId,b) <- ents, collide a b]
   collide a b = fromMaybe False $ do
@@ -31,4 +31,5 @@ getCollisions engine entities = result where
     EAmmo a     -> Just (a^.aPosition) -- "models/powerups/ammo/shotgunam.md3"
     EArmor a    -> Just (a^.rPosition) -- "models/powerups/armor/armor_red.md3"
     EHealth a   -> Just (a^.hPosition) -- "models/powerups/health/medium_cross.md3"
+    ETeleport a -> Just (a^.tPosition)
     _ -> Nothing
