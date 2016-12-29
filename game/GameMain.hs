@@ -66,7 +66,7 @@ main = do
   putStrLn $ "entity count: " ++ show (length ents)
   play pk3 (initWorld ents mapfile $ pureMT 123456789) renderFun inputFun stepFun
 
-play :: Map String Entry -> World -> (World -> Scene) -> (Event -> World -> World) -> (Float -> World -> World) -> IO ()
+play :: Map String Entry -> World -> (World -> Scene) -> (Event -> World -> World) -> (RenderSystem -> Float -> World -> World) -> IO ()
 play pk3 world0 getScene processInput stepWorld = do
   -- init graphics
   win <- initWindow "LambdaCube 3D Shooter" 800 600
@@ -92,7 +92,7 @@ play pk3 world0 getScene processInput stepWorld = do
             batchedTime = frameTime + oldFraction
         when (batchedTime > 10) $ putStrLn $ "WARNING: slow machine!"
         let stepSimulation t w | t < deltaTime = (t,w)
-                               | otherwise = stepSimulation (t - deltaTime) (stepWorld deltaTime w)
+                               | otherwise = stepSimulation (t - deltaTime) (stepWorld renderSystem deltaTime w)
             (newFractionTime,newWorld) = stepSimulation batchedTime (processInput ks oldWorld)
 
         -- render current state

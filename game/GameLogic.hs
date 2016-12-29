@@ -5,7 +5,7 @@ import Control.Monad
 import Data.Maybe
 import System.Random.Mersenne.Pure64
 import Lens.Micro.Platform
-import Data.Vect
+import Data.Vect hiding (Vector)
 import Data.Vect.Float.Instances
 import Data.Vect.Float.Util.Quaternion
 
@@ -17,13 +17,15 @@ import Data.Functor.Identity
 import Control.Monad.Random
 import System.Random.Mersenne.Pure64
 
-import Data.Vector ((!),(//))
+import Data.Vector (Vector,(!),(//))
 import qualified Data.Vector as V
+
+import GameEngine.RenderSystem
 
 import Entities
 import Visuals
 import World
---import Collision
+import Collision
 
 type Time = Float
 type DTime = Float
@@ -37,6 +39,12 @@ type VM s a = ReaderT s (StateT s (MaybeT (WriterT ([Visual]) (Rand PureMT)))) a
 -- monad for collect new entites or visuals
 type CM a = WriterT ([Entity],[Visual]) (Rand PureMT) a
 
+--update :: Monoid w => (s -> e) -> s -> ReaderT s (StateT s (MaybeT (WriterT w (Rand PureMT)))) a -> CM (Maybe e)
+update f a m = fmap f <$> runMaybeT (execStateT (runReaderT m a) a)
+
+collect :: Monoid w => PureMT -> WriterT w (Rand PureMT) a -> ((a,w),PureMT)
+collect randGen m = runIdentity $ runRandT (runWriterT m) randGen
+
 die = fail "die"
 
 respawn t f = do
@@ -44,12 +52,6 @@ respawn t f = do
   t' <- getRandomR (t + 5, t + 10)
   addEntities [PSpawn $ Spawn t' (f s)]
   die
-
---update :: Monoid w => (s -> e) -> s -> ReaderT s (StateT s (MaybeT (WriterT w (Rand PureMT)))) a -> CM (Maybe e)
-update f a m = fmap f <$> runMaybeT (execStateT (runReaderT m a) a)
-
-collect :: Monoid w => PureMT -> WriterT w (Rand PureMT) a -> ((a,w),PureMT)
-collect randGen m = runIdentity $ runRandT (runWriterT m) randGen
 
 data Interaction
   = PlayerTeleportKillboxPlayers Player Teleport Killbox [Player]
@@ -70,14 +72,14 @@ data Interaction
   step entities, also collect generated entities
   append generated entities
 -}
-updateEntities :: PureMT -> Input -> [Entity] -> (PureMT,[Entity],[Visual])
-updateEntities randGen input@Input{..} ents = (randGen',catMaybes (V.toList nextEnts) ++ newEnts,newVisuals) where
+updateEntities :: RenderSystem -> PureMT -> Input -> [Entity] -> (PureMT,[Entity],[Visual])
+updateEntities engine randGen input@Input{..} ents = (randGen',catMaybes (V.toList nextEnts) ++ newEnts,newVisuals) where
 
-  entityVector :: V.Vector (Maybe Entity)
+  entityVector :: Vector (Maybe Entity)
   entityVector = V.fromList $ map Just ents
 
   collisions :: [(Int,Int)] -- post process collisions into interaction events
-  collisions = [] -- TODO: collide ents
+  collisions = getCollisions engine ents
 
   interactions :: [(Int,Int)] -> [Interaction]
   interactions _ = [] -- TODO
@@ -256,15 +258,15 @@ unitVectorAtAngle = sinCos
 degToRad a = a/180*pi
 
 -- world step function
-stepFun :: Float -> World -> World
-stepFun dt = execState $ do
+stepFun :: RenderSystem -> Float -> World -> World
+stepFun engine dt = execState $ do
   -- update time
   wInput %= (\i -> i {dtime = dt, time = time i + dt})
   input <- use wInput
   ents <- use wEntities
   vis <- use wVisuals
   rand <- use wRandomGen
-  let (r1,e,v1) = updateEntities rand input ents
+  let (r1,e,v1) = updateEntities engine rand input ents
       Input{..} = input
       (r2,v2) = updateVisuals r1 time dtime vis
   wEntities .= e
