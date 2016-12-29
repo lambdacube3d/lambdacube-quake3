@@ -14,14 +14,12 @@ render system
   small and obvious:
   big:
     - collision:
-        entity's shape (box,sphere,ray or rays)
-        collides with static level and each other
-        collision result (content flags, entity type) is passed to interact
-        usage:
-          pass GameEngine (now RenderSystem) data step function
-          query MD3 collision shapes by name
-          build kd-tree
-          query collisions (entity <-> entity)
+        query MD3 collision shapes by name
+        query inline model collision shape
+        description:
+          entity's shape (box,sphere,ray or rays)
+          collides with each other and inline models (level is model id 0)
+          collision result (content flags, entity type) is passed to interact
     - character support: player character
       - load materials
       - cache loaded model (GPUMD3) to speed up instantiation (CharacterInstance); store multiple models to feed instances from
