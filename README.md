@@ -18,7 +18,7 @@ Then copy **pak0.pk3** to the directory where you execute the application from. 
 
 #### 2. Compile & Run
 
-You can compile the project using either Stack or Cabal.
+You can compile the project using either [Stack](https://docs.haskellstack.org/en/stable/README/) or [Cabal](https://wiki.haskell.org/Cabal-Install).
 
 ##### Stack
 ```
