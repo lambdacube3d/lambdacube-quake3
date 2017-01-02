@@ -52,6 +52,7 @@ game
   small and obvious:
   big:
     ok - make simulation independent from rendering: http://gafferongames.com/game-physics/fix-your-timestep/
+    - split to client and server
     - collision detection
     - gravity
     - door handling; need inline model support
