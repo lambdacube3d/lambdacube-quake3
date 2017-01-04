@@ -6,6 +6,9 @@ However to be honest at current stage it's just a map viewer...
 - Graphics: OpenGL 3.3 or better
 
 ### Install Steps
+#### 0. Clone this repository
+```git clone https://github.com/lambdacube3d/lambdacube-quake3.git```
+
 #### 1. Get pak0.pk3
 First you have to get the **pak0.pk3** file which contains the game data. You can get it for free from **Quake3 Demo** version. Here are some alternatives:
 - **(a)** [download](https://github.com/patdohere/dockerfiles/raw/master/quakejs-stack/quakejs/base/baseq3/pak0.pk3) Quake3 Demo pak0.pk3 directly (**EASY**)
