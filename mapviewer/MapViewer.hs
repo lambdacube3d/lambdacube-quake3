@@ -73,7 +73,7 @@ main = do
 
     -- loading screen
     loadingScreen <- createLoadingScreen
-    (w,h) <- getWindowSize win
+    (w,h) <- getFramebufferSize win
     drawLoadingScreen w h loadingScreen pk3Data bspName
     swapBuffers win
     pollEvents
@@ -185,7 +185,7 @@ scene win levelData graphicsData mousePosition fblrPress capturePress waypointPr
     -}
     let activeCamera = controlledCamera
     let setupGFX (camPos,camTarget,camUp,brushIndex) time (capturing,frameCount) = do
-            (w,h) <- getWindowSize win
+            (w,h) <- getFramebufferSize win
             -- hack
             let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
             noBSPCull <- keyIsPressed (Key'X)

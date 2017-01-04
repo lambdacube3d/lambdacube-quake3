@@ -84,7 +84,7 @@ play pk3 world0 getScene processInput stepWorld = do
                     <*> keyIsPressed Key'A
                     <*> keyIsPressed Key'Space
                     <*> (mapTuple realToFrac <$> getCursorPos win)
-                    <*> getWindowSize win
+                    <*> getFramebufferSize win
         quit <- keyIsPressed Key'Escape
 
         -- step simulation
