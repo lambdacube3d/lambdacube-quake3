@@ -126,12 +126,12 @@ initRenderSystem pk3 = do
     , rsAnimatedTextures  = animatedTextures
     }
 
-loadMD3 :: Map [Char] Entry -> [Char] -> IO GPUMD3
+loadMD3 :: Map String Entry -> String -> IO GPUMD3
 loadMD3 pk3 name = case Map.lookup name pk3 of
   Nothing -> fail $ "file not found: " ++ name
   Just a -> readMD3 . LB.fromStrict <$> readEntry a >>= uploadMD3
 
-loadBSP :: Map String a -> Map [Char] Entry -> [Char] -> IO GPUBSP
+loadBSP :: Map String a -> Map String Entry -> String -> IO GPUBSP
 loadBSP shaderMap pk3 name = case Map.lookup name pk3 of
   Nothing -> fail $ "file not found: " ++ name
   Just a -> readBSP . LB.fromStrict <$> readEntry a >>= uploadBSP (Map.keysSet shaderMap)
