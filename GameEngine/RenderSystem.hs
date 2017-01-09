@@ -53,6 +53,14 @@ type ShaderCache      = HashSet String
 type TextureCache     = HashMap (String,Bool,Bool) TextureData
 type AnimatedTexture  = (Float, SetterFun TextureData, Vector TextureData)
 
+{-
+  remove IORefs
+  traverse renderables
+    load resources if necessary
+    collect scene materials
+  load new textures if necessary
+  create new pipeline and storage if necessary
+-}
 data RenderSystem
   = RenderSystem
   -- static values
@@ -118,14 +126,17 @@ initRenderSystem pk3 = do
     , rsAnimatedTextures  = animatedTextures
     }
 
+loadMD3 :: Map [Char] Entry -> [Char] -> IO GPUMD3
 loadMD3 pk3 name = case Map.lookup name pk3 of
   Nothing -> fail $ "file not found: " ++ name
   Just a -> readMD3 . LB.fromStrict <$> readEntry a >>= uploadMD3
 
+loadBSP :: Map String a -> Map [Char] Entry -> [Char] -> IO GPUBSP
 loadBSP shaderMap pk3 name = case Map.lookup name pk3 of
   Nothing -> fail $ "file not found: " ++ name
   Just a -> readBSP . LB.fromStrict <$> readEntry a >>= uploadBSP (Map.keysSet shaderMap)
 
+initStorageDefaultValues :: TableTextures -> GLStorage -> IO ()
 initStorageDefaultValues tableTextures storage = do
   let slotU           = uniformSetter storage
       overbrightBits  = 0
@@ -135,6 +146,7 @@ initStorageDefaultValues tableTextures storage = do
   uniformFloat "identityLight" slotU $ 1 / (2 ^ overbrightBits)
   setupTableTextures slotU tableTextures
 
+initStorageTextures :: RenderSystem -> GLStorage -> Map String CommonAttrs -> IO ()
 initStorageTextures RenderSystem{..} storage usedMaterials = do
   let usedTextures = setNub [ (name,saTexture,saTextureUniform,caNoMipMaps)
                             | (name,CommonAttrs{..}) <- Map.toList usedMaterials
@@ -165,6 +177,7 @@ initStorageTextures RenderSystem{..} storage usedMaterials = do
 
   writeIORef rsAnimatedTextures animatedTextures
 
+updateModelCache :: RenderSystem -> [Renderable] -> IO (HashSet String,HashSet String,HashMap String GPUMD3,HashMap String GPUBSP)
 updateModelCache RenderSystem{..} renderables = do
   -- load new md3 models
   md3Cache <- readIORef rsMD3Cache
@@ -189,6 +202,7 @@ updateModelCache RenderSystem{..} renderables = do
       newBSPMaterials = HashSet.unions (map gpubspShaders newBSPs) `HashSet.difference` bspShaderCache
   return (newMD3Materials,newBSPMaterials,md3Cache',bspCache')
 
+updateRenderCache :: RenderSystem -> HashSet String -> HashSet String -> IO (GLStorage,GLRenderer,MD3InstanceCache,BSPInstanceCache,CharacterCache)
 updateRenderCache renderSystem@RenderSystem{..} newMD3Materials newBSPMaterials
   | HashSet.null newMD3Materials && HashSet.null newBSPMaterials = do
       md3InstanceCache <- readIORef rsMD3InstanceCache
@@ -245,6 +259,7 @@ data InstanceCache
   , oldCharacter  :: !CharacterCache
   }
 
+initCache :: MD3InstanceCache -> BSPInstanceCache -> CharacterCache -> InstanceCache
 initCache = InstanceCache mempty mempty mempty
 
 renderScene' :: RenderSystem -> Float -> Scene -> IO ()
@@ -313,10 +328,7 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
 
       setupBSPInstance BSPInstance{..} = do
         cullSurfaces bspinstanceBSPLevel cameraPosition cameraFrustum bspinstanceSurfaces
-        -- TODO: do BSP cull on surfaces
-        --forM_ bspinstanceSurfaces $ mapM_ (flip enableObject True)
 
-      -- TODO: snap body parts
       setupCharacterInstance character (MD3Character position orientation rgba _ _) = do
         setupGameCharacter character effectTime cameraFrustum position orientation rgba
 

@@ -12,6 +12,9 @@ render system
     - replace IORef usage with StateT + IO; will simplify RenderSystem module
     - generalize MD3 loading and triggering of pipeline recompilation
   small and obvious:
+    - character support: player character
+      - load materials
+      - cache loaded model (GPUMD3) to speed up instantiation (CharacterInstance); store multiple models to feed instances from
   big:
     - collision:
         query MD3 collision shapes by name
@@ -20,9 +23,6 @@ render system
           entity's shape (box,sphere,ray or rays)
           collides with each other and inline models (level is model id 0)
           collision result (content flags, entity type) is passed to interact
-    - character support: player character
-      - load materials
-      - cache loaded model (GPUMD3) to speed up instantiation (CharacterInstance); store multiple models to feed instances from
     - make the interface monadic; explicit resource allocation and release
     - precache support
     - new renderable: BSPInlineModel
