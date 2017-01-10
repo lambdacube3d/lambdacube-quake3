@@ -262,16 +262,14 @@ initCache = InstanceCache mempty mempty mempty
 type RenderM = StateT InstanceCache IO
 
 getInstance :: (Eq k,Hashable k) => Lens' InstanceCache (HashMap k [a]) -> Lens' InstanceCache (HashMap k [a]) -> k -> IO a -> RenderM a
-getInstance oldCache newCache name create = do
-  old <- use oldCache
-  case HashMap.lookup name old of
-    Just (model:_) -> do -- use exising instance
-      oldCache %= HashMap.adjust tail name
-      return model
-    _ -> do -- create new instance
-      model <- liftIO create
-      newCache %= HashMap.insertWith (++) name [model]
-      return model
+getInstance oldCache newCache name create = HashMap.lookup name <$> use oldCache >>= \case
+  Just (model:_) -> do -- use exising instance
+    oldCache %= HashMap.adjust tail name
+    return model
+  _ -> do -- create new instance
+    model <- liftIO create
+    newCache %= HashMap.insertWith (++) name [model]
+    return model
 
 renderScene :: RenderSystem -> Float -> Scene -> IO ()
 renderScene a b c = do
