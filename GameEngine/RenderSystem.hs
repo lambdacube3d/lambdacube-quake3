@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards, OverloadedStrings, LambdaCase, FlexibleContexts #-}
+{-# LANGUAGE RecordWildCards, OverloadedStrings, LambdaCase, FlexibleContexts, TemplateHaskell, RankNTypes #-}
 module GameEngine.RenderSystem
   ( RenderSystem
   , initRenderSystem
@@ -13,6 +13,7 @@ import Data.Vect hiding (Vector)
 import Data.Maybe (fromJust)
 import Data.IORef
 import Data.List (foldl')
+import Data.Hashable
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import qualified Data.Set as Set
@@ -27,6 +28,7 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Data.Digest.CRC32 (crc32)
 import Text.Printf
+import Lens.Micro.Platform hiding (_4)
 
 import LambdaCube.GL
 
@@ -242,27 +244,41 @@ updateRenderCache renderSystem@RenderSystem{..} newMD3Materials newBSPMaterials
       writeIORef rsCharacterCache mempty
       return (storage,renderer,mempty,mempty,mempty)
 
+data InstanceCache
+  = InstanceCache
+  { _newMD3        :: !MD3InstanceCache
+  , _newBSP        :: !BSPInstanceCache
+  , _newCharacter  :: !CharacterCache
+  , _oldMD3        :: !MD3InstanceCache
+  , _oldBSP        :: !BSPInstanceCache
+  , _oldCharacter  :: !CharacterCache
+  }
+
+makeLenses ''InstanceCache
+
+initCache :: MD3InstanceCache -> BSPInstanceCache -> CharacterCache -> InstanceCache
+initCache = InstanceCache mempty mempty mempty
+
+type RenderM = StateT InstanceCache IO
+
+getInstance :: (Eq k,Hashable k) => Lens' InstanceCache (HashMap k [a]) -> Lens' InstanceCache (HashMap k [a]) -> k -> IO a -> RenderM a
+getInstance oldCache newCache name create = do
+  old <- use oldCache
+  case HashMap.lookup name old of
+    Just (model:_) -> do -- use exising instance
+      oldCache %= HashMap.adjust tail name
+      return model
+    _ -> do -- create new instance
+      model <- liftIO create
+      newCache %= HashMap.insertWith (++) name [model]
+      return model
+
 renderScene :: RenderSystem -> Float -> Scene -> IO ()
 renderScene a b c = do
   --printTimeDiff "scene process time: " $ do
     renderScene' a b c
   --printTimeDiff "render time: " $ do
     renderFrame =<< readIORef (rsRenderer a)
-
-data InstanceCache
-  = InstanceCache
-  { newMD3        :: !MD3InstanceCache
-  , newBSP        :: !BSPInstanceCache
-  , newCharacter  :: !CharacterCache
-  , oldMD3        :: !MD3InstanceCache
-  , oldBSP        :: !BSPInstanceCache
-  , oldCharacter  :: !CharacterCache
-  }
-
-initCache :: MD3InstanceCache -> BSPInstanceCache -> CharacterCache -> InstanceCache
-initCache = InstanceCache mempty mempty mempty
-
-type RenderM = StateT InstanceCache IO
 
 renderScene' :: RenderSystem -> Float -> Scene -> IO ()
 renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
@@ -274,84 +290,50 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
 
   -- create new instances
   let addInstance :: Renderable -> RenderM ()
-      addInstance md3@(MD3 _ _ _ name) = gets oldMD3 >>= \old -> case HashMap.lookup name old of
-        Just (model:_) -> do
-          liftIO $ setupMD3Instance model md3
-          modify' $ \s -> s {oldMD3 = HashMap.adjust tail name old}
-        _ -> do
-          model <- liftIO $ newMD3Instance name
-          liftIO $ setupMD3Instance model md3
-          modify' $ \s -> s {newMD3 = HashMap.insertWith (++) name [model] $ newMD3 s}
+      addInstance (MD3 position orientation rgba name) = do
+        MD3Instance{..} <- getInstance oldMD3 newMD3 name $ do
+          putStrLn $ "new instance: " ++ name
+          addGPUMD3 storage (md3Cache HashMap.! name) mempty ["worldMat","entityRGB","entityAlpha"]
+        liftIO $ do
+          forM_ md3instanceObject $ \obj -> do
+            enableObject obj $ pointInFrustum position cameraFrustum
+            -- set model matrix
+            uniformM44F "worldMat" (objectUniformSetter obj) . mat4ToM44F . fromProjective $ toWorldMatrix position orientation
+            uniformV3F "entityRGB" (objectUniformSetter obj) . vec3ToV3F $ trim rgba
+            uniformFloat "entityAlpha" (objectUniformSetter obj) $ _4 rgba
 
-      addInstance (BSPMap name) = gets oldBSP >>= \old -> case HashMap.lookup name old of
-        Just (model:_) -> do
-          liftIO $ setupBSPInstance model
-          modify' $ \s -> s {oldBSP = HashMap.adjust tail name old}
-        _ -> do
-          model <- liftIO $ newBSPInstance name
-          liftIO $ setupBSPInstance model
-          modify' $ \s -> s {newBSP = HashMap.insertWith (++) name [model] $ newBSP s}
-      addInstance a@(MD3Character _ _ _ name skin) = gets oldCharacter >>= \old -> case HashMap.lookup (name,skin) old of
-        Just (model:_) -> do
-          liftIO $ setupCharacterInstance model a
-          modify' $ \s -> s {oldCharacter = HashMap.adjust tail (name,skin) old}
-        _ -> do
-          model <- liftIO $ newCharacterInstance name skin
-          liftIO $ setupCharacterInstance model a
-          modify' $ \s -> s {newCharacter = HashMap.insertWith (++) (name,skin) [model] $ newCharacter s}
+      addInstance (BSPMap name) = do
+        BSPInstance{..} <- getInstance oldBSP newBSP name $ do
+          -- creates new instance from model cache
+          putStrLn $ "new instance: " ++ name
+          bspInstance@BSPInstance{..} <- addGPUBSP rsWhiteTexture storage (bspCache HashMap.! name)
+          -- set bsp map world matrix
+          forM_ bspinstanceSurfaces $ mapM_ (\o -> uniformM44F "worldMat" (objectUniformSetter o) $ mat4ToM44F idmtx)
+          return bspInstance
+        liftIO $ cullSurfaces bspinstanceBSPLevel cameraPosition cameraFrustum bspinstanceSurfaces
+
+      addInstance (MD3Character position orientation rgba name skin) = do
+        character <- getInstance oldCharacter newCharacter (name,skin) $ do
+          -- creates new instance from model cache
+          putStrLn $ printf "new instance: %s %s" name skin
+          addCharacterInstance rsFileSystem storage name skin
+        liftIO $ setupGameCharacter character effectTime cameraFrustum position orientation rgba
+
       addInstance _ = return () -- TODO
-
-      newMD3Instance :: String -> IO MD3Instance
-      newMD3Instance name = do
-        -- creates new instance from model cache
-        putStrLn $ "new instance: " ++ name
-        addGPUMD3 storage (md3Cache HashMap.! name) mempty ["worldMat","entityRGB","entityAlpha"]
-
-      newBSPInstance :: String -> IO BSPInstance
-      newBSPInstance name = do
-        -- creates new instance from model cache
-        putStrLn $ "new instance: " ++ name
-        bspInstance@BSPInstance{..} <- addGPUBSP rsWhiteTexture storage (bspCache HashMap.! name)
-        -- set bsp map world matrix
-        forM_ bspinstanceSurfaces $ mapM_ (\o -> uniformM44F "worldMat" (objectUniformSetter o) $ mat4ToM44F idmtx)
-        return bspInstance
-
-      newCharacterInstance :: String -> String -> IO CharacterInstance
-      newCharacterInstance name skin = do
-        -- creates new instance from model cache
-        putStrLn $ printf "new instance: %s %s" name skin
-        addCharacterInstance rsFileSystem storage name skin
 
       Camera{..} = camera
 
-      setupMD3Instance :: MD3Instance -> Renderable -> IO ()
-      setupMD3Instance MD3Instance{..} (MD3 position orientation rgba _) = do
-        forM_ md3instanceObject $ \obj -> do
-          enableObject obj $ pointInFrustum position cameraFrustum
-          -- set model matrix
-          uniformM44F "worldMat" (objectUniformSetter obj) . mat4ToM44F . fromProjective $ toWorldMatrix position orientation
-          uniformV3F "entityRGB" (objectUniformSetter obj) . vec3ToV3F $ trim rgba
-          uniformFloat "entityAlpha" (objectUniformSetter obj) $ _4 rgba
-
-      setupBSPInstance :: BSPInstance -> IO ()
-      setupBSPInstance BSPInstance{..} = do
-        cullSurfaces bspinstanceBSPLevel cameraPosition cameraFrustum bspinstanceSurfaces
-
-      setupCharacterInstance :: CharacterInstance -> Renderable -> IO ()
-      setupCharacterInstance character (MD3Character position orientation rgba _ _) = do
-        setupGameCharacter character effectTime cameraFrustum position orientation rgba
-
   InstanceCache{..} <- execStateT (mapM_ addInstance renderables) (initCache md3InstanceCache bspInstanceCache characterCache)
-  writeIORef rsMD3InstanceCache $ HashMap.unionWith (++) md3InstanceCache newMD3
-  writeIORef rsBSPInstanceCache $ HashMap.unionWith (++) bspInstanceCache newBSP
-  writeIORef rsCharacterCache $ HashMap.unionWith (++) characterCache newCharacter
+  writeIORef rsMD3InstanceCache $ HashMap.unionWith (++) md3InstanceCache _newMD3
+  writeIORef rsBSPInstanceCache $ HashMap.unionWith (++) bspInstanceCache _newBSP
+  writeIORef rsCharacterCache $ HashMap.unionWith (++) characterCache _newCharacter
 
   -- hide unused instances
   let hideMD3 :: MD3Instance -> IO ()
       hideMD3 MD3Instance{..} = forM_ md3instanceObject $ flip enableObject False
-  forM_ (concat $ HashMap.elems oldMD3) hideMD3
-  forM_ (concat $ HashMap.elems oldBSP) $ \BSPInstance{..} -> forM_ bspinstanceSurfaces $ mapM_ (flip enableObject False)
-  forM_ (concat $ HashMap.elems oldCharacter) $ \CharacterInstance{..} -> do
+  forM_ (concat $ HashMap.elems _oldMD3) hideMD3
+  forM_ (concat $ HashMap.elems _oldBSP) $ \BSPInstance{..} -> forM_ bspinstanceSurfaces $ mapM_ (flip enableObject False)
+  forM_ (concat $ HashMap.elems _oldCharacter) $ \CharacterInstance{..} -> do
     hideMD3 characterinstanceHeadModel
     hideMD3 characterinstanceUpperModel
     hideMD3 characterinstanceLowerModel
