@@ -125,15 +125,7 @@ engineInit pk3Data fullBSPName = do
     (md3Materials,md3Map,md3Objs) <- readMD3Objects characterObjs ents pk3Data
     --putStrLn $ "level materials"
     --mapM_ SB.putStrLn $ map shName $ V.toList $ blShaders bsp
-    shMap <- do
-      hasShaderCache <- doesFileExist q3shader_cache
-      case hasShaderCache of
-        True -> putStrLn "load shader cache" >> decodeFile q3shader_cache
-        False -> do
-                  putStrLn "create shader cache"
-                  sm <- loadShaderMap pk3Data
-                  encodeFile q3shader_cache sm
-                  return sm
+    shMap <- loadShaderMap pk3Data
     let
         maxMaterial = 20 -- TODO: remove if we will have fast reducer
         shNames = Set.fromList $ {-Prelude.take maxMaterial $ -}selectedMaterials ++ ignoredMaterials
