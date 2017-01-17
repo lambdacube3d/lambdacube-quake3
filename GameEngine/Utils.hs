@@ -16,7 +16,6 @@ import LambdaCube.Linear
 import LambdaCube.Mesh
 
 lc_q3_cache = ".lc_q3.cache" -- local cache: generated files, compiled pipelines are stored here
-q3shader_cache = lc_q3_cache </> "q3shader.cache"
 
 -- simple meshes
 sphere :: V4 Float -> Int -> Float -> Mesh

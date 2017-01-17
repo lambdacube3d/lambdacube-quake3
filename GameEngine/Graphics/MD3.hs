@@ -106,36 +106,36 @@ uploadMD3 model@MD3Model{..} = do
 
 addGPUMD3 :: GLStorage -> GPUMD3 -> MD3Skin -> [String] -> IO MD3Instance
 addGPUMD3 r GPUMD3{..} skin unis = do
-    let MD3Model{..} = gpumd3Model
-    objs <- forM (zip gpumd3Surfaces $ V.toList mdSurfaces) $ \((index,attrs),sf) -> do
-        let materialName s = case Map.lookup (SB8.unpack $ srName sf) skin of
-              Nothing -> SB8.unpack $ shName s
-              Just a  -> a
-        objList <- concat <$> forM (V.toList $ srShaders sf) (\s -> do
-          a <- addObjectWithMaterial r (materialName s) TriangleList (Just index) attrs $ setNub $ "worldMat":unis
-          b <- addObject r "LightMapOnly" TriangleList (Just index) attrs $ setNub $ "worldMat":unis
-          return [a,b])
+  let MD3Model{..} = gpumd3Model
+  objs <- forM (zip gpumd3Surfaces $ V.toList mdSurfaces) $ \((index,attrs),sf) -> do
+    let materialName s = case Map.lookup (SB8.unpack $ srName sf) skin of
+          Nothing -> SB8.unpack $ shName s
+          Just a  -> a
+    objList <- concat <$> forM (V.toList $ srShaders sf) (\s -> do
+      a <- addObjectWithMaterial r (materialName s) TriangleList (Just index) attrs $ setNub $ "worldMat":unis
+      b <- addObject r "LightMapOnly" TriangleList (Just index) attrs $ setNub $ "worldMat":unis
+      return [a,b])
 
-        -- add collision geometry
-        collisionObjs <- case V.toList mdFrames of
-          (Frame{..}:_) -> do
-            sphereObj <- uploadMeshToGPU (sphere (V4 1 0 0 1) 4 frRadius) >>= addMeshToObjectArray r "CollisionShape" (setNub $ ["worldMat","origin"] ++ unis)
-            boxObj <- uploadMeshToGPU (bbox (V4 0 0 1 1) frMins frMaxs) >>= addMeshToObjectArray r "CollisionShape" (setNub $ ["worldMat","origin"] ++ unis)
-            --when (frOrigin /= zero) $ putStrLn $ "frOrigin: " ++ show frOrigin
-            return [sphereObj,boxObj]
-          _ -> return []
+    -- add collision geometry
+    collisionObjs <- case V.toList mdFrames of
+      (Frame{..}:_) -> do
+        sphereObj <- uploadMeshToGPU (sphere (V4 1 0 0 1) 4 frRadius) >>= addMeshToObjectArray r "CollisionShape" (setNub $ ["worldMat","origin"] ++ unis)
+        boxObj <- uploadMeshToGPU (bbox (V4 0 0 1 1) frMins frMaxs) >>= addMeshToObjectArray r "CollisionShape" (setNub $ ["worldMat","origin"] ++ unis)
+        --when (frOrigin /= zero) $ putStrLn $ "frOrigin: " ++ show frOrigin
+        return [sphereObj,boxObj]
+      _ -> return []
 
-        return $ objList ++ collisionObjs
-    -- question: how will be the referred shaders loaded?
-    --           general problem: should the gfx network contain all passes (every possible materials)?
-    return $ MD3Instance
-        { md3instanceObject = concat objs
-        , md3instanceBuffer = gpumd3Buffer
-        , md3instanceFrames = gpumd3Frames
-        , md3instanceModel  = gpumd3Model
-        }
+    return $ objList ++ collisionObjs
+  -- question: how will be the referred shaders loaded?
+  --           general problem: should the gfx network contain all passes (every possible materials)?
+  return $ MD3Instance
+    { md3instanceObject = concat objs
+    , md3instanceBuffer = gpumd3Buffer
+    , md3instanceFrames = gpumd3Frames
+    , md3instanceModel  = gpumd3Model
+    }
 
 addMD3 :: GLStorage -> MD3Model -> MD3Skin -> [String] -> IO MD3Instance
 addMD3 r model skin unis = do
-    gpuMD3 <- uploadMD3 model
-    addGPUMD3 r gpuMD3 skin unis
+  gpuMD3 <- uploadMD3 model
+  addGPUMD3 r gpuMD3 skin unis

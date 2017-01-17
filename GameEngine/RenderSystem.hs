@@ -62,6 +62,9 @@ type AnimatedTexture  = (Float, SetterFun TextureData, Vector TextureData)
     collect scene materials
   load new textures if necessary
   create new pipeline and storage if necessary
+  problematic code: use state or writer monad to collect data
+    updateModelCache
+    updateRenderCache
 -}
 data RenderSystem
   = RenderSystem
