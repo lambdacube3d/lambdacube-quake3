@@ -1,4 +1,7 @@
 FOCUS: architecture & API
+ROADMAP:
+  1. replace map viewer (weeks); application development
+  2. performance optimizations (months); technology
 
 replace q3mapviewer
   - collision
