@@ -11,6 +11,7 @@ maintainer:          csaba.hruska@gmail.com
 category:            Game
 build-type:          Simple
 extra-source-files:  README.md
+                     CHANGELOG.md
                      cbits/stb_image.h
 cabal-version:       >=1.10
 
