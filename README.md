@@ -1,6 +1,9 @@
 # First person shooter game in Haskell
 However to be honest at current stage it's just a map viewer...
 
+For techincal details check the presentation video: [The innards of a purely functional 3D shooter game engine (influenced by Quake 3)
+](https://skillsmatter.com/skillscasts/8733-the-innards-of-a-purely-functional-3d-shooter-game-engine-influenced-by-quake-3)
+
 ### System Requirements
 - OS: Windows/Linux/OSX
 - Graphics: OpenGL 3.3 or better
