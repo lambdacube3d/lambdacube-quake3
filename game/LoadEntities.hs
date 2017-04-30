@@ -56,6 +56,12 @@ loadEntity E.EntityData{..} = case Map.lookup classname itemMap of
       }
     _ -> Nothing
   Nothing -> case classname of
+    "info_player_start"      -> spawnPoint
+    "info_player_deathmatch" -> spawnPoint
+    "team_CTF_bluespawn"     -> spawnPoint
+    "team_CTF_redspawn"      -> spawnPoint
+    "team_CTF_blueplayer"    -> spawnPoint
+    "team_CTF_redplayer"     -> spawnPoint
     "trigger_teleport" -> do
       target_ <- target
       Just . ETeleport $ Teleport
@@ -75,3 +81,20 @@ loadEntity E.EntityData{..} = case Map.lookup classname itemMap of
         , _ttTargetName = targetname_
         }
     _ -> Nothing
+  where
+    spawnPoint = Just . PSpawn $ Spawn
+      { _sSpawnTime = fromMaybe 1.0 wait
+      , _sEntity = EPlayer $ Player
+          { _pPosition    = origin
+          , _pDirection   = angles
+          , _pFVelocity   = 0
+          , _pSVelocity   = 0
+          , _pHealth      = fromMaybe 100 health
+          , _pAmmo        = 10
+          , _pArmor       = 0
+          , _pShootTime   = 0
+          , _pDamageTimer = 0
+          , _pName        = fromMaybe "grunt" model
+          , _pId          = 0
+          }
+      }
