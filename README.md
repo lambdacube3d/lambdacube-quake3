@@ -21,7 +21,16 @@ If you own the full version of the game you can use the **pak0.pk3** from it als
 
 Then copy **pak0.pk3** to the directory where you execute the application from. E.g. ```./lambdacube-quake3```
 
-#### 2. Compile & Run
+#### 2. On **Linux** install the following libraries.
+   i.e. on Ubuntu:
+   ```
+   sudo apt install libgl1-mesa-dev libxi-dev libxcursor-dev libxinerama-dev libxrandr-dev zlib1g-dev libasound-dev
+   ```
+   For other Linux distributions make sure the corresponing packages are installed.
+
+   *These libraries required for OpenGL development.*
+
+#### 3. Compile & Run
 
 You can compile the project using either [Stack](https://docs.haskellstack.org/en/stable/README/) or [Cabal](https://wiki.haskell.org/Cabal-Install).
 
