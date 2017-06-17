@@ -32,13 +32,14 @@ boxInFrustum pp pn fr = foldl' (\b (n,d) -> b && d + n `dotprod` (g pp pn n) >= 
         [fx,fy,fz] = map (\a -> if a > 0 then max else min) [x,y,z]
 
 frustum :: Float -> Float -> Float -> Float -> Vec3 -> Vec3 -> Vec3 -> Frustum
-frustum angle ratio nearD farD p l u = Frustum [ (pl ntr ntl ftl)
-                                               , (pl nbl nbr fbr)
-                                               , (pl ntl nbl fbl)
-                                               , (pl nbr ntr fbr)
-                                               , (pl ntl ntr nbr)
-                                               , (pl ftr ftl fbl)
-                                               ] ntl ntr nbl nbr ftl ftr fbl fbr
+frustum viewAngle aspectRatio nearDistance farDistance position lookat up =
+  Frustum [ (pl ntr ntl ftl)
+          , (pl nbl nbr fbr)
+          , (pl ntl nbl fbl)
+          , (pl nbr ntr fbr)
+          , (pl ntl ntr nbr)
+          , (pl ftr ftl fbl)
+          ] ntl ntr nbl nbr ftl ftr fbl fbr
   where
     pl a b c = (n,d)
       where
@@ -46,17 +47,17 @@ frustum angle ratio nearD farD p l u = Frustum [ (pl ntr ntl ftl)
         d = -(n `dotprod` b)
     m a v = scalarMul a v
     ang2rad = pi / 180
-    tang    = tan $ angle * ang2rad * 0.5
-    nh  = nearD * tang
-    nw  = nh * ratio
-    fh  = farD * tang
-    fw  = fh * ratio
-    z   = normalize $ p - l
-    x   = normalize $ u `crossprod` z
+    tang    = tan $ viewAngle * ang2rad * 0.5
+    nh  = nearDistance * tang
+    nw  = nh * aspectRatio
+    fh  = farDistance * tang
+    fw  = fh * aspectRatio
+    z   = normalize $ position - lookat
+    x   = normalize $ up `crossprod` z
     y   = z `crossprod` x
 
-    nc  = p - m nearD z
-    fc  = p - m farD z
+    nc  = position - m nearDistance z
+    fc  = position - m farDistance z
 
     ntl = nc + m nh y - m nw x
     ntr = nc + m nh y + m nw x
