@@ -165,3 +165,5 @@ executable shooter
     Buildable: True
   else
     Buildable: False
+
+  GHC-Options: -rtsopts
