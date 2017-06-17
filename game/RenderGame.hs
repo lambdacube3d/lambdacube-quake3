@@ -18,29 +18,29 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
   add l = tell (l,Last Nothing)
   setCamera c = tell ([],Last $ Just c)
   white = Vec4 1 1 1 1
-  (renderables,Last (Just camera)) = execWriter . forM_ (w^.wEntities) $ \case
-    EPlayer a   -> setCamera camera {- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
-      camera = Camera
-        { cameraPosition      = camPos
-        , cameraOrientation   = fun camTarget up
-        , cameraProjection    = (fromProjective $ quakeToGL .*. sm) .*. pm
-        , cameraFrustum       = frust
-        , cameraViewportSize  = (windowWidth,windowHeight)
-        }
-      Input{..} = w^.wInput
-      up = Vec3 0 0 1
-      quakeToGL = lookat zero (Vec3 1 0 0) up
-      apsectRatio = fromIntegral windowWidth / fromIntegral windowHeight
-      pm = perspective near far (fovDeg / 180 * pi) apsectRatio
-      sm = scaling $ Vec3 s s s
-      frust = frustum fovDeg apsectRatio near far camPos (camPos + camTarget) up
-      s  = 0.005
-      near = 0.00001/s
-      far  = 100/s
-      fovDeg = 60
-      camPos = a^.pPosition
-      camTarget = a^.pDirection
+  cam camPos camTarget = camera where
+    Input{..} = w^.wInput
+    camera = Camera
+      { cameraPosition      = camPos
+      , cameraOrientation   = fun camTarget up
+      , cameraProjection    = (fromProjective $ quakeToGL .*. sm) .*. pm
+      , cameraFrustum       = frust
+      , cameraViewportSize  = (windowWidth,windowHeight)
+      }
+    up = Vec3 0 0 1
+    quakeToGL = lookat zero (Vec3 1 0 0) up
+    apsectRatio = fromIntegral windowWidth / fromIntegral windowHeight
+    pm = perspective near far (fovDeg / 180 * pi) apsectRatio
+    sm = scaling $ Vec3 s s s
+    frust = frustum fovDeg apsectRatio near far camPos (camPos + camTarget) up
+    s  = 0.005
+    near = 0.00001/s
+    far  = 100/s
+    fovDeg = 60
 
+  camera = fromMaybe (cam (Vec3 0 0 0) (Vec3 1 0 0)) mcamera 
+  (renderables,Last mcamera) = execWriter . forM_ (w^.wEntities) $ \case
+    EPlayer a   -> setCamera $ cam (a^.pPosition) (a^.pDirection) {- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
     EBullet b   -> add [MD3 (b^.bPosition) one white "models/ammo/rocket/rocket.md3"]
     EWeapon a   -> add [MD3 (a^.wPosition) one white "models/weapons2/shotgun/shotgun.md3"]
     EAmmo a     -> add [MD3 (a^.aPosition) one white "models/powerups/ammo/shotgunam.md3"]

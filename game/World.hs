@@ -9,24 +9,24 @@ import Entities
 
 data Input
   = Input
-  { forwardmove :: Float
-  , sidemove    :: Float
-  , shoot       :: Bool
-  , dtime       :: Float
-  , time        :: Float
-  , mouseX      :: Float
-  , mouseY      :: Float
-  , windowWidth   :: Int
-  , windowHeight  :: Int
+  { forwardmove   :: !Float
+  , sidemove      :: !Float
+  , shoot         :: !Bool
+  , dtime         :: !Float
+  , time          :: !Float
+  , mouseX        :: !Float
+  , mouseY        :: !Float
+  , windowWidth   :: !Int
+  , windowHeight  :: !Int
   } deriving Show
 
 data World
   = World
-  { _wEntities  :: [Entity]
-  , _wVisuals   :: [Visual]
-  , _wInput     :: Input
-  , _wRandomGen :: PureMT
-  , _wMapFile   :: String
+  { _wEntities  :: ![Entity]
+  , _wVisuals   :: ![Visual]
+  , _wInput     :: !Input
+  , _wRandomGen :: !PureMT
+  , _wMapFile   :: !String
   } deriving Show
 
 makeLenses ''World

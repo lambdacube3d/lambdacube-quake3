@@ -2,6 +2,7 @@
 module GameLogic where
 
 import Control.Monad
+import Data.List (find)
 import Data.Maybe
 import System.Random.Mersenne.Pure64
 import Lens.Micro.Platform
@@ -151,19 +152,39 @@ updateEntities engine randGen input@Input{..} ents = (randGen',catMaybes (V.toLi
       pDamageTimer .= time + 1
       return True
 
-initialPlayer = Player
-  { _pPosition    = Vec3 0 0 0
-  , _pDirection   = Vec3 1 0 0
-  , _pFVelocity   = 0
-  , _pSVelocity   = 0
-  , _pHealth      = 100
-  , _pAmmo        = 100
-  , _pArmor       = 0
-  , _pShootTime   = 0
-  , _pDamageTimer = 0
-  , _pName        = "Bones"
-  , _pId          = 0
-  }
+applyWorldRules :: World -> World
+applyWorldRules = spawnPlayer
+
+-- | Spawn a player if there is none.
+spawnPlayer :: World -> World
+spawnPlayer w = w { _wEntities = entities }
+  where
+    wTime = w ^. wInput . to time
+    entities = (case find hasPlayer (_wEntities w) of
+                  Nothing -> ((PSpawn . Spawn (wTime + 2) $ EPlayer player):)
+                  Just _  -> id) $ _wEntities w
+
+    hasPlayer (EPlayer _)                    = True
+    hasPlayer (PSpawn (Spawn _ (EPlayer _))) = True
+    hasPlayer _                              = False
+
+    isSpawnPoint (ESpawnPoint _) = True
+    isSpawnPoint _               = False
+
+    (ESpawnPoint spawnPoint) = fromJust $ find isSpawnPoint (_wEntities w)
+    player = Player
+      { _pPosition    = _spPosition spawnPoint
+      , _pDirection   = _spAngles spawnPoint
+      , _pFVelocity   = 0
+      , _pSVelocity   = 0
+      , _pHealth      = 100
+      , _pAmmo        = 100
+      , _pArmor       = 0
+      , _pShootTime   = 0
+      , _pDamageTimer = 0
+      , _pName        = "Bones"
+      , _pId          = 0
+      }
 
 addEntities ents = tell (ents,[])
 addVisuals vis = tell ([],vis)
@@ -220,8 +241,7 @@ playerDie time = do
     ammo <- use pAmmo
     armor <- use pArmor
     addEntities
-      [ PSpawn $ Spawn (time + 2) $ EPlayer initialPlayer
-      , EAmmo  $ Ammo (pos + rand1) (ammo) True
+      [ EAmmo  $ Ammo (pos + rand1) (ammo) True
       , EArmor $ Armor (pos + rand2) (armor) True
       ]
     addVisuals [VParticle $ Particle pos (400 *& (extendZero . unitVectorAtAngle $ pi / 50 * i)) 1 | i <- [0..100]]
@@ -272,3 +292,4 @@ stepFun engine dt = execState $ do
   wEntities .= e
   wRandomGen .= r2
   wVisuals .= v1 ++ v2
+  modify applyWorldRules

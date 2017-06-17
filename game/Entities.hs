@@ -62,6 +62,12 @@ data Spawn
   , _sEntity    :: Entity
   } deriving Show
 
+data SpawnPoint
+  = SpawnPoint
+  { _spPosition :: Vec3
+  , _spAngles   :: Vec3
+  } deriving Show
+
 data Lava
   = Lava
   { _lPosition :: Vec3
@@ -87,17 +93,18 @@ data Killbox
   } deriving Show
 
 data Entity
-  = EPlayer   Player
-  | EBullet   Bullet
-  | EWeapon   Weapon
-  | EAmmo     Ammo
-  | EArmor    Armor
-  | EHealth   Health
-  | ELava     Lava
-  | ETeleport Teleport
-  | ETarget   Target
-  | EKillbox  Killbox
-  | PSpawn    Spawn
+  = EPlayer     Player
+  | EBullet     Bullet
+  | EWeapon     Weapon
+  | EAmmo       Ammo
+  | EArmor      Armor
+  | EHealth     Health
+  | ELava       Lava
+  | ETeleport   Teleport
+  | ETarget     Target
+  | EKillbox    Killbox
+  | PSpawn      Spawn
+  | ESpawnPoint SpawnPoint
   deriving Show
 
 concat <$> mapM makeLenses [''Player, ''Bullet, ''Weapon, ''Ammo, ''Armor, ''Spawn, ''Health, ''Lava, ''Teleport, ''Target, ''Killbox]

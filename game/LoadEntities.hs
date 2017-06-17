@@ -14,21 +14,7 @@ import Items
 import qualified GameEngine.Loader.Entity as E
 
 loadEntities :: [E.EntityData] -> [Entity]
-loadEntities = (player0:) . catMaybes . map loadEntity where
-  player0 = EPlayer $ Player
-    { _pPosition    = Vec3 0 0 0
-    , _pDirection   = Vec3 1 0 0
-    , _pFVelocity   = 0
-    , _pSVelocity   = 0
-    , _pHealth      = 100
-    , _pAmmo        = 10
-    , _pArmor       = 0
-    , _pShootTime   = 0
-    , _pDamageTimer = 0
-    , _pName        = "grunt"
-    , _pId          = 0
-    }
-
+loadEntities = catMaybes . map loadEntity
 
 itemMap :: Map String Item
 itemMap = Map.fromList [(itClassName i,i) | i <- items]
@@ -82,19 +68,7 @@ loadEntity E.EntityData{..} = case Map.lookup classname itemMap of
         }
     _ -> Nothing
   where
-    spawnPoint = Just . PSpawn $ Spawn
-      { _sSpawnTime = fromMaybe 1.0 wait
-      , _sEntity = EPlayer $ Player
-          { _pPosition    = origin
-          , _pDirection   = angles
-          , _pFVelocity   = 0
-          , _pSVelocity   = 0
-          , _pHealth      = fromMaybe 100 health
-          , _pAmmo        = 10
-          , _pArmor       = 0
-          , _pShootTime   = 0
-          , _pDamageTimer = 0
-          , _pName        = fromMaybe "grunt" model
-          , _pId          = 0
-          }
+    spawnPoint = Just . ESpawnPoint $ SpawnPoint
+      { _spPosition = origin
+      , _spAngles   = angles
       }
