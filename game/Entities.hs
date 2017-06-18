@@ -1,9 +1,12 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Entities where
 
+import Data.Map.Strict
+import Data.Set
 import Data.Vect
 import Data.Vect.Float.Util.Quaternion
 import Lens.Micro.Platform
+import qualified Items
 
 -- entities for game logic
 
@@ -14,12 +17,14 @@ data Player
   , _pFVelocity   :: Float
   , _pSVelocity   :: Float
   , _pHealth      :: Int
-  , _pAmmo        :: Int
   , _pArmor       :: Int
   , _pShootTime   :: Float
   , _pDamageTimer :: Float
   , _pName        :: String
   , _pId          :: Int
+  , _pAmmos       :: Map Items.Weapon Int
+  , _pWeapons     :: Set Items.Weapon
+  , _pSelectedWeapon :: Items.Weapon
   } deriving Show
 
 data Bullet
@@ -34,6 +39,7 @@ data Weapon
   = Weapon
   { _wPosition    :: Vec3
   , _wDropped     :: Bool
+  , _wType        :: Items.Weapon
   } deriving Show
 
 data Ammo
@@ -41,6 +47,7 @@ data Ammo
   { _aPosition    :: Vec3
   , _aQuantity    :: Int
   , _aDropped     :: Bool
+  , _aType        :: Items.Weapon
   } deriving Show
 
 data Armor

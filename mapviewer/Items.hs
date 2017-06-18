@@ -40,7 +40,7 @@ data Weapon
   | WP_PLASMAGUN
   | WP_BFG
   | WP_GRAPPLING_HOOK
-  deriving Show
+  deriving (Eq, Ord, Show)
 
 data ItemType
   = IT_WEAPON             Weapon    -- EFX: rotate + upscale + minlight

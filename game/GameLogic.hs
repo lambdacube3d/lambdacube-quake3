@@ -3,7 +3,9 @@ module GameLogic where
 
 import Control.Monad
 import Data.List (find)
+import qualified Data.Map.Strict as Map
 import Data.Maybe
+import qualified Data.Set as Set
 import System.Random.Mersenne.Pure64
 import Lens.Micro.Platform
 import Data.Vect hiding (Vector)
@@ -23,10 +25,12 @@ import qualified Data.Vector as V
 
 import GameEngine.RenderSystem
 
+import qualified Items
 import Entities
 import Visuals
 import World
 import Collision
+
 
 type Time = Float
 type DTime = Float
@@ -132,10 +136,11 @@ updateEntities engine randGen input@Input{..} ents = (randGen',catMaybes (V.toLi
     (EPlayer p,EArmor a)  -> (,) <$> update EPlayer p (pArmor += a^.rQuantity)
                                  <*> update EArmor a (if a^.rDropped then die else respawn time EArmor)
 
-    (EPlayer p,EAmmo a)   -> (,) <$> update EPlayer p (pAmmo += a^.aQuantity)
+    (EPlayer p,EAmmo a)   -> (,) <$> update EPlayer p (pickUpAmmo (a ^. aQuantity) (a ^. aType))
                                  <*> update EAmmo a (if a^.aDropped then die else respawn time EAmmo)
 
-    (EPlayer p,EWeapon a) -> (,) <$> update EPlayer p (pAmmo += 10)
+    (EPlayer p,EWeapon a) -> (,) <$> update EPlayer p (do pickUpAmmo (if (a ^. wDropped) then 0 else 10) (a ^. wType)
+                                                          pickUpWeapon (a ^. wType))
                                  <*> update EWeapon a (if a^.wDropped then die else respawn time EWeapon)
 
     (EPlayer p,ELava a)   -> (,) <$> update EPlayer p (do {tick <- oncePerSec; when tick (pHealth -= a^.lDamage)})
@@ -145,6 +150,9 @@ updateEntities engine randGen input@Input{..} ents = (randGen',catMaybes (V.toLi
 
     (a,b) | swap -> interact_ False (b,a)
           | otherwise -> return (Just a,Just b)
+
+  pickUpAmmo q w = pAmmos %= Map.adjust ((+) q) w
+  pickUpWeapon w = pWeapons %= Set.insert w
 
   oncePerSec = do
     t <- use pDamageTimer
@@ -178,12 +186,24 @@ spawnPlayer w = w { _wEntities = entities }
       , _pFVelocity   = 0
       , _pSVelocity   = 0
       , _pHealth      = 100
-      , _pAmmo        = 100
       , _pArmor       = 0
       , _pShootTime   = 0
       , _pDamageTimer = 0
       , _pName        = "Bones"
       , _pId          = 0
+      , _pWeapons     = Set.singleton Items.WP_GAUNTLET
+      , _pSelectedWeapon = Items.WP_GAUNTLET
+      , _pAmmos       = Map.fromList
+           [ (Items.WP_GAUNTLET,       100)
+           , (Items.WP_MACHINEGUN,       0)
+           , (Items.WP_SHOTGUN,          0)
+           , (Items.WP_GRENADE_LAUNCHER, 0)
+           , (Items.WP_ROCKET_LAUNCHER,  0)
+           , (Items.WP_LIGHTNING,        0)
+           , (Items.WP_RAILGUN,          0)
+           , (Items.WP_PLASMAGUN,        0)
+           , (Items.WP_BFG,              0)
+           ]
       }
 
 addEntities ents = tell (ents,[])
@@ -238,12 +258,20 @@ stepPlayer input@Input{..} = do
 playerDie time = do
     [rand1,rand2] <- replicateM 2 $ getRandomR (Vec3 (-50) (-50) (-50),Vec3 50 50 50)
     pos <- use pPosition
-    ammo <- use pAmmo
-    armor <- use pArmor
-    addEntities
-      [ EAmmo  $ Ammo (pos + rand1) (ammo) True
-      , EArmor $ Armor (pos + rand2) (armor) True
-      ]
+    ammos   <- Map.toList <$> use pAmmos
+    armor   <- use pArmor
+    weapons <- Set.toList <$> use pWeapons
+    let randomPos = (pos +) <$> getRandomR (Vec3 (-50) (-50) (-50), Vec3 50 50 50) 
+    droppedAmmos <- forM ammos $ \(weapon, amount) -> do
+      rpos <- randomPos
+      return $ EAmmo $ Ammo rpos amount True weapon
+    droppedWeapos <- forM weapons $ \weapon -> do
+      rpos <- randomPos
+      return $ EWeapon $ Weapon rpos True weapon
+    droppedArmors <- do
+      rpos <- randomPos
+      return [(EArmor $ Armor (pos + rand2) (armor) True)]
+    addEntities $ concat [droppedArmors, droppedWeapos, droppedAmmos]
     addVisuals [VParticle $ Particle pos (400 *& (extendZero . unitVectorAtAngle $ pi / 50 * i)) 1 | i <- [0..100]]
     die
 

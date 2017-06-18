@@ -26,14 +26,16 @@ loadEntity E.EntityData{..} = case Map.lookup classname itemMap of
       { _hPosition  = origin
       , _hQuantity  = itQuantity
       }
-    IT_WEAPON _ -> Just . EWeapon $ Weapon
+    IT_WEAPON w -> Just . EWeapon $ Weapon
       { _wPosition  = origin
       , _wDropped   = False
+      , _wType      = w
       }
-    IT_AMMO _ -> Just . EAmmo $ Ammo
+    IT_AMMO w -> Just . EAmmo $ Ammo
       { _aPosition  = origin
       , _aQuantity  = itQuantity
       , _aDropped   = False
+      , _aType      = w
       }
     IT_ARMOR -> Just . EArmor $ Armor
       { _rPosition  = origin
