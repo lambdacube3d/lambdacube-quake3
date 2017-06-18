@@ -6,12 +6,15 @@ import Data.Maybe
 import Control.Monad.Writer.Strict
 import Data.Vect
 import Data.Vect.Float.Instances
+import Data.Map (Map, (!))
+import qualified Data.Map as Map
 import Lens.Micro.Platform
 import Entities
 import World
 import GameEngine.Scene
 import GameEngine.Utils
 import Debug.Trace
+import Items
 
 renderFun :: World -> Scene
 renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
@@ -42,8 +45,8 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
   (renderables,Last mcamera) = execWriter . forM_ (w^.wEntities) $ \case
     EPlayer a   -> setCamera $ cam (a^.pPosition) (a^.pDirection) {- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
     EBullet b   -> add [MD3 (b^.bPosition) one white "models/ammo/rocket/rocket.md3"]
-    EWeapon a   -> add [MD3 (a^.wPosition) one white "models/weapons2/shotgun/shotgun.md3"]
-    EAmmo a     -> add [MD3 (a^.aPosition) one white "models/powerups/ammo/shotgunam.md3"]
+    EWeapon a   -> add [MD3 (a^.wPosition) one white model | model <- itWorldModel (itemMap ! (IT_WEAPON $ a^.wType))]
+    EAmmo a     -> add [MD3 (a^.aPosition) one white model | model <- itWorldModel (itemMap ! (IT_AMMO $ a^.aType))]
     EArmor a    -> add [MD3 (a^.rPosition) one white "models/powerups/armor/armor_red.md3"]
     EHealth a   -> add [MD3 pos one white "models/powerups/health/medium_cross.md3"
                        ,MD3 pos one white "models/powerups/health/medium_sphere.md3"] where pos = a^.hPosition
@@ -51,6 +54,9 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
     -- TEMP: just visualize targets
     ETarget a   -> add [MD3Character (a^.ttPosition) one white "visor" "default"]
     _ -> return ()
+
+itemMap :: Map ItemType Item
+itemMap = Map.fromList [(itType i,i) | i <- items]
 
 fun direction desiredUp = rot2 .*. rot1 where
   rot1 = rotationBetweenVectors (Vec3 1 0 0) direction

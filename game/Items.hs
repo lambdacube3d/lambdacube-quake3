@@ -13,13 +13,13 @@ data Powerup
   | PW_DOUBLER
   | PW_AMMOREGEN
   | PW_INVULNERABILITY
-  deriving Show
+  deriving (Eq, Ord, Show)
 
 data Team
   = PW_REDFLAG
   | PW_BLUEFLAG
   | PW_NEUTRALFLAG
-  deriving Show
+  deriving (Eq, Ord, Show)
 
 data Holdable
   = HI_TELEPORTER
@@ -27,7 +27,7 @@ data Holdable
   | HI_KAMIKAZE
   | HI_PORTAL
   | HI_INVULNERABILITY
-  deriving Show
+  deriving (Eq, Ord, Show)
 
 data Weapon
   = WP_GAUNTLET
@@ -51,7 +51,7 @@ data ItemType
   | IT_HOLDABLE           Holdable  -- single use, holdable item; EFX: rotate + bob
   | IT_PERSISTANT_POWERUP
   | IT_TEAM               Team
-  deriving Show
+  deriving (Eq, Ord, Show)
 
 data Item
   = Item
