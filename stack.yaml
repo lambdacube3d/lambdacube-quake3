@@ -5,6 +5,6 @@ extra-deps:
 - elerea-2.8.0
 - lambdacube-compiler-0.6.0.0
 - megaparsec-5.0.1
-- proteaaudio-0.6.5
+- proteaaudio-0.7.0
 - text-1.2.2.1
 resolver: lts-6.25

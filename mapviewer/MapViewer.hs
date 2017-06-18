@@ -119,8 +119,8 @@ main = do
           buf <- readEntry e
           -- load from memory buffer
           smp' <- case takeExtension musicFName of
-           ".ogg" -> SB8.useAsCStringLen buf $ \(p,i) -> sampleFromMemoryOgg p i 1
-           ".wav" -> SB8.useAsCStringLen buf $ \(p,i) -> sampleFromMemoryWav p i 1
+           ".ogg" -> sampleFromMemoryOgg buf 1
+           ".wav" -> sampleFromMemoryWav buf 1
           soundPlay smp' 1 1 0 1
 
     (mousePosition,mousePositionSink) <- external (0,0)
