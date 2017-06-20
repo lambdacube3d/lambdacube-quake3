@@ -256,7 +256,6 @@ stepPlayer input@Input{..} = do
   unless (health > 0) $ playerDie time
 
 playerDie time = do
-    [rand1,rand2] <- replicateM 2 $ getRandomR (Vec3 (-50) (-50) (-50),Vec3 50 50 50)
     pos <- use pPosition
     ammos   <- Map.toList <$> use pAmmos
     armor   <- use pArmor
@@ -270,7 +269,7 @@ playerDie time = do
       return $ EWeapon $ Weapon rpos True weapon
     droppedArmors <- do
       rpos <- randomPos
-      return [(EArmor $ Armor (pos + rand2) (armor) True)]
+      return [(EArmor $ Armor rpos armor True)]
     addEntities $ concat [droppedArmors, droppedWeapos, droppedAmmos]
     addVisuals [VParticle $ Particle pos (400 *& (extendZero . unitVectorAtAngle $ pi / 50 * i)) 1 | i <- [0..100]]
     die
