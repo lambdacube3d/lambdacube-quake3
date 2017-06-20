@@ -25,6 +25,8 @@ data Player
   , _pAmmos       :: Map Items.Weapon Int
   , _pWeapons     :: Set Items.Weapon
   , _pSelectedWeapon :: Items.Weapon
+  , _pHoldables   :: Set Items.Holdable
+  , _pPowerups    :: Set Items.Powerup
   } deriving Show
 
 data Bullet
@@ -99,6 +101,18 @@ data Killbox
   , _kTargetName  :: String
   } deriving Show
 
+data Holdable
+  = Holdable
+  { _hoPosition :: Vec3
+  , _hoType     :: Items.Holdable
+  } deriving Show
+
+data Powerup
+  = Powerup
+  { _puPosition :: Vec3
+  , _puType     :: Items.Powerup
+  } deriving Show
+
 data Entity
   = EPlayer     Player
   | EBullet     Bullet
@@ -112,6 +126,8 @@ data Entity
   | EKillbox    Killbox
   | PSpawn      Spawn
   | ESpawnPoint SpawnPoint
+  | EHoldable   Holdable
+  | EPowerup    Powerup
   deriving Show
 
-concat <$> mapM makeLenses [''Player, ''Bullet, ''Weapon, ''Ammo, ''Armor, ''Spawn, ''Health, ''Lava, ''Teleport, ''Target, ''Killbox]
+concat <$> mapM makeLenses [''Player, ''Bullet, ''Weapon, ''Ammo, ''Armor, ''Spawn, ''Health, ''Lava, ''Teleport, ''Target, ''Killbox, ''Holdable, ''Powerup]

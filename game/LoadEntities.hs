@@ -42,6 +42,14 @@ loadEntity E.EntityData{..} = case Map.lookup classname itemMap of
       , _rQuantity  = itQuantity
       , _rDropped   = False
       }
+    IT_POWERUP p -> Just . EPowerup $ Powerup
+      { _puPosition = origin
+      , _puType     = p
+      }
+    IT_HOLDABLE h -> Just . EHoldable $ Holdable
+      { _hoPosition = origin
+      , _hoType     = h
+      }
     _ -> Nothing
   Nothing -> case classname of
     "info_player_start"      -> spawnPoint

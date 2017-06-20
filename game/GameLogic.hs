@@ -146,6 +146,12 @@ updateEntities engine randGen input@Input{..} ents = (randGen',catMaybes (V.toLi
     (EPlayer p,ELava a)   -> (,) <$> update EPlayer p (do {tick <- oncePerSec; when tick (pHealth -= a^.lDamage)})
                                  <*> update ELava a (return ())
 
+    (EPlayer p,EHoldable h) -> (,) <$> update EPlayer p (pHoldables %= Set.insert (h ^. hoType))
+                                   <*> update EHoldable h (respawn time EHoldable)
+
+    (EPlayer p,EPowerup pu) -> (,) <$> update EPlayer p (pPowerups %= Set.insert (pu ^. puType))
+                                   <*> update EPowerup pu (respawn time EPowerup)
+
     (EBullet a,b)         -> (,Just b) <$> update EBullet a die -- bug in this case: (EBullet,EPlayer)
 
     (a,b) | swap -> interact_ False (b,a)
@@ -204,6 +210,8 @@ spawnPlayer w = w { _wEntities = entities }
            , (Items.WP_PLASMAGUN,        0)
            , (Items.WP_BFG,              0)
            ]
+      , _pHoldables  = Set.empty
+      , _pPowerups   = Set.empty
       }
 
 addEntities ents = tell (ents,[])
