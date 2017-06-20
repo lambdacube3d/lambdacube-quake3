@@ -1,5 +1,6 @@
 module Items where
 
+-- | Items that became active when the player pick them up.
 data Powerup
   = PW_QUAD
   | PW_BATTLESUIT
@@ -21,6 +22,7 @@ data Team
   | PW_NEUTRALFLAG
   deriving (Eq, Ord, Show)
 
+-- | Items that the player can hold and activate, deactivate.
 data Holdable
   = HI_TELEPORTER
   | HI_MEDKIT
