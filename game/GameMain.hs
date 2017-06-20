@@ -65,15 +65,24 @@ mapTuple = join (***)
 main = do
   (pk3,ents,mapfile) <- loadMap
   putStrLn $ "entity count: " ++ show (length ents)
-  play pk3 (initWorld ents mapfile $ pureMT 123456789) renderFun inputFun stepFun
+  play pk3 (initWorld ents mapfile $ pureMT 123456789) renderFun inputFun stepFun noLog
 
-play :: Map String Entry -> World -> (World -> Scene) -> (Event -> World -> World) -> (RenderSystem -> Float -> World -> World) -> IO ()
-play pk3 world0 getScene processInput stepWorld = do
+noLog _ _ = Nothing
+
+play :: Map String Entry
+     -> World
+     -> (World -> Scene)
+     -> (Event -> World -> World)
+     -> (RenderSystem -> Float -> World -> World)
+     -> (World -> World -> Maybe String)
+     -> IO ()
+play pk3 world0 getScene processInput stepWorld logWorldChange = do
   -- init graphics
   win <- initWindow "LambdaCube 3D Shooter" 800 600
   renderSystem <- initRenderSystem pk3
 
   let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
+      log oldWorld newWorld = maybe (pure ()) putStrLn $ logWorldChange oldWorld newWorld
       deltaTime = 1/60
       loop oldFraction oldTime oldWorld = do
         -- process input
@@ -99,6 +108,7 @@ play pk3 world0 getScene processInput stepWorld = do
         -- render current state
         renderScene renderSystem newTime $ getScene newWorld
         swapBuffers win
+        log oldWorld newWorld
         unless quit $ loop newFractionTime newTime newWorld
   time0 <- maybe 0 realToFrac <$> getTime
   loop 0 time0 world0
