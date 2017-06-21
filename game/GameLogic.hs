@@ -133,7 +133,7 @@ updateEntities engine randGen input@Input{..} ents = (randGen',catMaybes (V.toLi
     (EPlayer p,EBullet a) -> (,) <$> update EPlayer p (pHealth -= a^.bDamage)
                                  <*> update EBullet a die
 
-    (EPlayer p,EArmor a)  -> (,) <$> update EPlayer p (pArmor += a^.rQuantity)
+    (EPlayer p,EArmor a)  -> (,) <$> update EPlayer p (do {pArmor += a^.rQuantity; pArmorType .= Just (a^.rType)})
                                  <*> update EArmor a (if a^.rDropped then die else respawn time EArmor)
 
     (EPlayer p,EAmmo a)   -> (,) <$> update EPlayer p (pickUpAmmo (a ^. aQuantity) (a ^. aType))
@@ -193,6 +193,7 @@ spawnPlayer w = w { _wEntities = entities }
       , _pSVelocity   = 0
       , _pHealth      = 100
       , _pArmor       = 0
+      , _pArmorType   = Nothing
       , _pShootTime   = 0
       , _pDamageTimer = 0
       , _pName        = "Bones"
@@ -265,8 +266,9 @@ stepPlayer input@Input{..} = do
 
 playerDie time = do
     pos <- use pPosition
-    ammos   <- Map.toList <$> use pAmmos
-    armor   <- use pArmor
+    ammos     <- Map.toList <$> use pAmmos
+    armor     <- use pArmor
+    armorType <- use pArmorType
     weapons <- Set.toList <$> use pWeapons
     let randomPos = (pos +) <$> getRandomR (Vec3 (-50) (-50) (-50), Vec3 50 50 50) 
     droppedAmmos <- forM ammos $ \(weapon, amount) -> do
@@ -275,9 +277,11 @@ playerDie time = do
     droppedWeapos <- forM weapons $ \weapon -> do
       rpos <- randomPos
       return $ EWeapon $ Weapon rpos True weapon
-    droppedArmors <- do
-      rpos <- randomPos
-      return [(EArmor $ Armor rpos armor True)]
+    droppedArmors <- case armorType of
+      Just at | armor > 0 -> do
+        rpos <- randomPos
+        return [(EArmor $ Armor rpos armor True at)]
+      _ -> return []
     addEntities $ concat [droppedArmors, droppedWeapos, droppedAmmos]
     addVisuals [VParticle $ Particle pos (400 *& (extendZero . unitVectorAtAngle $ pi / 50 * i)) 1 | i <- [0..100]]
     die

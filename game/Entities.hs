@@ -18,6 +18,7 @@ data Player
   , _pSVelocity   :: Float
   , _pHealth      :: Int
   , _pArmor       :: Int
+  , _pArmorType   :: Maybe Items.Armor
   , _pShootTime   :: Float
   , _pDamageTimer :: Float
   , _pName        :: String
@@ -57,12 +58,14 @@ data Armor
   { _rPosition    :: Vec3
   , _rQuantity    :: Int
   , _rDropped     :: Bool
+  , _rType        :: Items.Armor
   } deriving Show
 
 data Health
   = Health
   { _hPosition   :: Vec3
   , _hQuantity   :: Int
+  , _hType       :: Items.Health
   } deriving Show
 
 data Spawn

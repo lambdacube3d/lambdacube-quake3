@@ -31,6 +31,19 @@ data Holdable
   | HI_INVULNERABILITY
   deriving (Eq, Ord, Show)
 
+data Armor
+  = AR_SHARD
+  | AR_COMBAT
+  | AR_BODY
+  deriving (Eq, Ord, Show)
+
+data Health
+  = HE_SMALL
+  | HE_MEDIUM
+  | HE_LARGE
+  | HE_MEGA
+  deriving (Eq, Ord, Show)
+
 data Weapon
   = WP_GAUNTLET
   | WP_MACHINEGUN
@@ -47,8 +60,8 @@ data Weapon
 data ItemType
   = IT_WEAPON             Weapon    -- EFX: rotate + upscale + minlight
   | IT_AMMO               Weapon    -- EFX: rotate
-  | IT_ARMOR                        -- EFX: rotate + minlight
-  | IT_HEALTH                       -- EFX: static external sphere + rotating internal
+  | IT_ARMOR              Armor     -- EFX: rotate + minlight
+  | IT_HEALTH             Health    -- EFX: static external sphere + rotating internal
   | IT_POWERUP            Powerup   -- instant on, timer based; EFX: rotate + external ring that rotates
   | IT_HOLDABLE           Holdable  -- single use, holdable item; EFX: rotate + bob
   | IT_PERSISTANT_POWERUP
@@ -76,7 +89,7 @@ items =
     , itIcon        = "icons/iconr_shard"
     , itPickupName  = "Armor Shard"
     , itQuantity    = 5
-    , itType        = IT_ARMOR
+    , itType        = IT_ARMOR AR_SHARD
     , itSounds      = []
     }
   , Item
@@ -86,7 +99,7 @@ items =
     , itIcon        = "icons/iconr_yellow"
     , itPickupName  = "Armor"
     , itQuantity    = 50
-    , itType        = IT_ARMOR
+    , itType        = IT_ARMOR AR_COMBAT
     , itSounds      = []
     }
   , Item
@@ -96,7 +109,7 @@ items =
     , itIcon        = "icons/iconr_red"
     , itPickupName  = "Heavy Armor"
     , itQuantity    = 100
-    , itType        = IT_ARMOR
+    , itType        = IT_ARMOR AR_BODY
     , itSounds      = []
     }
   , Item
@@ -106,7 +119,7 @@ items =
     , itIcon        = "icons/iconh_green"
     , itPickupName  = "5 Health"
     , itQuantity    = 5
-    , itType        = IT_HEALTH
+    , itType        = IT_HEALTH HE_SMALL
     , itSounds      = []
     }
   , Item
@@ -116,7 +129,7 @@ items =
     , itIcon        = "icons/iconh_yellow"
     , itPickupName  = "25 Health"
     , itQuantity    = 25
-    , itType        = IT_HEALTH
+    , itType        = IT_HEALTH HE_MEDIUM
     , itSounds      = []
     }
   , Item
@@ -126,7 +139,7 @@ items =
     , itIcon        = "icons/iconh_red"
     , itPickupName  = "50 Health"
     , itQuantity    = 50
-    , itType        = IT_HEALTH
+    , itType        = IT_HEALTH HE_LARGE
     , itSounds      = []
     }
   , Item
@@ -136,7 +149,7 @@ items =
     , itIcon        = "icons/iconh_mega"
     , itPickupName  = "Mega Health"
     , itQuantity    = 100
-    , itType        = IT_HEALTH
+    , itType        = IT_HEALTH HE_MEGA
     , itSounds      = []
     }
   , Item

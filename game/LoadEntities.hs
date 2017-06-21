@@ -22,9 +22,10 @@ itemMap = Map.fromList [(itClassName i,i) | i <- items]
 loadEntity :: E.EntityData -> Maybe Entity
 loadEntity E.EntityData{..} = case Map.lookup classname itemMap of
   Just Item{..} -> case itType of
-    IT_HEALTH -> Just . EHealth $ Health
+    IT_HEALTH t -> Just . EHealth $ Health
       { _hPosition  = origin
       , _hQuantity  = itQuantity
+      , _hType      = t
       }
     IT_WEAPON w -> Just . EWeapon $ Weapon
       { _wPosition  = origin
@@ -37,10 +38,11 @@ loadEntity E.EntityData{..} = case Map.lookup classname itemMap of
       , _aDropped   = False
       , _aType      = w
       }
-    IT_ARMOR -> Just . EArmor $ Armor
+    IT_ARMOR t -> Just . EArmor $ Armor
       { _rPosition  = origin
       , _rQuantity  = itQuantity
       , _rDropped   = False
+      , _rType      = t
       }
     IT_POWERUP p -> Just . EPowerup $ Powerup
       { _puPosition = origin
