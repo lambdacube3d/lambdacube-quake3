@@ -32,4 +32,6 @@ getCollisions engine entities = result where
     EArmor a    -> Just (a^.rPosition) -- "models/powerups/armor/armor_red.md3"
     EHealth a   -> Just (a^.hPosition) -- "models/powerups/health/medium_cross.md3"
     ETeleport a -> Just (a^.tPosition)
+    EHoldable a -> Just (a^.hoPosition)
+    EPowerup a  -> Just (a^.puPosition)
     _ -> Nothing

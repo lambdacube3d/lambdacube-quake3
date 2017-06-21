@@ -49,6 +49,8 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
     EAmmo a     -> add [MD3 (a^.aPosition) one white model | model <- itWorldModel (itemMap ! (IT_AMMO $ a^.aType))]
     EArmor a    -> add [MD3 (a^.rPosition) one white model | model <- itWorldModel (itemMap ! (IT_ARMOR $ a^.rType))]
     EHealth a   -> add [MD3 pos one white model | model <- itWorldModel (itemMap ! (IT_HEALTH $ a^.hType))] where pos = a^.hPosition
+    EHoldable h -> add [MD3 (h^.hoPosition) one white model | model <- itWorldModel (itemMap ! (IT_HOLDABLE $ h^.hoType))]                       
+    EPowerup p  -> add [MD3 (p^.puPosition)  one white model | model <- itWorldModel (itemMap ! (IT_POWERUP $ p^.puType))]
 
     -- TEMP: just visualize targets
     ETarget a   -> add [MD3Character (a^.ttPosition) one white "visor" "default"]
