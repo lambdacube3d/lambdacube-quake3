@@ -65,7 +65,7 @@ mapTuple = join (***)
 main = do
   (pk3,ents,mapfile) <- loadMap
   putStrLn $ "entity count: " ++ show (length ents)
-  play pk3 (initWorld ents mapfile $ pureMT 123456789) renderFun inputFun stepFun noLog
+  play pk3 (initWorld ents mapfile $ pureMT 123456789) renderFun inputFun stepFun logPlayerChange
 
 noLog _ _ = Nothing
 

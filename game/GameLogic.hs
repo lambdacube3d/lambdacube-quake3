@@ -332,3 +332,20 @@ stepFun engine dt = execState $ do
   wRandomGen .= r2
   wVisuals .= v1 ++ v2
   modify applyWorldRules
+
+logPlayerChange :: World -> World -> Maybe String
+logPlayerChange old new = do
+  op <- old ^. player
+  np <- new ^. player
+  guard (resetCoords (fromEPlayer op) /= resetCoords (fromEPlayer np))
+  pure $ show np
+  where
+    isPlayer (EPlayer _) = True
+    isPlayer _           = False
+    player = wEntities . to (find isPlayer)
+    fromEPlayer (EPlayer p) = p
+    resetCoords =
+      set pPosition (Vec3 0 0 0)  .
+      set pDirection (Vec3 0 0 0) .
+      set pFVelocity 0            .
+      set pSVelocity 0
