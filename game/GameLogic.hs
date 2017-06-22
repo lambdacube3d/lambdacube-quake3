@@ -30,6 +30,7 @@ import Entities
 import Visuals
 import World
 import Collision
+import qualified Player
 
 
 type Time = Float
@@ -198,11 +199,11 @@ spawnPlayer w = w { _wEntities = entities }
       , _pDamageTimer = 0
       , _pName        = "Bones"
       , _pId          = 0
-      , _pWeapons     = Set.singleton Items.WP_GAUNTLET
-      , _pSelectedWeapon = Items.WP_GAUNTLET
+      , _pWeapons     = Set.fromList [Items.WP_GAUNTLET, Items.WP_MACHINEGUN]
+      , _pSelectedWeapon = Items.WP_MACHINEGUN
       , _pAmmos       = Map.fromList
-           [ (Items.WP_GAUNTLET,       100)
-           , (Items.WP_MACHINEGUN,       0)
+           [ (Items.WP_GAUNTLET,         1)
+           , (Items.WP_MACHINEGUN,     100)
            , (Items.WP_SHOTGUN,          0)
            , (Items.WP_GRENADE_LAUNCHER, 0)
            , (Items.WP_ROCKET_LAUNCHER,  0)
@@ -252,12 +253,8 @@ stepPlayer input@Input{..} = do
 
   pPosition += (dtime * forwardVelocity) *& direction
   pPosition += (dtime * sideVelocity) *& strafeDirection
-  -- shoot
-  shootTime <- view pShootTime
-  when (shoot && shootTime < time) $ do
-    pos <- use pPosition
-    addEntities [EBullet $ Bullet (pos + 50 *& direction) (500 *& direction) 1 2]
-    pShootTime .= time + 0.1
+  
+  Player.shoots input
 
   pHealth %= min 200
   -- death
@@ -337,15 +334,16 @@ logPlayerChange :: World -> World -> Maybe String
 logPlayerChange old new = do
   op <- old ^. player
   np <- new ^. player
-  guard (resetCoords (fromEPlayer op) /= resetCoords (fromEPlayer np))
+  guard (nullSomeValues (fromEPlayer op) /= nullSomeValues (fromEPlayer np))
   pure $ show np
   where
     isPlayer (EPlayer _) = True
     isPlayer _           = False
     player = wEntities . to (find isPlayer)
     fromEPlayer (EPlayer p) = p
-    resetCoords =
+    nullSomeValues =
       set pPosition (Vec3 0 0 0)  .
       set pDirection (Vec3 0 0 0) .
       set pFVelocity 0            .
-      set pSVelocity 0
+      set pSVelocity 0            .
+      set pShootTime 0
