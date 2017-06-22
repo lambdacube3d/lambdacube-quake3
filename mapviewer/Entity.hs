@@ -8,7 +8,7 @@ import qualified Data.Map as Map
 import Data.Vect
 import Data.Maybe
 
-import Items
+import ItemsMV
 import GameEngine.Loader.Entity
 
 data Entity

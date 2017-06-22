@@ -1,4 +1,4 @@
-module Items where
+module ItemsMV where
 
 data Powerup
   = PW_QUAD

@@ -22,7 +22,7 @@ import Data.Maybe
 import Control.Exception (evaluate)
 import Control.DeepSeq
 
-import Items
+import ItemsMV
 import GameEngine.Data.GameCharacter
 import GameEngine.Loader.GameCharacter
 import GameEngine.Data.Material hiding (Vec3)
