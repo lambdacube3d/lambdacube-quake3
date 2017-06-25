@@ -14,6 +14,7 @@ import System.Environment
 
 import Data.Char
 import Data.Map (Map)
+import Data.List (find)
 import qualified Data.ByteString.Char8 as SB
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Map as Map
@@ -34,13 +35,14 @@ import GameEngine.RenderSystem
 
 data Event
   = Event
-  { ksMoveForward   :: Bool
-  , ksMoveBackward  :: Bool
-  , ksMoveRight     :: Bool
-  , ksMoveLeft      :: Bool
-  , ksShoot         :: Bool
-  , ksMousePosition :: (Float,Float)
-  , ksWindowSize    :: (Int,Int)
+  { ksMoveForward   :: !Bool
+  , ksMoveBackward  :: !Bool
+  , ksMoveRight     :: !Bool
+  , ksMoveLeft      :: !Bool
+  , ksShoot         :: !Bool
+  , ksNumKey        :: !(Maybe Int)
+  , ksMousePosition :: !(Float,Float)
+  , ksWindowSize    :: !(Int,Int)
   }
 
 inputFun :: Event -> World -> World
@@ -57,6 +59,7 @@ inputFun Event{..} w = w & wInput .~ i' where
     , mouseY      = snd ksMousePosition
     , windowWidth   = fst ksWindowSize
     , windowHeight  = snd ksWindowSize
+    , changeWeapon  = do { key <- ksNumKey; Map.lookup key weaponKeys }
     }
 
 mapTuple :: (a -> b) -> (a,a) -> (b,b)
@@ -82,6 +85,12 @@ play pk3 world0 getScene processInput stepWorld logWorldChange = do
   renderSystem <- initRenderSystem pk3
 
   let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
+
+      numKeyPressed = (fmap fst . find snd) <$> mapM (\(n, k) -> (,) n <$> keyIsPressed k)
+        [ (0,Key'0), (1,Key'1), (2,Key'2), (3,Key'3), (4,Key'4), (5,Key'5), (6,Key'6)
+        , (7,Key'7), (8,Key'8), (9,Key'9)
+        ]
+
       log oldWorld newWorld = maybe (pure ()) putStrLn $ logWorldChange oldWorld newWorld
       deltaTime = 1/60
       loop oldFraction oldTime oldWorld = do
@@ -93,6 +102,7 @@ play pk3 world0 getScene processInput stepWorld logWorldChange = do
                     <*> keyIsPressed Key'D
                     <*> keyIsPressed Key'A
                     <*> keyIsPressed Key'Space
+                    <*> numKeyPressed
                     <*> (mapTuple realToFrac <$> getCursorPos win)
                     <*> getFramebufferSize win
         quit <- keyIsPressed Key'Escape

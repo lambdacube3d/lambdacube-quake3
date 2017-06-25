@@ -8,6 +8,7 @@ import Data.Maybe
 import qualified Data.Set as Set
 import System.Random.Mersenne.Pure64
 import Lens.Micro.Platform
+import Data.Map.Strict as Map (Map, lookup)
 import Data.Vect hiding (Vector)
 import Data.Vect.Float.Instances
 import Data.Vect.Float.Util.Quaternion
@@ -254,6 +255,7 @@ stepPlayer input@Input{..} = do
   pPosition += (dtime * forwardVelocity) *& direction
   pPosition += (dtime * sideVelocity) *& strafeDirection
   
+  Player.changeWeapon input
   Player.shoots input
 
   pHealth %= min 200
@@ -347,3 +349,18 @@ logPlayerChange old new = do
       set pFVelocity 0            .
       set pSVelocity 0            .
       set pShootTime 0
+
+-- FIXME: Order
+weaponKeys :: Map Int Items.Weapon
+weaponKeys = Map.fromList
+  [ (0, Items.WP_GAUNTLET)
+  , (1, Items.WP_MACHINEGUN)
+  , (2, Items.WP_SHOTGUN)
+  , (3, Items.WP_GRENADE_LAUNCHER)
+  , (4, Items.WP_ROCKET_LAUNCHER)
+  , (5, Items.WP_LIGHTNING)
+  , (6, Items.WP_RAILGUN)
+  , (7, Items.WP_PLASMAGUN)
+  , (8, Items.WP_BFG)
+  , (9, Items.WP_GRAPPLING_HOOK)
+  ]

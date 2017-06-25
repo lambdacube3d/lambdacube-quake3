@@ -8,6 +8,7 @@ import Control.Monad
 import Control.Monad.Writer.Strict
 import qualified Data.Map.Strict as Map
 import Data.Maybe
+import qualified Data.Set as Set (member)
 import Data.Vect hiding (Vector)
 import Lens.Micro.Platform
 
@@ -26,3 +27,10 @@ shoots Input{..} = do
       direction <- use pDirection
       addEntities [EBullet $ Bullet (pos + 50 *& direction) (500 *& direction) 1 2]
       pShootTime .= time + 0.1
+
+changeWeapon Input{..} | isNothing changeWeapon = pure ()
+changeWeapon Input{..} = do
+  let Just newWeapon = changeWeapon
+  weapons <- use pWeapons
+  when (newWeapon `Set.member` weapons) $ do
+    pSelectedWeapon .= newWeapon

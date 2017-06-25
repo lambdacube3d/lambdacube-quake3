@@ -6,6 +6,7 @@ import System.Random.Mersenne.Pure64
 
 import Visuals
 import Entities
+import qualified Items
 
 data Input
   = Input
@@ -18,6 +19,7 @@ data Input
   , mouseY        :: !Float
   , windowWidth   :: !Int
   , windowHeight  :: !Int
+  , changeWeapon  :: !(Maybe Items.Weapon)
   } deriving Show
 
 data World
@@ -49,4 +51,5 @@ initInput = Input
   , mouseY      = 0
   , windowWidth   = 0
   , windowHeight  = 0
+  , changeWeapon  = Nothing
   }
