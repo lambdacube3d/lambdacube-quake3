@@ -10,16 +10,17 @@ import qualified Items
 
 data Input
   = Input
-  { forwardmove   :: !Float
-  , sidemove      :: !Float
-  , shoot         :: !Bool
-  , dtime         :: !Float
-  , time          :: !Float
-  , mouseX        :: !Float
-  , mouseY        :: !Float
-  , windowWidth   :: !Int
-  , windowHeight  :: !Int
-  , changeWeapon  :: !(Maybe Items.Weapon)
+  { forwardmove    :: !Float
+  , sidemove       :: !Float
+  , shoot          :: !Bool
+  , dtime          :: !Float
+  , time           :: !Float
+  , mouseX         :: !Float
+  , mouseY         :: !Float
+  , windowWidth    :: !Int
+  , windowHeight   :: !Int
+  , changeWeapon   :: !(Maybe Items.Weapon)
+  , toggleHoldable :: !(Maybe Items.Holdable)
   } deriving Show
 
 data World
@@ -42,14 +43,15 @@ initWorld ents mapfile random = World
   }
 
 initInput = Input
-  { forwardmove = 0
-  , sidemove    = 0
-  , shoot       = False
-  , dtime       = 0
-  , time        = 0
-  , mouseX      = 0
-  , mouseY      = 0
-  , windowWidth   = 0
-  , windowHeight  = 0
-  , changeWeapon  = Nothing
+  { forwardmove    = 0
+  , sidemove       = 0
+  , shoot          = False
+  , dtime          = 0
+  , time           = 0
+  , mouseX         = 0
+  , mouseY         = 0
+  , windowWidth    = 0
+  , windowHeight   = 0
+  , changeWeapon   = Nothing
+  , toggleHoldable = Nothing
   }

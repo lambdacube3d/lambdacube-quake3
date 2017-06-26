@@ -1,5 +1,7 @@
 module Items where
 
+import Data.Map.Strict as Map
+
 -- | Items that became active when the player pick them up.
 data Powerup
   = PW_QUAD
@@ -79,6 +81,15 @@ data Item
   , itType        :: ItemType
   , itSounds      :: [String]
   } deriving Show
+
+holdableTime :: Map Holdable Float
+holdableTime = Map.fromList
+  [ (HI_TELEPORTER, 10)
+  , (HI_MEDKIT, 10)
+  , (HI_KAMIKAZE, 10)
+  , (HI_PORTAL, 10)
+  , (HI_INVULNERABILITY, 10)
+  ]
 
 items :: [Item]
 items =

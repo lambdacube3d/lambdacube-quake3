@@ -8,7 +8,7 @@ import Control.Monad
 import Control.Monad.Writer.Strict
 import qualified Data.Map.Strict as Map
 import Data.Maybe
-import qualified Data.Set as Set (member)
+import qualified Data.Set as Set
 import Data.Vect hiding (Vector)
 import Lens.Micro.Platform
 
@@ -34,3 +34,16 @@ changeWeapon Input{..} = do
   weapons <- use pWeapons
   when (newWeapon `Set.member` weapons) $ do
     pSelectedWeapon .= newWeapon
+
+togglesHoldable Input{..} | isNothing toggleHoldable = pure ()
+togglesHoldable Input{..} = do
+  let Just holdable = toggleHoldable
+  holdables <- use pHoldables
+  when (holdable `Map.member` holdables) $ do
+    pHoldables %= Map.update (\(active, time) -> Just (not active, time)) holdable
+
+tickHoldables Input{..} = do
+  pHoldables %= Map.mapMaybe (\(active, rest) ->
+    if rest - dtime < 0
+      then Nothing
+      else Just (active, rest - dtime))

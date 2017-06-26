@@ -41,6 +41,7 @@ data Event
   , ksMoveLeft      :: !Bool
   , ksShoot         :: !Bool
   , ksNumKey        :: !(Maybe Int)
+  , ksHoldableKey   :: !(Maybe Int)
   , ksMousePosition :: !(Float,Float)
   , ksWindowSize    :: !(Int,Int)
   }
@@ -60,6 +61,7 @@ inputFun Event{..} w = w & wInput .~ i' where
     , windowWidth   = fst ksWindowSize
     , windowHeight  = snd ksWindowSize
     , changeWeapon  = do { key <- ksNumKey; Map.lookup key weaponKeys }
+    , toggleHoldable = do { key <- ksHoldableKey; Map.lookup key holdableKeys }
     }
 
 mapTuple :: (a -> b) -> (a,a) -> (b,b)
@@ -86,10 +88,15 @@ play pk3 world0 getScene processInput stepWorld logWorldChange = do
 
   let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
 
-      numKeyPressed = (fmap fst . find snd) <$> mapM (\(n, k) -> (,) n <$> keyIsPressed k)
+      mapKeyPressed keyAssoc = (fmap fst . find snd) <$> mapM (\(n, k) -> (,) n <$> keyIsPressed k) keyAssoc
+
+      numKeyPressed = mapKeyPressed
         [ (0,Key'0), (1,Key'1), (2,Key'2), (3,Key'3), (4,Key'4), (5,Key'5), (6,Key'6)
         , (7,Key'7), (8,Key'8), (9,Key'9)
         ]
+
+      holdableKeyPressed = mapKeyPressed
+        [ (0, Key'Q), (1, Key'W), (2, Key'E), (3, Key'R), (4, Key'T) ]
 
       log oldWorld newWorld = maybe (pure ()) putStrLn $ logWorldChange oldWorld newWorld
       deltaTime = 1/60
@@ -103,6 +110,7 @@ play pk3 world0 getScene processInput stepWorld logWorldChange = do
                     <*> keyIsPressed Key'A
                     <*> keyIsPressed Key'Space
                     <*> numKeyPressed
+                    <*> holdableKeyPressed
                     <*> (mapTuple realToFrac <$> getCursorPos win)
                     <*> getFramebufferSize win
         quit <- keyIsPressed Key'Escape

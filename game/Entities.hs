@@ -27,7 +27,7 @@ data Player
   , _pAmmos       :: Map Items.Weapon Int
   , _pWeapons     :: Set Items.Weapon
   , _pSelectedWeapon :: Items.Weapon
-  , _pHoldables   :: Set Items.Holdable
+  , _pHoldables   :: Map Items.Holdable (Bool, Float)
   , _pPowerups    :: Set Items.Powerup
   } deriving (Eq, Show)
 

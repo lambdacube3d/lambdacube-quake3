@@ -148,7 +148,8 @@ updateEntities engine randGen input@Input{..} ents = (randGen',catMaybes (V.toLi
     (EPlayer p,ELava a)   -> (,) <$> update EPlayer p (do {tick <- oncePerSec; when tick (pHealth -= a^.lDamage)})
                                  <*> update ELava a (return ())
 
-    (EPlayer p,EHoldable h) -> (,) <$> update EPlayer p (pHoldables %= Set.insert (h ^. hoType))
+    (EPlayer p,EHoldable h) -> (,) <$> update EPlayer p (do let Just period = Map.lookup (h ^. hoType) Items.holdableTime
+                                                            pHoldables %= Map.insert (h ^. hoType) (False, period))
                                    <*> update EHoldable h (respawn time EHoldable)
 
     (EPlayer p,EPowerup pu) -> (,) <$> update EPlayer p (pPowerups %= Set.insert (pu ^. puType))
@@ -213,7 +214,7 @@ spawnPlayer w = w { _wEntities = entities }
            , (Items.WP_PLASMAGUN,        0)
            , (Items.WP_BFG,              0)
            ]
-      , _pHoldables  = Set.empty
+      , _pHoldables  = Map.empty
       , _pPowerups   = Set.empty
       }
 
@@ -257,6 +258,8 @@ stepPlayer input@Input{..} = do
   
   Player.changeWeapon input
   Player.shoots input
+  Player.togglesHoldable input
+  Player.tickHoldables input
 
   pHealth %= min 200
   -- death
@@ -363,4 +366,13 @@ weaponKeys = Map.fromList
   , (7, Items.WP_PLASMAGUN)
   , (8, Items.WP_BFG)
   , (9, Items.WP_GRAPPLING_HOOK)
+  ]
+
+holdableKeys :: Map Int Items.Holdable
+holdableKeys = Map.fromList
+  [ (0, Items.HI_TELEPORTER)
+  , (1, Items.HI_MEDKIT)
+  , (2, Items.HI_KAMIKAZE)
+  , (3, Items.HI_PORTAL)
+  , (4, Items.HI_INVULNERABILITY)
   ]
