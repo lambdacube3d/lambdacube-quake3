@@ -44,6 +44,7 @@ togglesHoldable Input{..} = do
 
 tickHoldables Input{..} = do
   pHoldables %= Map.mapMaybe (\(active, rest) ->
-    if rest - dtime < 0
-      then Nothing
-      else Just (active, rest - dtime))
+    case (active, rest - dtime < 0) of
+      (True, True)  -> Nothing
+      (True, False) -> Just (active, rest - dtime)
+      (False, _)    -> Just (active, rest)
