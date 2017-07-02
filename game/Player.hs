@@ -47,4 +47,4 @@ tickHoldables Input{..} = do
     case (active, rest - dtime < 0) of
       (True, True)  -> Nothing
       (True, False) -> Just (active, rest - dtime)
-      (False, _)    -> Just (active, rest)
+      (False, _)    -> Just (active, rest))
