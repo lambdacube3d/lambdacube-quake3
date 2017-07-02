@@ -41,20 +41,24 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
     far  = 100/s
     fovDeg = 60
 
+  xaxis = Vec3 0 0 1
+  rotation = rotU xaxis (w ^. wInput . to time) -- WARNING: Flaoting point repr leads to big jumps after a while.
+
   camera = fromMaybe (cam (Vec3 0 0 0) (Vec3 1 0 0)) mcamera 
   (renderables,Last mcamera) = execWriter . forM_ (w^.wEntities) $ \case
     EPlayer a   -> setCamera $ cam (a^.pPosition) (a^.pDirection) {- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
     EBullet b   -> add [MD3 (b^.bPosition) one white "models/ammo/rocket/rocket.md3"]
-    EWeapon a   -> add [MD3 (a^.wPosition) one white model | model <- itWorldModel (itemMap ! (IT_WEAPON $ a^.wType))]
-    EAmmo a     -> add [MD3 (a^.aPosition) one white model | model <- itWorldModel (itemMap ! (IT_AMMO $ a^.aType))]
-    EArmor a    -> add [MD3 (a^.rPosition) one white model | model <- itWorldModel (itemMap ! (IT_ARMOR $ a^.rType))]
-    EHealth a   -> add [MD3 pos one white model | model <- itWorldModel (itemMap ! (IT_HEALTH $ a^.hType))] where pos = a^.hPosition
-    EHoldable h -> add [MD3 (h^.hoPosition) one white model | model <- itWorldModel (itemMap ! (IT_HOLDABLE $ h^.hoType))]                       
-    EPowerup p  -> add [MD3 (p^.puPosition)  one white model | model <- itWorldModel (itemMap ! (IT_POWERUP $ p^.puType))]
+    EWeapon a   -> add [MD3 (a^.wPosition) rotation white model | model <- itWorldModel (itemMap ! (IT_WEAPON $ a^.wType))]
+    EAmmo a     -> add [MD3 (a^.aPosition) rotation white model | model <- itWorldModel (itemMap ! (IT_AMMO $ a^.aType))]
+    EArmor a    -> add [MD3 (a^.rPosition) rotation white model | model <- itWorldModel (itemMap ! (IT_ARMOR $ a^.rType))]
+    EHealth a   -> add [MD3 pos rotation white model | model <- itWorldModel (itemMap ! (IT_HEALTH $ a^.hType))] where pos = a^.hPosition
+    EHoldable h -> add [MD3 (h^.hoPosition) rotation white model | model <- itWorldModel (itemMap ! (IT_HOLDABLE $ h^.hoType))]                       
+    EPowerup p  -> add [MD3 (p^.puPosition) rotation white model | model <- itWorldModel (itemMap ! (IT_POWERUP $ p^.puType))]
 
     -- TEMP: just visualize targets
     ETarget a   -> add [MD3Character (a^.ttPosition) one white "visor" "default"]
     _ -> return ()
+
 
 itemMap :: Map ItemType Item
 itemMap = Map.fromList [(itType i,i) | i <- items]
