@@ -41,8 +41,8 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
     far  = 100/s
     fovDeg = 60
 
-  xaxis = Vec3 0 0 1
-  rotation = rotU xaxis (w ^. wInput . to time) -- WARNING: Flaoting point repr leads to big jumps after a while.
+  zaxis = Vec3 0 0 1
+  rotation = rotU zaxis (w ^. wInput . to time) -- WARNING: Flaoting point repr leads to big jumps after a while.
 
   camera = fromMaybe (cam (Vec3 0 0 0) (Vec3 1 0 0)) mcamera 
   (renderables,Last mcamera) = execWriter . forM_ (w^.wEntities) $ \case
