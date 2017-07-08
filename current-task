@@ -1,0 +1,52 @@
+MEDIUM TASKS:
+  - add HUD support to engine
+  - implement level collision
+
+render active weapon
+render status bar
+  ammo count
+  health count
+  armor count (optional)
+  frag limit / frag count
+
+PROBLEM:
+  convenient transformation between world space and screen space
+
+TODO:
+  UI layer in scene
+    text
+    models
+
+general:
+  done - protea audio
+    parameter types and names; add description
+    include example code in the main hackage page
+    add ByteString loader also
+
+  quake
+    check how the weapon is draw in the original game
+
+HUD SUPPORT
+  text, icon, md3
+
+  TODO
+    check the API in the q3 source
+    cg_newdraw.c
+      CG_DrawPic( rect->x, rect->y + rect->h/2 + 1, rect->w, rect->h, cgs.media.armorIcon );
+        trap:
+          trap_R_DrawStretchPic
+        command:
+          void RE_StretchPic ( float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t hShader )
+        implementation:
+          RB_StretchPic
+
+      CG_Draw3DModel( rect->x, rect->y, rect->w, rect->h, cgs.media.armorModel, 0, origin, angles );
+
+      void CG_DrawField (int x, int y, int width, int value)
+
+    introduce a 2D layer in the engine with settings from RB_SetGL2D
+
+    top level code
+      CG_DrawStatusBar
+
+    need for an absolute coordinate system, q3 uses 640x480 virtual screen size
