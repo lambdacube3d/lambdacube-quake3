@@ -2,6 +2,22 @@ MEDIUM TASKS:
   - add HUD support to engine
   - implement level collision
 
+TASK:
+  - make engine api more general
+    - support rendrering to multiple viewports
+    - support dynamic lights (in the scene)
+
+QUESTION:
+  Context: Quake 3 Engine implemented graphics features in the game client code e.g.
+    - font rendering
+    - particle system
+  How should the Haskell engine API look like?
+    (A): Mimic the Q3 Engine API and support:
+          - add polys to scene
+          - stretch pic primitive
+    (B): Builtin support, high level API
+  Preference: (B)
+
 render active weapon
 render status bar
   ammo count
