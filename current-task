@@ -17,6 +17,13 @@ QUESTION:
           - stretch pic primitive
     (B): Builtin support, high level API
   Preference: (B)
+  Decision:
+    - support for emitting 2D quads (a.k.a trap_R_DrawStretchPic)
+        use case:
+          - text rendering
+          - menu rendering
+          - icons
+    - native support for particles (must be efficient)
 
 render active weapon
 render status bar
