@@ -5,6 +5,8 @@ MEDIUM TASKS:
 TASK:
   - make engine api more general
     - support rendrering to multiple viewports
+        Q: should it be a proper render tartget or just a specific area of the screen?
+    - support 2D quads with shaders (2D screen space)
     - support dynamic lights (in the scene)
 
 QUESTION:
