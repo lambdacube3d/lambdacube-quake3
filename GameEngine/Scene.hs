@@ -4,6 +4,7 @@ module GameEngine.Scene
   , Renderable(..)
   , Camera(..)
   , Scene(..)
+  , Resource(..)
   ) where
 
 import Data.Vect
@@ -37,3 +38,9 @@ data Scene
   { renderables :: [Renderable]
   , camera      :: Camera
   } deriving Show
+
+data Resource
+  = R_MD3             FilePath
+  | R_MD3Character    FilePath SkinName
+  | R_BSPMap          FilePath
+  deriving Show

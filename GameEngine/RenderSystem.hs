@@ -2,6 +2,7 @@
 module GameEngine.RenderSystem
   ( RenderSystem
   , initRenderSystem
+  , loadResources
   , renderScene
   , Renderable(..)
   , Scene(..)
@@ -130,6 +131,9 @@ initRenderSystem pk3 = do
     , rsStorage           = storageRef
     , rsAnimatedTextures  = animatedTextures
     }
+
+loadResources :: RenderSystem -> [Resource] -> IO ()
+loadResources _ _ = pure ()
 
 loadMD3 :: Map String Entry -> String -> IO GPUMD3
 loadMD3 pk3 name = case Map.lookup name pk3 of

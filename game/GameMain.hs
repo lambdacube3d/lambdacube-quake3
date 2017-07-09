@@ -29,6 +29,7 @@ import qualified GameEngine.Loader.Entity as E
 import World
 import GameLogic
 import LoadEntities
+import LoadResources
 import RenderGame
 import GameEngine.RenderSystem
 
@@ -85,6 +86,7 @@ play pk3 world0 getScene processInput stepWorld logWorldChange = do
   -- init graphics
   win <- initWindow "LambdaCube 3D Shooter" 800 600
   renderSystem <- initRenderSystem pk3
+  loadResources renderSystem $ worldResources world0
 
   let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
 

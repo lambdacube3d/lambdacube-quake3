@@ -133,6 +133,7 @@ executable shooter
   main-is:          GameMain.hs
   other-modules:    RenderGame
                     LoadEntities
+                    LoadResources
                     Collision
                     Entities
                     Visuals

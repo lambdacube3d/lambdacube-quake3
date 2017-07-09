@@ -54,7 +54,7 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
     EAmmo a     -> add [MD3 (bob + (a^.aPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_AMMO $ a^.aType))]
     EArmor a    -> add [MD3 (bob + (a^.rPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_ARMOR $ a^.rType))]
     EHealth a   -> add [MD3 (bob + (a^.hPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_HEALTH $ a^.hType))]
-    EHoldable h -> add [MD3 (bob + (h^.hoPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_HOLDABLE $ h^.hoType))]                       
+    EHoldable h -> add [MD3 (bob + (h^.hoPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_HOLDABLE $ h^.hoType))]
     EPowerup p  -> add [MD3 (bob + (p^.puPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_POWERUP $ p^.puType))]
 
     -- TEMP: just visualize targets
