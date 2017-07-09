@@ -96,7 +96,7 @@ items =
   [ Item
     { itClassName   = "item_armor_shard"
     , itPickupSound = Just "sound/misc/ar1_pkup.wav"
-    , itWorldModel  = ["models/powerups/armor/shard.md3", "models/powerups/armor/shard_sphere.md3"]
+    , itWorldModel  = ["models/powerups/armor/shard.md3"]
     , itIcon        = "icons/iconr_shard"
     , itPickupName  = "Armor Shard"
     , itQuantity    = 5
