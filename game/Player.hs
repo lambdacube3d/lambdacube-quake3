@@ -25,7 +25,7 @@ shoots Input{..} = do
                            weapon
       pos       <- use pPosition
       direction <- use pDirection
-      addEntities [EBullet $ Bullet (pos + 50 *& direction) (500 *& direction) 1 2]
+      addEntities [EBullet $ Bullet (pos + 50 *& direction) (500 *& direction) 1 2 weapon]
       pShootTime .= time + 0.1
 
 changeWeapon Input{..} | isNothing changeWeapon = pure ()

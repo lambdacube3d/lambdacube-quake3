@@ -37,6 +37,7 @@ data Bullet
   , _bDirection   :: Vec3
   , _bDamage      :: Int
   , _bLifeTime    :: Float
+  , _bType        :: Items.Weapon
   } deriving (Eq, Show)
 
 data Weapon

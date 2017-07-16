@@ -444,3 +444,53 @@ items =
     , itSounds      = []
     }
   ]
+
+data WeaponInfo
+  = WeaponInfo
+  { wiMissileModel :: Maybe String
+  , wiType         :: Weapon
+  }
+
+weaponInfos :: [WeaponInfo]
+weaponInfos =
+  [ WeaponInfo
+    { wiMissileModel = Nothing
+    , wiType         = WP_GAUNTLET
+    }
+  , WeaponInfo
+    { wiMissileModel = Nothing
+    , wiType         = WP_MACHINEGUN
+    }
+  , WeaponInfo
+    { wiMissileModel = Nothing
+    , wiType         = WP_SHOTGUN
+    }
+  , WeaponInfo
+    { wiMissileModel = Just "models/ammo/grenade1.md3"
+    , wiType         = WP_GRENADE_LAUNCHER
+    }
+  , WeaponInfo
+    { wiMissileModel = Just "models/ammo/rocket/rocket.md3"
+    , wiType         = WP_ROCKET_LAUNCHER
+    }
+  , WeaponInfo
+    { wiMissileModel = Nothing
+    , wiType         = WP_LIGHTNING
+    }
+  , WeaponInfo
+    { wiMissileModel = Nothing
+    , wiType         = WP_RAILGUN
+    }
+  , WeaponInfo
+    { wiMissileModel = Nothing
+    , wiType         = WP_PLASMAGUN
+    }
+  , WeaponInfo
+    { wiMissileModel = Just "models/weaphits/bfg.md3"
+    , wiType         = WP_BFG
+    }
+  , WeaponInfo
+    { wiMissileModel = Just "models/ammo/rocket/rocket.md3"
+    , wiType         = WP_GRAPPLING_HOOK
+    }
+  ]

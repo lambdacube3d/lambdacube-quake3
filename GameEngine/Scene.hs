@@ -43,4 +43,4 @@ data Resource
   = R_MD3             FilePath
   | R_MD3Character    FilePath SkinName
   | R_BSPMap          FilePath
-  deriving Show
+  deriving (Eq, Show)

@@ -49,7 +49,11 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
   camera = fromMaybe (cam (Vec3 0 0 0) (Vec3 1 0 0)) mcamera 
   (renderables,Last mcamera) = execWriter . forM_ (w^.wEntities) $ \case
     EPlayer a   -> setCamera $ cam (a^.pPosition) (a^.pDirection) {- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
-    EBullet b   -> add [MD3 (b^.bPosition) one white "models/ammo/rocket/rocket.md3"]
+    EBullet b   -- -> add [MD3 (b^.bPosition) one white "models/ammo/rocket/rocket.md3"]
+                -> add [MD3 (b^.bPosition) one white
+                            (fromMaybe "models/ammo/rocket/rocket.md3"
+                             . wiMissileModel
+                             $ weaponInfoMap ! (b^.bType))]
     EWeapon a   -> add [MD3 (bob + (a^.wPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_WEAPON $ a^.wType))]
     EAmmo a     -> add [MD3 (bob + (a^.aPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_AMMO $ a^.aType))]
     EArmor a    -> add [MD3 (bob + (a^.rPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_ARMOR $ a^.rType))]
@@ -64,6 +68,9 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
 
 itemMap :: Map ItemType Item
 itemMap = Map.fromList [(itType i,i) | i <- items]
+
+weaponInfoMap :: Map Items.Weapon WeaponInfo
+weaponInfoMap = Map.fromList [(wiType w,w) | w <- weaponInfos]
 
 fun direction desiredUp = rot2 .*. rot1 where
   rot1 = rotationBetweenVectors (Vec3 1 0 0) direction
