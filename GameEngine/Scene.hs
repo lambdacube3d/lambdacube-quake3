@@ -2,6 +2,7 @@ module GameEngine.Scene
   ( module GameEngine.Graphics.Frustum
   , module Data.Vect.Float.Util.Quaternion
   , Renderable(..)
+  , Picture(..)
   , Camera(..)
   , Scene(..)
   , Resource(..)
@@ -16,6 +17,7 @@ type Position = Vec3
 type Orientation = UnitQuaternion
 type RGBA = Vec4
 type SkinName = String
+type ShaderName = String
 
 data Renderable
   = MD3             Position Orientation RGBA FilePath
@@ -31,12 +33,15 @@ data Camera
   , cameraProjection    :: Mat4
   , cameraFrustum       :: Frustum
   , cameraViewportSize  :: (Int,Int)
+  -- add viewport position
   } deriving Show
 
 data Scene
   = Scene
   { renderables :: [Renderable]
+  , pictures    :: [Picture]
   , camera      :: Camera
+  -- add shader time
   } deriving Show
 
 data Resource
@@ -44,3 +49,12 @@ data Resource
   | R_MD3Character    FilePath SkinName
   | R_BSPMap          FilePath
   deriving (Eq, Show)
+
+data Picture
+  = Picture
+  { picturePosition :: Vec2
+  , pictureSize     :: Vec2
+  , pictureUV1      :: Vec2
+  , pictureUV2      :: Vec2
+  , pictureShader   :: ShaderName
+  } deriving Show

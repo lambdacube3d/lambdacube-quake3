@@ -17,7 +17,7 @@ import Debug.Trace
 import Items
 
 renderFun :: World -> Scene
-renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
+renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
   add l = tell (l,Last Nothing)
   setCamera c = tell ([],Last $ Just c)
   white = Vec4 1 1 1 1
@@ -45,6 +45,8 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) camera where
   rotation = rotU zaxis (w ^. wInput . to time) -- WARNING: Floating point representation leads to big jumps when the rounding
   bobUpDown = 4 * cos ((w ^. wInput . to time + 1000))
   bob = Vec3 0 0 bobUpDown
+
+  pictures = []
 
   camera = fromMaybe (cam (Vec3 0 0 0) (Vec3 1 0 0)) mcamera 
   (renderables,Last mcamera) = execWriter . forM_ (w^.wEntities) $ \case

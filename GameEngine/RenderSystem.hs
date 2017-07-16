@@ -5,6 +5,7 @@ module GameEngine.RenderSystem
   , loadResources
   , renderScene
   , Renderable(..)
+  , Picture(..)
   , Scene(..)
   ) where
 
@@ -47,10 +48,13 @@ import GameEngine.Content
 import GameEngine.Scene
 import GameEngine.Utils
 
+type QuadInstance = LambdaCube.GL.Object
+
 type BSPCache         = HashMap String GPUBSP
 type BSPInstanceCache = HashMap String [BSPInstance]
 type MD3Cache         = HashMap String GPUMD3
 type MD3InstanceCache = HashMap String [MD3Instance]
+type QuadCache        = HashMap String [QuadInstance]
 type CharacterCache   = HashMap (String,String) [CharacterInstance]
 type ShaderCache      = HashSet String
 type TextureCache     = HashMap (String,Bool,Bool) TextureData
@@ -83,6 +87,7 @@ data RenderSystem
   , rsMD3InstanceCache  :: IORef MD3InstanceCache
   , rsMD3ShaderCache    :: IORef ShaderCache
   , rsCharacterCache    :: IORef CharacterCache
+  , rsQuadCache         :: IORef QuadCache
   , rsTextureCache      :: IORef TextureCache
   -- renderer pipeline
   , rsRenderer          :: IORef GLRenderer
@@ -99,6 +104,7 @@ initRenderSystem pk3 = do
   md3InstanceCache <- newIORef mempty
   md3ShaderCache <- newIORef mempty
   characterCache <- newIORef mempty
+  quadCache <- newIORef mempty
   textureCache <- newIORef mempty
   shMap <- loadShaderMap pk3
   let (inputSchema,_) = createRenderInfo shMap mempty mempty
@@ -126,6 +132,7 @@ initRenderSystem pk3 = do
     , rsMD3InstanceCache  = md3InstanceCache
     , rsMD3ShaderCache    = md3ShaderCache
     , rsCharacterCache    = characterCache
+    , rsQuadCache         = quadCache
     , rsTextureCache      = textureCache
     , rsRenderer          = rendererRef
     , rsStorage           = storageRef
@@ -186,8 +193,8 @@ initStorageTextures RenderSystem{..} storage usedMaterials = do
 
   writeIORef rsAnimatedTextures animatedTextures
 
-updateModelCache :: RenderSystem -> [Renderable] -> IO (HashSet String,HashSet String,HashMap String GPUMD3,HashMap String GPUBSP)
-updateModelCache RenderSystem{..} renderables = do
+updateModelCache :: RenderSystem -> [Renderable] -> [Picture] -> IO (HashSet String,HashSet String,HashMap String GPUMD3,HashMap String GPUBSP)
+updateModelCache RenderSystem{..} renderables pictures = do
   -- load new md3 models
   md3Cache <- readIORef rsMD3Cache
   let newModelNames = setNub [name | MD3 _ _ _ name <- renderables, not $ HashMap.member name md3Cache]
@@ -207,19 +214,21 @@ updateModelCache RenderSystem{..} renderables = do
   -- collect new materials
   md3ShaderCache <- readIORef rsMD3ShaderCache
   bspShaderCache <- readIORef rsBSPShaderCache
-  let newMD3Materials = HashSet.unions (map gpumd3Shaders newModels) `HashSet.difference` md3ShaderCache
+  let pictureMaterials = HashSet.fromList (map pictureShader pictures)
+      newMD3Materials = HashSet.unions (pictureMaterials : map gpumd3Shaders newModels) `HashSet.difference` md3ShaderCache
       newBSPMaterials = HashSet.unions (map gpubspShaders newBSPs) `HashSet.difference` bspShaderCache
   return (newMD3Materials,newBSPMaterials,md3Cache',bspCache')
 
-updateRenderCache :: RenderSystem -> HashSet String -> HashSet String -> IO (GLStorage,GLRenderer,MD3InstanceCache,BSPInstanceCache,CharacterCache)
+updateRenderCache :: RenderSystem -> HashSet String -> HashSet String -> IO (GLStorage,GLRenderer,MD3InstanceCache,BSPInstanceCache,CharacterCache,QuadCache)
 updateRenderCache renderSystem@RenderSystem{..} newMD3Materials newBSPMaterials
   | HashSet.null newMD3Materials && HashSet.null newBSPMaterials = do
       md3InstanceCache <- readIORef rsMD3InstanceCache
       bspInstanceCache <- readIORef rsBSPInstanceCache
       characterCache <- readIORef rsCharacterCache
+      quadCache <- readIORef rsQuadCache
       storage <- readIORef rsStorage
       renderer <- readIORef rsRenderer
-      return (storage,renderer,md3InstanceCache,bspInstanceCache,characterCache)
+      return (storage,renderer,md3InstanceCache,bspInstanceCache,characterCache,quadCache)
   | otherwise = do
       md3ShaderCache <- readIORef rsMD3ShaderCache
       putStrLn $ unlines $ "new md3 materials:" : HashSet.toList newMD3Materials
@@ -244,27 +253,31 @@ updateRenderCache renderSystem@RenderSystem{..} newMD3Materials newBSPMaterials
       disposeRenderer =<< readIORef rsRenderer
       --renderer <- readIORef rsRenderer
       --setStorage renderer storage
+      -- TODO: make sure resources are released
       writeIORef rsStorage storage
       writeIORef rsRenderer renderer
       writeIORef rsMD3InstanceCache mempty
       writeIORef rsBSPInstanceCache mempty
       writeIORef rsCharacterCache mempty
-      return (storage,renderer,mempty,mempty,mempty)
+      writeIORef rsQuadCache mempty
+      return (storage,renderer,mempty,mempty,mempty,mempty)
 
 data InstanceCache
   = InstanceCache
   { _newMD3        :: !MD3InstanceCache
   , _newBSP        :: !BSPInstanceCache
   , _newCharacter  :: !CharacterCache
+  , _newQuad       :: !QuadCache
   , _oldMD3        :: !MD3InstanceCache
   , _oldBSP        :: !BSPInstanceCache
   , _oldCharacter  :: !CharacterCache
+  , _oldQuad       :: !QuadCache
   }
 
 makeLenses ''InstanceCache
 
-initCache :: MD3InstanceCache -> BSPInstanceCache -> CharacterCache -> InstanceCache
-initCache = InstanceCache mempty mempty mempty
+initCache :: MD3InstanceCache -> BSPInstanceCache -> CharacterCache -> QuadCache -> InstanceCache
+initCache = InstanceCache mempty mempty mempty mempty
 
 type RenderM = StateT InstanceCache IO
 
@@ -288,10 +301,10 @@ renderScene a b c = do
 renderScene' :: RenderSystem -> Float -> Scene -> IO ()
 renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
   -- load new models
-  (newMD3Materials,newBSPMaterials,md3Cache,bspCache) <- updateModelCache renderSystem renderables
+  (newMD3Materials,newBSPMaterials,md3Cache,bspCache) <- updateModelCache renderSystem renderables pictures
 
   -- check new materials
-  (storage,renderer,md3InstanceCache,bspInstanceCache,characterCache) <- updateRenderCache renderSystem newMD3Materials newBSPMaterials
+  (storage,renderer,md3InstanceCache,bspInstanceCache,characterCache,quadCache) <- updateRenderCache renderSystem newMD3Materials newBSPMaterials
 
   -- create new instances
   let addInstance :: Renderable -> RenderM ()
@@ -324,14 +337,22 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
           addCharacterInstance rsFileSystem storage name skin
         liftIO $ setupGameCharacter character effectTime cameraFrustum position orientation rgba
 
-      addInstance _ = return () -- TODO
+      addInstance _ = pure () -- TODO
+
+      addPicture :: Picture -> RenderM ()
+      addPicture Picture{..} = do
+        _ <- getInstance oldQuad newQuad pictureShader $ do
+          let obj = undefined :: QuadInstance
+          pure obj
+        pure () -- TODO
 
       Camera{..} = camera
 
-  InstanceCache{..} <- execStateT (mapM_ addInstance renderables) (initCache md3InstanceCache bspInstanceCache characterCache)
+  InstanceCache{..} <- execStateT (mapM_ addInstance renderables >> mapM_ addPicture pictures) (initCache md3InstanceCache bspInstanceCache characterCache quadCache)
   writeIORef rsMD3InstanceCache $ HashMap.unionWith (++) md3InstanceCache _newMD3
   writeIORef rsBSPInstanceCache $ HashMap.unionWith (++) bspInstanceCache _newBSP
   writeIORef rsCharacterCache $ HashMap.unionWith (++) characterCache _newCharacter
+  writeIORef rsQuadCache $ HashMap.unionWith (++) quadCache _newQuad
 
   -- hide unused instances
   let hideMD3 :: MD3Instance -> IO ()
