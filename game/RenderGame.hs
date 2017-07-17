@@ -46,7 +46,36 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
   bobUpDown = 4 * cos ((w ^. wInput . to time + 1000))
   bob = Vec3 0 0 bobUpDown
 
-  pictures = []
+  pictures =
+    [ Picture
+      { picturePosition = Vec2 (-1) (-1)
+      , pictureSize     = Vec2 0.5 0.5
+      , pictureUV1      = Vec2 0 0
+      , pictureUV2      = Vec2 1 1
+      , pictureShader   = "gfx/2d/numbers/zero_32b"
+      }
+    , Picture
+      { picturePosition = Vec2 (-0.5) (-0.5)
+      , pictureSize     = Vec2 0.5 0.5
+      , pictureUV1      = Vec2 0 0
+      , pictureUV2      = Vec2 1 1
+      , pictureShader   = "gfx/2d/numbers/one_32b"
+      }
+    , Picture
+      { picturePosition = Vec2 0 0
+      , pictureSize     = Vec2 0.5 0.5
+      , pictureUV1      = Vec2 0 0
+      , pictureUV2      = Vec2 1 1
+      , pictureShader   = "gfx/2d/numbers/two_32b"
+      }
+    , Picture
+      { picturePosition = Vec2 0.5 0.5
+      , pictureSize     = Vec2 0.5 0.5
+      , pictureUV1      = Vec2 0 0
+      , pictureUV2      = Vec2 1 1
+      , pictureShader   = "gfx/2d/numbers/three_32b"
+      }
+    ]
 
   camera = fromMaybe (cam (Vec3 0 0 0) (Vec3 1 0 0)) mcamera 
   (renderables,Last mcamera) = execWriter . forM_ (w^.wEntities) $ \case
