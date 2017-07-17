@@ -48,6 +48,7 @@ library
                        GameEngine.Graphics.GameCharacter
                        GameEngine.Graphics.BSP
                        GameEngine.Graphics.MD3
+                       GameEngine.Graphics.Quad
                        GameEngine.Graphics.Storage
                        GameEngine.Graphics.BezierSurface
                        GameEngine.Content

@@ -38,6 +38,7 @@ import GameEngine.Data.Material hiding (Vec3)
 import GameEngine.Graphics.Storage
 import GameEngine.Graphics.Frustum
 import GameEngine.Graphics.Culling
+import GameEngine.Graphics.Quad
 import GameEngine.Graphics.MD3
 import GameEngine.Graphics.BSP
 import GameEngine.Graphics.GameCharacter
@@ -47,8 +48,6 @@ import GameEngine.Loader.MD3 (readMD3)
 import GameEngine.Content
 import GameEngine.Scene
 import GameEngine.Utils
-
-type QuadInstance = LambdaCube.GL.Object
 
 type BSPCache         = HashMap String GPUBSP
 type BSPInstanceCache = HashMap String [BSPInstance]
@@ -340,11 +339,13 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
       addInstance _ = pure () -- TODO
 
       addPicture :: Picture -> RenderM ()
-      addPicture Picture{..} = do
-        _ <- getInstance oldQuad newQuad pictureShader $ do
-          let obj = undefined :: QuadInstance
-          pure obj
-        pure () -- TODO
+      addPicture picture@Picture{..} = do
+        quad@QuadInstance{..} <- getInstance oldQuad newQuad pictureShader $ do
+          putStrLn $ "new quad instance: " ++ pictureShader
+          addQuad storage pictureShader
+        liftIO $ do
+          updateQuad quad picture
+          enableObject quadObject True
 
       Camera{..} = camera
 
@@ -363,6 +364,7 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
     hideMD3 characterinstanceHeadModel
     hideMD3 characterinstanceUpperModel
     hideMD3 characterinstanceLowerModel
+  forM_ (concat $ HashMap.elems _oldQuad) $ \QuadInstance{..} -> enableObject quadObject False
 
   setFrameUniforms effectTime camera storage =<< readIORef rsAnimatedTextures
 
