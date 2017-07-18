@@ -12,7 +12,7 @@ module GameEngine.RenderSystem
 import Control.Monad
 import Control.Monad.State.Strict
 import Data.Vect hiding (Vector)
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, mapMaybe)
 import Data.IORef
 import Data.List (foldl')
 import Data.Hashable
@@ -138,8 +138,13 @@ initRenderSystem pk3 = do
     , rsAnimatedTextures  = animatedTextures
     }
 
-loadResources :: RenderSystem -> [Resource] -> IO ()
-loadResources _ _ = pure ()
+loadResources :: RenderSystem -> [Resource] -> [Picture] -> IO ()
+loadResources renderSystem resources pictures = do
+  -- load new models
+  (newMD3Materials,newBSPMaterials,md3Cache,bspCache) <- updateModelCache renderSystem resources pictures
+  -- check new materials
+  (storage,renderer,md3InstanceCache,bspInstanceCache,characterCache,quadCache) <- updateRenderCache renderSystem newMD3Materials newBSPMaterials
+  return ()
 
 loadMD3 :: Map String Entry -> String -> IO GPUMD3
 loadMD3 pk3 name = case Map.lookup name pk3 of
@@ -192,11 +197,11 @@ initStorageTextures RenderSystem{..} storage usedMaterials = do
 
   writeIORef rsAnimatedTextures animatedTextures
 
-updateModelCache :: RenderSystem -> [Renderable] -> [Picture] -> IO (HashSet String,HashSet String,HashMap String GPUMD3,HashMap String GPUBSP)
+updateModelCache :: RenderSystem -> [Resource] -> [Picture] -> IO (HashSet String,HashSet String,HashMap String GPUMD3,HashMap String GPUBSP)
 updateModelCache RenderSystem{..} renderables pictures = do
   -- load new md3 models
   md3Cache <- readIORef rsMD3Cache
-  let newModelNames = setNub [name | MD3 _ _ _ name <- renderables, not $ HashMap.member name md3Cache]
+  let newModelNames = setNub [name | R_MD3 name <- renderables, not $ HashMap.member name md3Cache]
   newModels <- forM newModelNames $ loadMD3 rsFileSystem
   let md3Cache' = md3Cache `HashMap.union` HashMap.fromList (zip newModelNames newModels)
   unless (null newModelNames) $ putStrLn $ unlines $ "new models:" : newModelNames
@@ -204,7 +209,7 @@ updateModelCache RenderSystem{..} renderables pictures = do
 
   -- load new bsp maps
   bspCache <- readIORef rsBSPCache
-  let newBSPNames = setNub [name | BSPMap name <- renderables, not $ HashMap.member name bspCache]
+  let newBSPNames = setNub [name | R_BSPMap name <- renderables, not $ HashMap.member name bspCache]
   newBSPs <- forM newBSPNames $ loadBSP rsShaderMap rsFileSystem
   let bspCache' = bspCache `HashMap.union` HashMap.fromList (zip newBSPNames newBSPs)
   unless (null newBSPNames) $ putStrLn $ unlines $ "new bsp maps:" : newBSPNames
@@ -300,7 +305,8 @@ renderScene a b c = do
 renderScene' :: RenderSystem -> Float -> Scene -> IO ()
 renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
   -- load new models
-  (newMD3Materials,newBSPMaterials,md3Cache,bspCache) <- updateModelCache renderSystem renderables pictures
+  let resources = mapMaybe asResource renderables
+  (newMD3Materials,newBSPMaterials,md3Cache,bspCache) <- updateModelCache renderSystem resources pictures
 
   -- check new materials
   (storage,renderer,md3InstanceCache,bspInstanceCache,characterCache,quadCache) <- updateRenderCache renderSystem newMD3Materials newBSPMaterials

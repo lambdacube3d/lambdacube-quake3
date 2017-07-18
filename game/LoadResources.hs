@@ -13,11 +13,12 @@ import Entities
 
 
 worldResources :: World -> [Resource]
-worldResources = concatMap resource . view wEntities where
-  itemModels itemType = nub $ [R_MD3 model | i <- relatedItems itemType, model <- itWorldModel (itemMap ! i)]
+worldResources = nub . concatMap resource . view wEntities where
+  itemModels itemType = [R_MD3 model | model <- itWorldModel (itemMap ! itemType)]
+  missileMD3 w = fmap R_MD3 . maybeToList . wiMissileModel $ weaponInfoMap ! w
   resource = \case
-    EBullet b   -> fmap R_MD3 . maybeToList . wiMissileModel $ weaponInfoMap ! (b^.bType)
-    EWeapon a   -> itemModels . IT_WEAPON $ a^.wType
+    EBullet b   -> missileMD3 (b^.bType)
+    EWeapon a   -> missileMD3 (a^.wType) ++ (itemModels . IT_WEAPON $ a^.wType)
     EAmmo a     -> itemModels . IT_AMMO $ a^.aType
     EArmor a    -> itemModels . IT_ARMOR $ a^.rType
     EHealth a   -> itemModels . IT_HEALTH $ a^.hType
@@ -25,6 +26,3 @@ worldResources = concatMap resource . view wEntities where
     EPowerup p  -> itemModels . IT_POWERUP $ p^.puType
     -- TODO:PLayer
     _           -> []
-
-relatedItems :: ItemType -> [ItemType]
-relatedItems i = [i]

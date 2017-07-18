@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module GameEngine.Scene
   ( module GameEngine.Graphics.Frustum
   , module Data.Vect.Float.Util.Quaternion
@@ -6,6 +7,7 @@ module GameEngine.Scene
   , Camera(..)
   , Scene(..)
   , Resource(..)
+  , asResource
   ) where
 
 import Data.Vect
@@ -49,6 +51,13 @@ data Resource
   | R_MD3Character    FilePath SkinName
   | R_BSPMap          FilePath
   deriving (Eq, Show)
+
+asResource :: Renderable -> Maybe Resource
+asResource = \case
+  MD3             _ _ _ name      -> Just $ R_MD3 name
+  MD3Character    _ _ _ name skin -> Just $ R_MD3Character name skin
+  BSPInlineModel  _ _ _ _ _       -> Nothing
+  BSPMap          name            -> Just $ R_BSPMap name
 
 data Picture
   = Picture
