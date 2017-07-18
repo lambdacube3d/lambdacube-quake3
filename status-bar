@@ -39,3 +39,6 @@ TODO:
   done - add quad cache instance update code
   done - implement quad instance using buffer interface
   done - update instance data
+  done - color handling
+  done - glortho
+  - clear depth per scene

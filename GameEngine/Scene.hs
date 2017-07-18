@@ -56,5 +56,6 @@ data Picture
   , pictureSize     :: Vec2
   , pictureUV1      :: Vec2
   , pictureUV2      :: Vec2
+  , pictureColor    :: RGBA
   , pictureShader   :: ShaderName
   } deriving Show

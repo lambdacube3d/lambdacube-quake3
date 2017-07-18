@@ -48,32 +48,36 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
 
   pictures =
     [ Picture
-      { picturePosition = Vec2 (-1) (-1)
-      , pictureSize     = Vec2 0.5 0.5
+      { picturePosition = Vec2 0 0
+      , pictureSize     = Vec2 100 100
       , pictureUV1      = Vec2 0 0
       , pictureUV2      = Vec2 1 1
-      , pictureShader   = "gfx/2d/numbers/zero_32b"
+      , pictureColor    = white
+      , pictureShader   = "icons/medkit"
       }
     , Picture
-      { picturePosition = Vec2 (-0.5) (-0.5)
-      , pictureSize     = Vec2 0.5 0.5
+      { picturePosition = Vec2 200 0
+      , pictureSize     = Vec2 100 100
       , pictureUV1      = Vec2 0 0
       , pictureUV2      = Vec2 1 1
+      , pictureColor    = Vec4 1 1 0 1
       , pictureShader   = "gfx/2d/numbers/one_32b"
       }
     , Picture
-      { picturePosition = Vec2 0 0
-      , pictureSize     = Vec2 0.5 0.5
+      { picturePosition = Vec2 400 0
+      , pictureSize     = Vec2 100 100
       , pictureUV1      = Vec2 0 0
       , pictureUV2      = Vec2 1 1
-      , pictureShader   = "gfx/2d/numbers/two_32b"
+      , pictureColor    = white
+      , pictureShader   = "gfx/2d/crosshairg"
       }
     , Picture
-      { picturePosition = Vec2 0.5 0.5
-      , pictureSize     = Vec2 0.5 0.5
+      { picturePosition = Vec2 600 0
+      , pictureSize     = Vec2 100 100
       , pictureUV1      = Vec2 0 0
       , pictureUV2      = Vec2 1 1
-      , pictureShader   = "gfx/2d/numbers/three_32b"
+      , pictureColor    = white
+      , pictureShader   = "medal_impressive"
       }
     ]
 

@@ -50,6 +50,22 @@ bbox color (Vec3 minX minY minZ) (Vec3 maxX maxY maxZ) = Mesh
 
 -- matrix functions
 
+ortho :: Float -- ^ Left
+      -> Float -- ^ Right
+      -> Float -- ^ Bottom
+      -> Float -- ^ Top
+      -> Float -- ^ Near
+      -> Float -- ^ Far
+      -> Mat4
+ortho l r b t n f =
+  Mat4 (Vec4 (-2*x) 0      0     ((r+l)*x))
+       (Vec4 0      (-2*y) 0     ((t+b)*y))
+       (Vec4 0      0      (2*z) ((f+n)*z))
+       (Vec4 0      0      0     1)
+  where x = recip(l-r)
+        y = recip(b-t)
+        z = recip(n-f)
+
 -- | Perspective transformation matrix in row major order.
 perspective :: Float  -- ^ Near plane clipping distance (always positive).
             -> Float  -- ^ Far plane clipping distance (always positive).

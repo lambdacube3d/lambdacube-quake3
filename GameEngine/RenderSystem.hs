@@ -344,6 +344,9 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
           putStrLn $ "new quad instance: " ++ pictureShader
           addQuad storage pictureShader
         liftIO $ do
+          let (viewportWidth, viewportHeight) = cameraViewportSize
+              viewProj = ortho 0 (fromIntegral viewportWidth) (fromIntegral viewportHeight) 0 0 1
+          uniformM44F "viewProj" (objectUniformSetter quadObject) . mat4ToM44F $ transpose viewProj
           updateQuad quad picture
           enableObject quadObject True
 
