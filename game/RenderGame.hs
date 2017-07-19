@@ -83,6 +83,7 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
       }
     ]
 
+  ringCenterMod = Vec3 0 0 12
   camera = fromMaybe (cam (Vec3 0 0 0) (Vec3 1 0 0)) mcamera 
   (renderables,Last mcamera) = execWriter . forM_ (w^.wEntities) $ \case
     EPlayer a   -> setCamera $ cam (a^.pPosition) (a^.pDirection) {- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
@@ -99,7 +100,7 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
     EPowerup p  -> add $ case itWorldModel (itemMap ! (IT_POWERUP $ p^.puType)) of
                            [model] -> [MD3 (bob + (p^.puPosition)) rotation white model]
                            [model1, model2] -> [ MD3 (bob + (p^.puPosition)) rotation  white model1
-                                               , MD3 (bob + (p^.puPosition)) rotation' white model2
+                                               , MD3 (bob + (p^.puPosition) + ringCenterMod) rotation' white model2
                                                ]
 
     -- TEMP: just visualize targets
