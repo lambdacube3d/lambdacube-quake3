@@ -41,8 +41,10 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
     far  = 100/s
     fovDeg = 60
 
+  time' = (w ^. wInput . to time)
   zaxis = Vec3 0 0 1
-  rotation = rotU zaxis (w ^. wInput . to time) -- WARNING: Floating point representation leads to big jumps when the rounding
+  rotation = rotU zaxis time'
+  rotation' = rotU zaxis ((-1) * time')
   bobUpDown = 4 * cos ((w ^. wInput . to time + 1000))
   bob = Vec3 0 0 bobUpDown
 
@@ -94,7 +96,11 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
     EArmor a    -> add [MD3 (bob + (a^.rPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_ARMOR $ a^.rType))]
     EHealth a   -> add [MD3 (bob + (a^.hPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_HEALTH $ a^.hType))]
     EHoldable h -> add [MD3 (bob + (h^.hoPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_HOLDABLE $ h^.hoType))]
-    EPowerup p  -> add [MD3 (bob + (p^.puPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_POWERUP $ p^.puType))]
+    EPowerup p  -> add $ case itWorldModel (itemMap ! (IT_POWERUP $ p^.puType)) of
+                           [model] -> [MD3 (bob + (p^.puPosition)) rotation white model]
+                           [model1, model2] -> [ MD3 (bob + (p^.puPosition)) rotation  white model1
+                                               , MD3 (bob + (p^.puPosition)) rotation' white model2
+                                               ]
 
     -- TEMP: just visualize targets
     ETarget a   -> add [MD3Character (a^.ttPosition) one white "visor" "default"]
