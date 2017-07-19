@@ -42,3 +42,8 @@ TODO:
   done - color handling
   done - glortho
   - clear depth per scene
+  - complete player state
+  - resource cache list
+  - complete item handling
+  - statistics, awards
+  - complete status bar
