@@ -18,8 +18,9 @@ import Items
 
 renderFun :: World -> Scene
 renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
-  add l = tell (l,Last Nothing)
-  setCamera c = tell ([],Last $ Just c)
+  add l = tell (l,Last Nothing, Last Nothing)
+  setCamera c = tell ([],Last $ Just c, Last Nothing)
+  setPlayer c = tell ([],Last Nothing, Last $ Just c)
   white = Vec4 1 1 1 1
   cam camPos camTarget = camera where
     Input{..} = w^.wInput
@@ -55,7 +56,7 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
       , pictureUV1      = Vec2 0 0
       , pictureUV2      = Vec2 1 1
       , pictureColor    = white
-      , pictureShader   = "icons/medkit"
+      , pictureShader   = head $ [itIcon (itemMap ! (IT_WEAPON $ player^.pSelectedWeapon)) | player <- maybeToList mplayer] ++ ["icons/medkit"]
       }
     , Picture
       { picturePosition = Vec2 200 0
@@ -84,9 +85,9 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
     ]
 
   ringCenterMod = Vec3 0 0 12
-  camera = fromMaybe (cam (Vec3 0 0 0) (Vec3 1 0 0)) mcamera 
-  (renderables,Last mcamera) = execWriter . forM_ (w^.wEntities) $ \case
-    EPlayer a   -> setCamera $ cam (a^.pPosition) (a^.pDirection) {- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
+  camera = fromMaybe (cam (Vec3 0 0 0) (Vec3 1 0 0)) mcamera
+  (renderables,Last mcamera,Last mplayer) = execWriter . forM_ (w^.wEntities) $ \case
+    EPlayer a   -> setPlayer a >> setCamera (cam (a^.pPosition) (a^.pDirection)){- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
     EBullet b   -- -> add [MD3 (b^.bPosition) one white "models/ammo/rocket/rocket.md3"]
                 -> add [MD3 (b^.bPosition) (fun (b^.bDirection) (Vec3 0 0 1)) white
                             (fromMaybe "models/ammo/rocket/rocket.md3"
