@@ -88,7 +88,7 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
   (renderables,Last mcamera) = execWriter . forM_ (w^.wEntities) $ \case
     EPlayer a   -> setCamera $ cam (a^.pPosition) (a^.pDirection) {- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
     EBullet b   -- -> add [MD3 (b^.bPosition) one white "models/ammo/rocket/rocket.md3"]
-                -> add [MD3 (b^.bPosition) one white
+                -> add [MD3 (b^.bPosition) (fun (b^.bDirection) (Vec3 0 0 1)) white
                             (fromMaybe "models/ammo/rocket/rocket.md3"
                              . wiMissileModel
                              $ weaponInfoMap ! (b^.bType))]
