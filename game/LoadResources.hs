@@ -3,14 +3,18 @@ module LoadResources where
 
 import Data.List
 import Data.Maybe
-import Data.Map.Strict
+import Data.Map.Strict as Map
 import GameEngine.Scene (Resource(..))
 import Lens.Micro.Platform
 import World
 import Items
-import RenderGame
 import Entities
 
+itemMap :: Map ItemType Item
+itemMap = Map.fromList [(itType i,i) | i <- items]
+
+weaponInfoMap :: Map Items.Weapon WeaponInfo
+weaponInfoMap = Map.fromList [(wiType w,w) | w <- weaponInfos]
 
 worldResources :: World -> [Resource]
 worldResources = nub . concatMap resource . view wEntities where
@@ -28,4 +32,21 @@ worldResources = nub . concatMap resource . view wEntities where
     _           -> []
 
 hudResources :: [Resource]
-hudResources = R_Shader . itIcon <$> items
+hudResources = (R_Shader . itIcon <$> items) ++ (R_Shader <$> elems digitMap) where
+
+type ShaderName = String
+
+digitMap :: Map Char ShaderName
+digitMap = fromList
+    [ ('0', "gfx/2d/numbers/zero_32b")
+    , ('1', "gfx/2d/numbers/one_32b")
+    , ('2', "gfx/2d/numbers/two_32b")
+    , ('3', "gfx/2d/numbers/three_32b")
+    , ('4', "gfx/2d/numbers/four_32b")
+    , ('5', "gfx/2d/numbers/five_32b")
+    , ('6', "gfx/2d/numbers/six_32b")
+    , ('7', "gfx/2d/numbers/seven_32b")
+    , ('8', "gfx/2d/numbers/eight_32b")
+    , ('9', "gfx/2d/numbers/nine_32b")
+    , ('-', "gfx/2d/numbers/minus_32b")
+    ]

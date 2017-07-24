@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase, FlexibleContexts, RecordWildCards #-}
 module RenderGame where
 
+import Text.Printf
 import Data.Monoid
 import Data.Maybe
 import Control.Monad.Writer.Strict
@@ -15,6 +16,7 @@ import GameEngine.Scene
 import GameEngine.Utils
 import Debug.Trace
 import Items
+import LoadResources
 
 renderFun :: World -> Scene
 renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
@@ -49,40 +51,25 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
   bobUpDown = 4 * cos ((w ^. wInput . to time + 1000))
   bob = Vec3 0 0 bobUpDown
 
-  pictures =
-    [ Picture
-      { picturePosition = Vec2 0 0
-      , pictureSize     = Vec2 100 100
-      , pictureUV1      = Vec2 0 0
-      , pictureUV2      = Vec2 1 1
-      , pictureColor    = white
-      , pictureShader   = head $ [itIcon (itemMap ! (IT_WEAPON $ player^.pSelectedWeapon)) | player <- maybeToList mplayer] ++ ["icons/medkit"]
-      }
-    , Picture
-      { picturePosition = Vec2 200 0
-      , pictureSize     = Vec2 100 100
-      , pictureUV1      = Vec2 0 0
-      , pictureUV2      = Vec2 1 1
-      , pictureColor    = Vec4 1 1 0 1
-      , pictureShader   = "gfx/2d/numbers/one_32b"
-      }
-    , Picture
-      { picturePosition = Vec2 400 0
-      , pictureSize     = Vec2 100 100
-      , pictureUV1      = Vec2 0 0
-      , pictureUV2      = Vec2 1 1
-      , pictureColor    = white
-      , pictureShader   = "gfx/2d/crosshairg"
-      }
-    , Picture
-      { picturePosition = Vec2 600 0
-      , pictureSize     = Vec2 100 100
-      , pictureUV1      = Vec2 0 0
-      , pictureUV2      = Vec2 1 1
-      , pictureColor    = white
-      , pictureShader   = "medal_impressive"
-      }
-    ]
+  pictures = fromMaybe [] statusBar
+
+  yellow = Vec4 1 1 0 1
+
+  statusBar = do
+    player <- mplayer
+    pure $ concat
+      [ pure Picture
+        { picturePosition = Vec2 0 0
+        , pictureSize     = Vec2 100 100
+        , pictureUV1      = Vec2 0 0
+        , pictureUV2      = Vec2 1 1
+        , pictureColor    = white
+        , pictureShader   = itIcon (itemMap ! (IT_WEAPON $ player^.pSelectedWeapon))
+        }
+      , renderNum 120 30 yellow (player^.pHealth)
+      , renderNum 270 30 white (player^.pArmor)
+      , renderNum 370 30 white ((player^.pAmmos) ! (player^.pSelectedWeapon))
+      ]
 
   ringCenterMod = Vec3 0 0 12
   camera = fromMaybe (cam (Vec3 0 0 0) (Vec3 1 0 0)) mcamera
@@ -108,12 +95,19 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
     ETarget a   -> add [MD3Character (a^.ttPosition) one white "visor" "default"]
     _ -> return ()
 
-
-itemMap :: Map ItemType Item
-itemMap = Map.fromList [(itType i,i) | i <- items]
-
-weaponInfoMap :: Map Items.Weapon WeaponInfo
-weaponInfoMap = Map.fromList [(wiType w,w) | w <- weaponInfos]
+renderNum x y rgba value = concatMap digit $ zip [0..] $ printf "%d" value where
+  digit (i,c) = case Map.lookup c digitMap of
+    Nothing -> []
+    Just shaderName ->
+      [ Picture
+        { picturePosition = Vec2 (x + 32 * i) y
+        , pictureSize     = Vec2 32 48
+        , pictureUV1      = Vec2 0 0
+        , pictureUV2      = Vec2 1 1
+        , pictureColor    = rgba
+        , pictureShader   = shaderName
+        }
+      ]
 
 fun direction desiredUp = rot2 .*. rot1 where
   rot1 = rotationBetweenVectors (Vec3 1 0 0) direction
