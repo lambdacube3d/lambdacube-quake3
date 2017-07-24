@@ -198,10 +198,10 @@ initStorageTextures RenderSystem{..} storage usedMaterials = do
   writeIORef rsAnimatedTextures animatedTextures
 
 updateModelCache :: RenderSystem -> [Resource] -> [Picture] -> IO (HashSet String,HashSet String,HashMap String GPUMD3,HashMap String GPUBSP)
-updateModelCache RenderSystem{..} renderables pictures = do
+updateModelCache RenderSystem{..} resources pictures = do
   -- load new md3 models
   md3Cache <- readIORef rsMD3Cache
-  let newModelNames = setNub [name | R_MD3 name <- renderables, not $ HashMap.member name md3Cache]
+  let newModelNames = setNub [name | R_MD3 name <- resources, not $ HashMap.member name md3Cache]
   newModels <- forM newModelNames $ loadMD3 rsFileSystem
   let md3Cache' = md3Cache `HashMap.union` HashMap.fromList (zip newModelNames newModels)
   unless (null newModelNames) $ putStrLn $ unlines $ "new models:" : newModelNames
@@ -209,7 +209,7 @@ updateModelCache RenderSystem{..} renderables pictures = do
 
   -- load new bsp maps
   bspCache <- readIORef rsBSPCache
-  let newBSPNames = setNub [name | R_BSPMap name <- renderables, not $ HashMap.member name bspCache]
+  let newBSPNames = setNub [name | R_BSPMap name <- resources, not $ HashMap.member name bspCache]
   newBSPs <- forM newBSPNames $ loadBSP rsShaderMap rsFileSystem
   let bspCache' = bspCache `HashMap.union` HashMap.fromList (zip newBSPNames newBSPs)
   unless (null newBSPNames) $ putStrLn $ unlines $ "new bsp maps:" : newBSPNames
@@ -218,7 +218,7 @@ updateModelCache RenderSystem{..} renderables pictures = do
   -- collect new materials
   md3ShaderCache <- readIORef rsMD3ShaderCache
   bspShaderCache <- readIORef rsBSPShaderCache
-  let pictureMaterials = HashSet.fromList (map pictureShader pictures)
+  let pictureMaterials = HashSet.fromList (map pictureShader pictures ++ [name | R_Shader name <- resources])
       newMD3Materials = HashSet.unions (pictureMaterials : map gpumd3Shaders newModels) `HashSet.difference` md3ShaderCache
       newBSPMaterials = HashSet.unions (map gpubspShaders newBSPs) `HashSet.difference` bspShaderCache
   return (newMD3Materials,newBSPMaterials,md3Cache',bspCache')

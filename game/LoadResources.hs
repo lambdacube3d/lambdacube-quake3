@@ -26,3 +26,6 @@ worldResources = nub . concatMap resource . view wEntities where
     EPowerup p  -> itemModels . IT_POWERUP $ p^.puType
     -- TODO:PLayer
     _           -> []
+
+hudResources :: [Resource]
+hudResources = R_Shader . itIcon <$> items
