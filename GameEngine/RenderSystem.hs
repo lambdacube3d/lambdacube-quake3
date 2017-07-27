@@ -313,7 +313,7 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
 
   -- create new instances
   let addInstance :: Renderable -> RenderM ()
-      addInstance (MD3 position orientation rgba name) = do
+      addInstance (MD3 position orientation scale rgba name) = do
         MD3Instance{..} <- getInstance oldMD3 newMD3 name $ do
           putStrLn $ "new instance: " ++ name
           addGPUMD3 storage (md3Cache HashMap.! name) mempty ["worldMat","entityRGB","entityAlpha"]
@@ -321,7 +321,7 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
           forM_ md3instanceObject $ \obj -> do
             enableObject obj $ pointInFrustum position cameraFrustum
             -- set model matrix
-            uniformM44F "worldMat" (objectUniformSetter obj) . mat4ToM44F . fromProjective $ toWorldMatrix position orientation
+            uniformM44F "worldMat" (objectUniformSetter obj) . mat4ToM44F . fromProjective $ toWorldMatrix position orientation scale
             uniformV3F "entityRGB" (objectUniformSetter obj) . vec3ToV3F $ trim rgba
             uniformFloat "entityAlpha" (objectUniformSetter obj) $ _4 rgba
 
@@ -335,12 +335,12 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
           return bspInstance
         liftIO $ cullSurfaces bspinstanceBSPLevel cameraPosition cameraFrustum bspinstanceSurfaces
 
-      addInstance (MD3Character position orientation rgba name skin) = do
+      addInstance (MD3Character position orientation scale rgba name skin) = do
         character <- getInstance oldCharacter newCharacter (name,skin) $ do
           -- creates new instance from model cache
           putStrLn $ printf "new instance: %s %s" name skin
           addCharacterInstance rsFileSystem storage name skin
-        liftIO $ setupGameCharacter character effectTime cameraFrustum position orientation rgba
+        liftIO $ setupGameCharacter character effectTime cameraFrustum position orientation scale rgba
 
       addInstance _ = pure () -- TODO
 

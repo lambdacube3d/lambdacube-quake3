@@ -118,8 +118,8 @@ lookRotation lookAt upDirection = unsafeToU $ Vec4 x y z w where
   m21 = _3 up
   m22 = _3 forward
 
-toWorldMatrix :: Vec3 -> UnitQuaternion -> Proj4
-toWorldMatrix position orientation = translateAfter4 position . orthogonal $ rightOrthoU orientation
+toWorldMatrix :: Vec3 -> UnitQuaternion -> Float -> Proj4
+toWorldMatrix position orientation scale = translateAfter4 position . scaleAfterProj4 (Vec3 scale scale scale) . orthogonal $ rightOrthoU orientation
 
 vec4ToV4F :: Vec4 -> V4F
 vec4ToV4F (Vec4 x y z w) = V4 x y z w

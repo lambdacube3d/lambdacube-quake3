@@ -15,6 +15,7 @@ import System.FilePath
 import Data.Vect.Float.Util.Quaternion
 import GameEngine.Graphics.Frustum
 
+type Scale = Float
 type Position = Vec3
 type Orientation = UnitQuaternion
 type RGBA = Vec4
@@ -22,9 +23,9 @@ type SkinName = String
 type ShaderName = String
 
 data Renderable
-  = MD3             Position Orientation RGBA FilePath
-  | MD3Character    Position Orientation RGBA FilePath SkinName
-  | BSPInlineModel  Position Orientation RGBA FilePath Int
+  = MD3             Position Orientation Scale RGBA FilePath
+  | MD3Character    Position Orientation Scale RGBA FilePath SkinName
+  | BSPInlineModel  Position Orientation Scale RGBA FilePath Int
   | BSPMap          FilePath
   deriving Show
 
@@ -55,10 +56,10 @@ data Resource
 
 asResource :: Renderable -> Maybe Resource
 asResource = \case
-  MD3             _ _ _ name      -> Just $ R_MD3 name
-  MD3Character    _ _ _ name skin -> Just $ R_MD3Character name skin
-  BSPInlineModel  _ _ _ _ _       -> Nothing
-  BSPMap          name            -> Just $ R_BSPMap name
+  MD3             _ _ _ _ name      -> Just $ R_MD3 name
+  MD3Character    _ _ _ _ name skin -> Just $ R_MD3Character name skin
+  BSPInlineModel  _ _ _ _ _ _       -> Nothing
+  BSPMap          name              -> Just $ R_BSPMap name
 
 data Picture
   = Picture

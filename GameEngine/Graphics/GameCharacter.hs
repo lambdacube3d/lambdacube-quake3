@@ -143,8 +143,8 @@ sampleCharacterAnimation = V.fromList $
   ] ++ zip bothAnim bothAnim where bothAnim = [BOTH_DEATH1, BOTH_DEAD1, BOTH_DEATH2, BOTH_DEAD2, BOTH_DEATH3, BOTH_DEAD3]
 
 -- TODO: design proper interface
-setupGameCharacter :: CharacterInstance -> Float -> Frustum -> Vec3 -> UnitQuaternion -> Vec4 -> IO ()
-setupGameCharacter CharacterInstance{..} time cameraFrustum position orientation rgba = do
+setupGameCharacter :: CharacterInstance -> Float -> Frustum -> Vec3 -> UnitQuaternion -> Float -> Vec4 -> IO ()
+setupGameCharacter CharacterInstance{..} time cameraFrustum position orientation scale rgba = do
   let t100 = floor $ time / 4
       (torsoAnimType,legAnimType) = sampleCharacterAnimation V.! (t100 `mod` V.length sampleCharacterAnimation)
 
@@ -160,7 +160,7 @@ setupGameCharacter CharacterInstance{..} time cameraFrustum position orientation
 
       rgb = trim rgba
       alpha = _4 rgba
-      worldMat = toWorldMatrix position orientation
+      worldMat = toWorldMatrix position orientation scale
 
       lcMat m = mat4ToM44F . fromProjective $ m .*. rotationEuler (Vec3 (time/5) 0 0) .*. worldMat
       tagToProj4 Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ Mat3 tgAxisX tgAxisY tgAxisZ)

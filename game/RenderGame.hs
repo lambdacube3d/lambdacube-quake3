@@ -76,23 +76,23 @@ renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
   (renderables,Last mcamera,Last mplayer) = execWriter . forM_ (w^.wEntities) $ \case
     EPlayer a   -> setPlayer a >> setCamera (cam (a^.pPosition) (a^.pDirection)){- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
     EBullet b   -- -> add [MD3 (b^.bPosition) one white "models/ammo/rocket/rocket.md3"]
-                -> add [MD3 (b^.bPosition) (fun (b^.bDirection) (Vec3 0 0 1)) white
+                -> add [MD3 (b^.bPosition) (fun (b^.bDirection) (Vec3 0 0 1)) 1 white
                             (fromMaybe "models/ammo/rocket/rocket.md3"
                              . wiMissileModel
                              $ weaponInfoMap ! (b^.bType))]
-    EWeapon a   -> add [MD3 (bob + (a^.wPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_WEAPON $ a^.wType))]
-    EAmmo a     -> add [MD3 (bob + (a^.aPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_AMMO $ a^.aType))]
-    EArmor a    -> add [MD3 (bob + (a^.rPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_ARMOR $ a^.rType))]
-    EHealth a   -> add [MD3 (bob + (a^.hPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_HEALTH $ a^.hType))]
-    EHoldable h -> add [MD3 (bob + (h^.hoPosition)) rotation white model | model <- itWorldModel (itemMap ! (IT_HOLDABLE $ h^.hoType))]
+    EWeapon a   -> add [MD3 (bob + (a^.wPosition)) rotation 1 white model | model <- itWorldModel (itemMap ! (IT_WEAPON $ a^.wType))]
+    EAmmo a     -> add [MD3 (bob + (a^.aPosition)) rotation 1 white model | model <- itWorldModel (itemMap ! (IT_AMMO $ a^.aType))]
+    EArmor a    -> add [MD3 (bob + (a^.rPosition)) rotation 1 white model | model <- itWorldModel (itemMap ! (IT_ARMOR $ a^.rType))]
+    EHealth a   -> add [MD3 (bob + (a^.hPosition)) rotation 1 white model | model <- itWorldModel (itemMap ! (IT_HEALTH $ a^.hType))]
+    EHoldable h -> add [MD3 (bob + (h^.hoPosition)) rotation 1 white model | model <- itWorldModel (itemMap ! (IT_HOLDABLE $ h^.hoType))]
     EPowerup p  -> add $ case itWorldModel (itemMap ! (IT_POWERUP $ p^.puType)) of
-                           [model] -> [MD3 (bob + (p^.puPosition)) rotation white model]
-                           [model1, model2] -> [ MD3 (bob + (p^.puPosition)) rotation  white model1
-                                               , MD3 (bob + (p^.puPosition) + ringCenterMod) rotation' white model2
+                           [model] -> [MD3 (bob + (p^.puPosition)) rotation 1 white model]
+                           [model1, model2] -> [ MD3 (bob + (p^.puPosition)) rotation 1 white model1
+                                               , MD3 (bob + (p^.puPosition) + ringCenterMod) rotation' 1 white model2
                                                ]
 
     -- TEMP: just visualize targets
-    ETarget a   -> add [MD3Character (a^.ttPosition) one white "visor" "default"]
+    ETarget a   -> add [MD3Character (a^.ttPosition) one 1 white "visor" "default"]
     _ -> return ()
 
 renderNum x y rgba value = concatMap digit $ zip [0..] $ printf "%d" value where
