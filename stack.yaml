@@ -3,17 +3,20 @@ flags: {}
 packages:
 - '.'
 - location:
-    git: git@github.com:lambdacube3d/lambdacube-ir.git
+    git: https://github.com/lambdacube3d/lambdacube-ir.git
     commit: a0bf64b83dd218d1ea29823749dcfa8a6ee959a9
   subdirs:
     - lambdacube-ir.haskell
 - location:
-    git: git@github.com:lambdacube3d/lambdacube-gl.git
+    git: https://github.com/lambdacube3d/lambdacube-gl.git
     commit: 9d0a9b0173a1a032474f6bf5c6df8225edb8eb81
 - location:
-    git: git@github.com:lambdacube3d/lambdacube-compiler.git
+    git: https://github.com/lambdacube3d/lambdacube-compiler.git
     commit: f4071a0e6ff2b5af1c94da6046d2e566b420c587
 extra-deps:
   - proteaaudio-0.7.0.1
   - vect-0.4.7
   - wavefront-0.7.1
+  - lambdacube-gl-0.5.3.0
+  - lambdacube-ir-0.3.1.0
+  - lambdacube-compiler-0.6.0.1

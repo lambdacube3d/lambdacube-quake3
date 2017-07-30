@@ -32,25 +32,12 @@ Then copy **pak0.pk3** to the directory where you execute the application from. 
 
 #### 3. Compile & Run
 
-You can compile the project using either [Stack](https://docs.haskellstack.org/en/stable/README/) or [Cabal](https://wiki.haskell.org/Cabal-Install).
+To compile you will need [Haskell Stack](https://docs.haskellstack.org/en/stable/README/).
 
-##### Stack
 ```
 stack setup
 stack build
 stack exec q3mapviewer
-```
-
-##### Cabal (local build)
-```
-cabal new-build
-./dist-newstyle/build/lambdacube-quake3-0.1.0.0/build/q3mapviewer/q3mapviewer
-```
-
-##### Cabal (global install)
-```
-cabal install
-q3mapviewer
 ```
 
 ### Example Run
