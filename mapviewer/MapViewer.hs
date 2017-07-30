@@ -123,10 +123,10 @@ main = do
            ".wav" -> sampleFromMemoryWav buf 1
           soundPlay smp' 1 1 0 1
 
-    (mousePosition,mousePositionSink) <- external (0,0)
-    (fblrPress,fblrPressSink) <- external (False,False,False,False,False,False)
-    (capturePress,capturePressSink) <- external False
-    (waypointPress,waypointPressSink) <- external []
+    (mousePosition,mousePositionSink) <- unsafeExternal (0,0)
+    (fblrPress,fblrPressSink) <- unsafeExternal (False,False,False,False,False,False)
+    (capturePress,capturePressSink) <- unsafeExternal False
+    (waypointPress,waypointPressSink) <- unsafeExternal []
 
     let draw (captureA,debugRender) = do
           if debugRender
