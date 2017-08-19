@@ -45,6 +45,7 @@ data Weapon
   { _wPosition    :: Vec3
   , _wDropped     :: Bool
   , _wType        :: Items.Weapon
+  , _wTime        :: Float
   } deriving (Eq, Show)
 
 data Ammo
@@ -53,6 +54,7 @@ data Ammo
   , _aQuantity    :: Int
   , _aDropped     :: Bool
   , _aType        :: Items.Weapon
+  , _aTime        :: Float
   } deriving (Eq, Show)
 
 data Armor
@@ -61,6 +63,7 @@ data Armor
   , _rQuantity    :: Int
   , _rDropped     :: Bool
   , _rType        :: Items.Armor
+  , _rTime        :: Float
   } deriving (Eq, Show)
 
 data Health
@@ -68,6 +71,7 @@ data Health
   { _hPosition   :: Vec3
   , _hQuantity   :: Int
   , _hType       :: Items.Health
+  , _hTime       :: Float
   } deriving (Eq, Show)
 
 data Spawn
@@ -110,12 +114,14 @@ data Holdable
   = Holdable
   { _hoPosition :: Vec3
   , _hoType     :: Items.Holdable
+  , _hoTime     :: Float
   } deriving (Eq, Show)
 
 data Powerup
   = Powerup
   { _puPosition :: Vec3
   , _puType     :: Items.Powerup
+  , _puTime     :: Float
   } deriving (Eq, Show)
 
 data Entity

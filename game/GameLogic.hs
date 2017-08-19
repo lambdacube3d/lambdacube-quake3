@@ -225,9 +225,18 @@ stepSpawn :: Time -> DTime -> EM Spawn ()
 stepSpawn t dt = do
   spawnTime <- view sSpawnTime
   unless (t < spawnTime) $ do
-    ent <- view sEntity
+    ent <- setSpawnTime <$> view sEntity
     addEntities [ent]
     die
+  where
+    setSpawnTime = \case
+      EWeapon a   -> EWeapon   (a & wTime  .~ t)
+      EAmmo a     -> EAmmo     (a & aTime  .~ t)
+      EArmor a    -> EArmor    (a & rTime  .~ t)
+      EHealth a   -> EHealth   (a & hTime  .~ t)
+      EHoldable a -> EHoldable (a & hoTime .~ t)
+      EPowerup p  -> EPowerup  (p & puTime .~ t)
+      e           -> e
 
 stepPlayer :: Input -> EM Player ()
 stepPlayer input@Input{..} = do
@@ -275,14 +284,14 @@ playerDie time = do
     let randomPos = (pos +) <$> getRandomR (Vec3 (-50) (-50) (-50), Vec3 50 50 50) 
     droppedAmmos <- forM ammos $ \(weapon, amount) -> do
       rpos <- randomPos
-      return $ EAmmo $ Ammo rpos amount True weapon
+      return $ EAmmo $ Ammo rpos amount True weapon time
     droppedWeapos <- forM weapons $ \weapon -> do
       rpos <- randomPos
-      return $ EWeapon $ Weapon rpos True weapon
+      return $ EWeapon $ Weapon rpos True weapon time
     droppedArmors <- case armorType of
       Just at | armor > 0 -> do
         rpos <- randomPos
-        return [(EArmor $ Armor rpos armor True at)]
+        return [(EArmor $ Armor rpos armor True at time)]
       _ -> return []
     addEntities $ concat [droppedArmors, droppedWeapos, droppedAmmos]
     addVisuals [VParticle $ Particle pos (400 *& (extendZero . unitVectorAtAngle $ pi / 50 * i)) 1 | i <- [0..100]]

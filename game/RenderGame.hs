@@ -18,6 +18,10 @@ import Debug.Trace
 import Items
 import LoadResources
 
+
+cITEM_SCALEUP_TIME :: Float
+cITEM_SCALEUP_TIME = 1.0
+
 data RenderSettings
   = RenderSettings
   { windowWidth     :: !Int  -- local
@@ -80,6 +84,11 @@ renderFun RenderSettings{..} WorldSnapshot{..} = Scene (BSPMap mapFile : rendera
 
   ringCenterMod = Vec3 0 0 12
   camera = fromMaybe (cam (Vec3 0 0 0) (Vec3 1 0 0)) mcamera
+
+  respawnScaleUp stime = if (time' - stime) < cITEM_SCALEUP_TIME
+                            then (time' - stime) / cITEM_SCALEUP_TIME
+                            else 1.0
+
   (renderables,Last mcamera,Last mplayer) = execWriter . forM_ gameEntities $ \case
     EPlayer a   -> setPlayer a >> setCamera (cam (a^.pPosition) (a^.pDirection)){- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
     EBullet b   -- -> add [MD3 (b^.bPosition) one white "models/ammo/rocket/rocket.md3"]
@@ -87,16 +96,18 @@ renderFun RenderSettings{..} WorldSnapshot{..} = Scene (BSPMap mapFile : rendera
                             (fromMaybe "models/ammo/rocket/rocket.md3"
                              . wiMissileModel
                              $ weaponInfoMap ! (b^.bType))]
-    EWeapon a   -> add [MD3 (bob + (a^.wPosition)) rotation 1 white model | model <- itWorldModel (itemMap ! (IT_WEAPON $ a^.wType))]
-    EAmmo a     -> add [MD3 (bob + (a^.aPosition)) rotation 1 white model | model <- itWorldModel (itemMap ! (IT_AMMO $ a^.aType))]
-    EArmor a    -> add [MD3 (bob + (a^.rPosition)) rotation 1 white model | model <- itWorldModel (itemMap ! (IT_ARMOR $ a^.rType))]
-    EHealth a   -> add [MD3 (bob + (a^.hPosition)) rotation 1 white model | model <- itWorldModel (itemMap ! (IT_HEALTH $ a^.hType))]
-    EHoldable h -> add [MD3 (bob + (h^.hoPosition)) rotation 1 white model | model <- itWorldModel (itemMap ! (IT_HOLDABLE $ h^.hoType))]
-    EPowerup p  -> add $ case itWorldModel (itemMap ! (IT_POWERUP $ p^.puType)) of
-                           [model] -> [MD3 (bob + (p^.puPosition)) rotation 1 white model]
-                           [model1, model2] -> [ MD3 (bob + (p^.puPosition)) rotation 1 white model1
-                                               , MD3 (bob + (p^.puPosition) + ringCenterMod) rotation' 1 white model2
-                                               ]
+    EWeapon a   -> add [MD3 (bob + (a^.wPosition)) rotation (respawnScaleUp (a^.wTime)) white model | model <- itWorldModel (itemMap ! (IT_WEAPON $ a^.wType))]
+    EAmmo a     -> add [MD3 (bob + (a^.aPosition)) rotation (respawnScaleUp (a^.aTime)) white model | model <- itWorldModel (itemMap ! (IT_AMMO $ a^.aType))]
+    EArmor a    -> add [MD3 (bob + (a^.rPosition)) rotation (respawnScaleUp (a^.rTime)) white model | model <- itWorldModel (itemMap ! (IT_ARMOR $ a^.rType))]
+    EHealth a   -> add [MD3 (bob + (a^.hPosition)) rotation (respawnScaleUp (a^.hTime)) white model | model <- itWorldModel (itemMap ! (IT_HEALTH $ a^.hType))]
+    EHoldable a -> add [MD3 (bob + (a^.hoPosition)) rotation (respawnScaleUp (a^.hoTime)) white model | model <- itWorldModel (itemMap ! (IT_HOLDABLE $ a^.hoType))]
+    EPowerup p  -> add $ do
+      let respawnScale = respawnScaleUp (p^.puTime)
+      case itWorldModel (itemMap ! (IT_POWERUP $ p^.puType)) of
+        [model] -> [MD3 (bob + (p^.puPosition)) rotation respawnScale white model]
+        [model1, model2] -> [ MD3 (bob + (p^.puPosition)) rotation respawnScale white model1
+                            , MD3 (bob + (p^.puPosition) + ringCenterMod) rotation' respawnScale white model2
+                            ]
 
     -- TEMP: just visualize targets
     ETarget a   -> add [MD3Character (a^.ttPosition) one 1 white "visor" "default"]
