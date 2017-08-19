@@ -1,0 +1,7 @@
+- create data structures for client server communication
+  - world snapshot (derived from world)
+  - user command  (derived from input)
+
+- render according the latest world snapshot
+- send user command to server
+- network server and client

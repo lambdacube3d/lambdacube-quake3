@@ -17,18 +17,18 @@ data Input
   , time           :: !Float
   , mouseX         :: !Float
   , mouseY         :: !Float
-  , windowWidth    :: !Int
-  , windowHeight   :: !Int
+  , windowWidth    :: !Int  -- local
+  , windowHeight   :: !Int  -- local
   , changeWeapon   :: !(Maybe Items.Weapon)
   , toggleHoldable :: !(Maybe Items.Holdable)
   } deriving Show
 
 data World
-  = World
-  { _wEntities  :: ![Entity]
-  , _wVisuals   :: ![Visual]
-  , _wInput     :: !Input
-  , _wRandomGen :: !PureMT
+  = World -- server side
+  { _wEntities  :: ![Entity]  -- snapshot
+  , _wVisuals   :: ![Visual]  -- move to client
+  , _wInput     :: !Input     -- recived input (for all clients)
+  , _wRandomGen :: !PureMT    -- snapshot
   , _wMapFile   :: !String
   } deriving Show
 
