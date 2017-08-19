@@ -18,8 +18,14 @@ import Debug.Trace
 import Items
 import LoadResources
 
-renderFun :: World -> Scene
-renderFun w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
+data RenderSettings
+  = RenderSettings
+  { windowWidth    :: !Int  -- local
+  , windowHeight   :: !Int  -- local
+  } deriving Show
+
+renderFun :: RenderSettings -> World -> Scene
+renderFun RenderSettings{..} w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
   add l = tell (l,Last Nothing, Last Nothing)
   setCamera c = tell ([],Last $ Just c, Last Nothing)
   setPlayer c = tell ([],Last Nothing, Last $ Just c)

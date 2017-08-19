@@ -17,8 +17,6 @@ data Input
   , time           :: !Float
   , mouseX         :: !Float
   , mouseY         :: !Float
-  , windowWidth    :: !Int  -- local
-  , windowHeight   :: !Int  -- local
   , changeWeapon   :: !(Maybe Items.Weapon)
   , toggleHoldable :: !(Maybe Items.Holdable)
   } deriving Show
@@ -50,8 +48,6 @@ initInput = Input
   , time           = 0
   , mouseX         = 0
   , mouseY         = 0
-  , windowWidth    = 0
-  , windowHeight   = 0
   , changeWeapon   = Nothing
   , toggleHoldable = Nothing
   }

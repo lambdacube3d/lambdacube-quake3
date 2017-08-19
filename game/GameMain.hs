@@ -44,7 +44,6 @@ data Event
   , ksNumKey        :: !(Maybe Int)
   , ksHoldableKey   :: !(Maybe Int)
   , ksMousePosition :: !(Float,Float)
-  , ksWindowSize    :: !(Int,Int)
   }
 
 inputFun :: Event -> World -> World
@@ -59,8 +58,6 @@ inputFun Event{..} w = w & wInput .~ i' where
     , shoot       = ksShoot
     , mouseX      = fst ksMousePosition
     , mouseY      = snd ksMousePosition
-    , windowWidth   = fst ksWindowSize
-    , windowHeight  = snd ksWindowSize
     , changeWeapon  = do { key <- ksNumKey; Map.lookup key weaponKeys }
     , toggleHoldable = do { key <- ksHoldableKey; Map.lookup key holdableKeys }
     }
@@ -77,7 +74,7 @@ noLog _ _ = Nothing
 
 play :: Map String Entry
      -> World
-     -> (World -> Scene)
+     -> (RenderSettings -> World -> Scene)
      -> (Event -> World -> World)
      -> (RenderSystem -> Float -> World -> World)
      -> (World -> World -> Maybe String)
@@ -114,7 +111,11 @@ play pk3 world0 getScene processInput stepWorld logWorldChange = do
                     <*> numKeyPressed
                     <*> holdableKeyPressed
                     <*> (mapTuple realToFrac <$> getCursorPos win)
-                    <*> getFramebufferSize win
+        (windowWidth, windowHeight) <- getFramebufferSize win
+        let renderSettings = RenderSettings
+              { windowWidth   = windowWidth
+              , windowHeight  = windowHeight
+              }
         quit <- keyIsPressed Key'Escape
 
         -- step simulation
@@ -126,7 +127,7 @@ play pk3 world0 getScene processInput stepWorld logWorldChange = do
             (newFractionTime,newWorld) = stepSimulation batchedTime (processInput ks oldWorld)
 
         -- render current state
-        renderScene renderSystem newTime $ getScene newWorld
+        renderScene renderSystem newTime $ getScene renderSettings newWorld
         swapBuffers win
         log oldWorld newWorld
         unless quit $ loop newFractionTime newTime newWorld
@@ -186,49 +187,3 @@ initWindow title width height = do
     glEnable GL_FRAMEBUFFER_SRGB
     swapInterval 0
     return win
-
-{-
-main :: IO ()
-main = do
-
-  -- loading screen
-  loadingScreen <- createLoadingScreen
-  (w,h) <- getWindowSize win
-  drawLoadingScreen w h loadingScreen pk3Data bspName
-  swapBuffers win
-  pollEvents
-
-  -- init audio
-  initAudio 64 44100 1024
-
-  -- init engine
-  (inputSchema,levelData) <- engineInit pk3Data fullBSPName
-
-  -- load level graphics data
-  storage <- allocStorage inputSchema
-  graphicsData <- setupStorage pk3Data levelData storage
-
-  simpleRenderer <- fromJust <$> loadQuake3Graphics storage "SimpleGraphics.json"
-  setStorage simpleRenderer storage
-
-  -- main loop
-  let keyIsPressed k = fmap (==KeyState'Pressed) $ getKey win k
-      loop = do
-        -- process input
-        time <- maybe 0 id <$> getTime
-        setTime 0
-        (w,h) <- getWindowSize win
-        noBSPCull <- keyIsPressed (Key'X)
-        updateRenderInput graphicsData (camPos,camTarget,camUp) w h time noBSPCull
-        -- render
-        renderFrame simpleRenderer
-        swapBuffers win
-        pollEvents
-
-  setTime 0
-  loop
-
-  -- close audio and graphics
-  finishAudio
-  destroyWindow win
--}
