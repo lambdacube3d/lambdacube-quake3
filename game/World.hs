@@ -51,3 +51,8 @@ initInput = Input
   , changeWeapon   = Nothing
   , toggleHoldable = Nothing
   }
+
+data WorldSnapshot
+  = WorldSnapshot
+  { gameEntities :: ![Entity]
+  } deriving Show

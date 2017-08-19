@@ -74,7 +74,7 @@ noLog _ _ = Nothing
 
 play :: Map String Entry
      -> World
-     -> (RenderSettings -> World -> Scene)
+     -> (RenderSettings -> WorldSnapshot -> Scene)
      -> (Event -> World -> World)
      -> (RenderSystem -> Float -> World -> World)
      -> (World -> World -> Maybe String)
@@ -111,11 +111,6 @@ play pk3 world0 getScene processInput stepWorld logWorldChange = do
                     <*> numKeyPressed
                     <*> holdableKeyPressed
                     <*> (mapTuple realToFrac <$> getCursorPos win)
-        (windowWidth, windowHeight) <- getFramebufferSize win
-        let renderSettings = RenderSettings
-              { windowWidth   = windowWidth
-              , windowHeight  = windowHeight
-              }
         quit <- keyIsPressed Key'Escape
 
         -- step simulation
@@ -127,7 +122,17 @@ play pk3 world0 getScene processInput stepWorld logWorldChange = do
             (newFractionTime,newWorld) = stepSimulation batchedTime (processInput ks oldWorld)
 
         -- render current state
-        renderScene renderSystem newTime $ getScene renderSettings newWorld
+        (windowWidth, windowHeight) <- getFramebufferSize win
+        let renderSettings = RenderSettings
+              { windowWidth   = windowWidth
+              , windowHeight  = windowHeight
+              , sceneTime     = (newWorld ^. wInput . to time)
+              , mapFile       = (newWorld ^. wMapFile)
+              }
+            worldSnapshot = WorldSnapshot
+              { gameEntities = (newWorld ^. wEntities)
+              }
+        renderScene renderSystem newTime $ getScene renderSettings worldSnapshot
         swapBuffers win
         log oldWorld newWorld
         unless quit $ loop newFractionTime newTime newWorld

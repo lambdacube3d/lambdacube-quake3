@@ -20,18 +20,19 @@ import LoadResources
 
 data RenderSettings
   = RenderSettings
-  { windowWidth    :: !Int  -- local
-  , windowHeight   :: !Int  -- local
+  { windowWidth     :: !Int  -- local
+  , windowHeight    :: !Int  -- local
+  , sceneTime       :: !Float
+  , mapFile         :: !String
   } deriving Show
 
-renderFun :: RenderSettings -> World -> Scene
-renderFun RenderSettings{..} w = Scene (BSPMap (w^.wMapFile) : renderables) pictures camera where
+renderFun :: RenderSettings -> WorldSnapshot -> Scene
+renderFun RenderSettings{..} WorldSnapshot{..} = Scene (BSPMap mapFile : renderables) pictures camera where
   add l = tell (l,Last Nothing, Last Nothing)
   setCamera c = tell ([],Last $ Just c, Last Nothing)
   setPlayer c = tell ([],Last Nothing, Last $ Just c)
   white = Vec4 1 1 1 1
   cam camPos camTarget = camera where
-    Input{..} = w^.wInput
     camera = Camera
       { cameraPosition      = camPos
       , cameraOrientation   = fun camTarget up
@@ -50,11 +51,11 @@ renderFun RenderSettings{..} w = Scene (BSPMap (w^.wMapFile) : renderables) pict
     far  = 100/s
     fovDeg = 60
 
-  time' = (w ^. wInput . to time)
+  time' = sceneTime
   zaxis = Vec3 0 0 1
   rotation = rotU zaxis time'
   rotation' = rotU zaxis ((-1) * time')
-  bobUpDown = 4 * cos ((w ^. wInput . to time + 1000))
+  bobUpDown = 4 * cos ((sceneTime + 1000))
   bob = Vec3 0 0 bobUpDown
 
   pictures = fromMaybe [] statusBar
@@ -79,7 +80,7 @@ renderFun RenderSettings{..} w = Scene (BSPMap (w^.wMapFile) : renderables) pict
 
   ringCenterMod = Vec3 0 0 12
   camera = fromMaybe (cam (Vec3 0 0 0) (Vec3 1 0 0)) mcamera
-  (renderables,Last mcamera,Last mplayer) = execWriter . forM_ (w^.wEntities) $ \case
+  (renderables,Last mcamera,Last mplayer) = execWriter . forM_ gameEntities $ \case
     EPlayer a   -> setPlayer a >> setCamera (cam (a^.pPosition) (a^.pDirection)){- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
     EBullet b   -- -> add [MD3 (b^.bPosition) one white "models/ammo/rocket/rocket.md3"]
                 -> add [MD3 (b^.bPosition) (fun (b^.bDirection) (Vec3 0 0 1)) 1 white
