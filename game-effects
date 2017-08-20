@@ -1,0 +1,48 @@
+local entity = client side only visiual entity doing visual effect
+DESCRIPTION: local entity is persistent for its lifetime
+
+  LE_MARK               DEAD CODE
+  LE_SPRITE_EXPLOSION
+  LE_EXPLOSION
+  LE_FRAGMENT
+  LE_MOVE_SCALE_FADE
+  LE_FADE_RGB
+  LE_FALL_SCALE_FADE
+  LE_SCALE_FADE
+  LE_SCOREPLUM
+
+effects using local entities
+  CG_BubbleTrail          LE_MOVE_SCALE_FADE
+  CG_SmokePuff            LE_MOVE_SCALE_FADE
+  CG_SpawnEffect          LE_FADE_RGB
+  CG_ScorePlum            LE_SCOREPLUM
+  CG_MakeExplosion        LE_SPRITE_EXPLOSION LE_EXPLOSION
+  CG_Bleed                LE_EXPLOSION
+  CG_LaunchGib            LE_FRAGMENT
+  CG_LaunchExplode        LE_FRAGMENT
+
+  CG_MachineGunEjectBrass (weapon property) LE_FRAGMENT
+  CG_ShotgunEjectBrass    (weapon property) LE_FRAGMENT
+  CG_RailTrail            (weapon property) LE_MOVE_SCALE_FADE LE_FADE_RGB
+  CG_PlasmaTrail          (weapon property) LE_MOVE_SCALE_FADE
+
+weapon properties
+  missileModel
+  missileTrailFunc
+  ejectBrassFunc
+
+code using effects
+  CG_RocketTrail          (weapon property) LE_SCALE_FADE
+  CG_ShotgunPellet
+  CG_Bullet
+  CG_BloodTrail           LE_FALL_SCALE_FADE
+  CG_EntityEvent ???
+  CG_HasteTrail           LE_SCALE_FADE
+  CG_ShotgunFire
+  CG_MissileHitWall
+  CG_MissileHitPlayer
+  CG_GibPlayer
+  CG_BigExplode           DEAD CODE
+  CG_ShotgunPattern
+  CG_PlayerPowerups
+  CG_Player
