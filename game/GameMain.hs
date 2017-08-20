@@ -7,6 +7,7 @@ import System.Random.Mersenne.Pure64
 import Lens.Micro.Platform
 import "GLFW-b" Graphics.UI.GLFW as GLFW
 import Graphics.GL.Core33
+import Data.Binary (encode, decode)
 
 import System.FilePath
 import System.Directory
@@ -132,7 +133,9 @@ play pk3 world0 getScene processInput stepWorld logWorldChange = do
             worldSnapshot = WorldSnapshot
               { gameEntities = (newWorld ^. wEntities)
               }
-        renderScene renderSystem newTime $ getScene renderSettings worldSnapshot
+            worldSnapshotData = encode worldSnapshot
+            receivedWorldSnapshot = decode worldSnapshotData
+        renderScene renderSystem newTime $ getScene renderSettings receivedWorldSnapshot
         swapBuffers win
         log oldWorld newWorld
         unless quit $ loop newFractionTime newTime newWorld

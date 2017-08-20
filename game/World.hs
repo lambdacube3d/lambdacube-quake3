@@ -1,6 +1,8 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, DeriveGeneric #-}
 module World where
 
+import GHC.Generics (Generic)
+import Data.Binary
 import Lens.Micro.Platform
 import System.Random.Mersenne.Pure64
 
@@ -19,7 +21,7 @@ data Input
   , mouseY         :: !Float
   , changeWeapon   :: !(Maybe Items.Weapon)
   , toggleHoldable :: !(Maybe Items.Holdable)
-  } deriving Show
+  } deriving (Show, Generic)
 
 data World
   = World -- server side
@@ -55,4 +57,7 @@ initInput = Input
 data WorldSnapshot
   = WorldSnapshot
   { gameEntities :: ![Entity]
-  } deriving Show
+  } deriving (Show, Generic)
+
+instance Binary Input
+instance Binary WorldSnapshot

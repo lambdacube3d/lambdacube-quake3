@@ -1,4 +1,8 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Items where
+
+import GHC.Generics (Generic)
+import Data.Binary
 
 import Data.Map.Strict as Map
 
@@ -16,13 +20,13 @@ data Powerup
   | PW_DOUBLER
   | PW_AMMOREGEN
   | PW_INVULNERABILITY
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 data Team
   = PW_REDFLAG
   | PW_BLUEFLAG
   | PW_NEUTRALFLAG
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 -- | Items that the player can hold and activate, deactivate.
 data Holdable
@@ -31,20 +35,20 @@ data Holdable
   | HI_KAMIKAZE
   | HI_PORTAL
   | HI_INVULNERABILITY
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 data Armor
   = AR_SHARD
   | AR_COMBAT
   | AR_BODY
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 data Health
   = HE_SMALL
   | HE_MEDIUM
   | HE_LARGE
   | HE_MEGA
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 data Weapon
   = WP_GAUNTLET
@@ -57,7 +61,14 @@ data Weapon
   | WP_PLASMAGUN
   | WP_BFG
   | WP_GRAPPLING_HOOK
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
+
+instance Binary Powerup
+instance Binary Team
+instance Binary Holdable
+instance Binary Armor
+instance Binary Health
+instance Binary Weapon
 
 data ItemType
   = IT_WEAPON             Weapon    -- EFX: rotate + upscale + minlight

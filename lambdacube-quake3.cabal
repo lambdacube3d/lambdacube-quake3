@@ -153,6 +153,7 @@ executable shooter
     mtl,
     transformers,
     mersenne-random-pure64,
+    binary,
     vect,
     GLFW-b,
     OpenGLRaw,

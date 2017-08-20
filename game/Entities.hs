@@ -1,5 +1,8 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, DeriveGeneric, StandaloneDeriving #-}
 module Entities where
+
+import GHC.Generics (Generic)
+import Data.Binary
 
 import Data.Map.Strict
 import Data.Set
@@ -29,7 +32,7 @@ data Player
   , _pSelectedWeapon :: Items.Weapon
   , _pHoldables   :: Map Items.Holdable (Bool, Float)
   , _pPowerups    :: Set Items.Powerup
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data Bullet
   = Bullet
@@ -38,7 +41,7 @@ data Bullet
   , _bDamage      :: Int
   , _bLifeTime    :: Float
   , _bType        :: Items.Weapon
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data Weapon
   = Weapon
@@ -46,7 +49,7 @@ data Weapon
   , _wDropped     :: Bool
   , _wType        :: Items.Weapon
   , _wTime        :: Float
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data Ammo
   = Ammo
@@ -55,7 +58,7 @@ data Ammo
   , _aDropped     :: Bool
   , _aType        :: Items.Weapon
   , _aTime        :: Float
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data Armor
   = Armor
@@ -64,7 +67,7 @@ data Armor
   , _rDropped     :: Bool
   , _rType        :: Items.Armor
   , _rTime        :: Float
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data Health
   = Health
@@ -72,57 +75,57 @@ data Health
   , _hQuantity   :: Int
   , _hType       :: Items.Health
   , _hTime       :: Float
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data Spawn
   = Spawn
   { _sSpawnTime :: Float
   , _sEntity    :: Entity
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data SpawnPoint
   = SpawnPoint
   { _spPosition :: Vec3
   , _spAngles   :: Vec3
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data Lava
   = Lava
   { _lPosition :: Vec3
   , _lDamage   :: Int
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data Teleport
   = Teleport
   { _tPosition  :: Vec3
   , _tTarget    :: String
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data Target
   = Target
   { _ttPosition   :: Vec3
   , _ttTargetName :: String
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data Killbox
   = Killbox
   { _kPosition    :: Vec3
   , _kTargetName  :: String
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data Holdable
   = Holdable
   { _hoPosition :: Vec3
   , _hoType     :: Items.Holdable
   , _hoTime     :: Float
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data Powerup
   = Powerup
   { _puPosition :: Vec3
   , _puType     :: Items.Powerup
   , _puTime     :: Float
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 data Entity
   = EPlayer     Player
@@ -139,6 +142,25 @@ data Entity
   | ESpawnPoint SpawnPoint
   | EHoldable   Holdable
   | EPowerup    Powerup
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 concat <$> mapM makeLenses [''Player, ''Bullet, ''Weapon, ''Ammo, ''Armor, ''Spawn, ''Health, ''Lava, ''Teleport, ''Target, ''Killbox, ''Holdable, ''Powerup]
+
+deriving instance Generic Vec3
+instance Binary Vec3
+
+instance Binary Player
+instance Binary Bullet
+instance Binary Weapon
+instance Binary Ammo
+instance Binary Armor
+instance Binary Spawn
+instance Binary SpawnPoint
+instance Binary Health
+instance Binary Lava
+instance Binary Teleport
+instance Binary Target
+instance Binary Killbox
+instance Binary Holdable
+instance Binary Powerup
+instance Binary Entity
