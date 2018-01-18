@@ -9,11 +9,15 @@ import Data.Char
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as SB8
 import Text.Megaparsec hiding (count)
-import Text.Megaparsec.ByteString
-import qualified Text.Megaparsec.Lexer as L
+import qualified Text.Megaparsec as L
+import Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as L -- (skipLineComment, skipBlockComment, symbol, lexeme, signed)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Vect
+import Data.Void
+
+type Parser a = Parsec Void String a
 
 data EntityData
   = EntityData
@@ -96,8 +100,8 @@ emptyEntityData = EntityData
   }
 
 -- quake 3 entity parser
-parseEntities :: String -> ByteString -> Either String [EntityData]
-parseEntities fname src = case parse entities fname $ SB8.map toLower src of
+parseEntities :: String -> String -> Either String [EntityData]
+parseEntities fname src = case parse entities fname $ map toLower src of
   Left err  -> Left (parseErrorPretty err)
   Right e   -> Right e
 
@@ -187,14 +191,14 @@ stringLiteral :: Parser String
 stringLiteral = lexeme $ char '"' >> manyTill anyChar (char '"')
 
 integerLiteral :: Parser Int
-integerLiteral = fromIntegral <$> L.signed spaceConsumer (lexeme L.integer)
+integerLiteral = fromIntegral <$> L.signed spaceConsumer (lexeme L.decimal)
 
 floatLiteral :: Parser Float
 floatLiteral = realToFrac <$> L.signed spaceConsumer (lexeme float) where
   float = choice
     [ try L.float
     , try ((read . ("0."++)) <$ char '.' <*> some digitChar)
-    , fromIntegral <$> L.integer
+    , fromIntegral <$> L.decimal
     ]
 
 vector3 :: Parser Vec3

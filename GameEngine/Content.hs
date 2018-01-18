@@ -9,6 +9,7 @@ import System.FilePath
 import Text.Printf
 import Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Data.ByteString.Char8 as BS8
 
 import GameEngine.Data.Material hiding (Vec3)
 import GameEngine.Loader.ShaderParser
@@ -22,7 +23,7 @@ loadPK3 = do
 
 loadShaderMap :: Map String Entry -> IO (Map String CommonAttrs)
 loadShaderMap ar = do
-  l <- sequence <$> forM [(n,e) | (n,e) <- Map.toList ar, ".shader" == takeExtension n, isPrefixOf "scripts" n] (\(n,e) -> parseShaders (eArchiveName e ++ ":" ++ n) <$> readEntry e)
+  l <- sequence <$> forM [(n,e) | (n,e) <- Map.toList ar, ".shader" == takeExtension n, isPrefixOf "scripts" n] (\(n,e) -> parseShaders (eArchiveName e ++ ":" ++ n) . BS8.unpack <$> readEntry e)
   case l of
     Left err -> fail err
     Right (unzip -> (x,w)) -> do

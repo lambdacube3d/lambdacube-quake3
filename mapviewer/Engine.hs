@@ -103,7 +103,7 @@ engineInit pk3Data fullBSPName = do
     SB.writeFile (lc_q3_cache </> bspName ++ ".entities") $ blEntities bsp
 
     -- extract spawn points
-    let ents = case E.parseEntities bspName $ blEntities bsp of
+    let ents = case E.parseEntities bspName $ SB.unpack $ blEntities bsp of
             Left err -> error err
             Right x -> x
         spawnPoint E.EntityData{..}
