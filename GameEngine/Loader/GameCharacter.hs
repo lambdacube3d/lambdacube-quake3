@@ -10,24 +10,28 @@ import Data.HashMap.Strict (HashMap,(!))
 import qualified Data.HashMap.Strict as HashMap
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as SB8
+import Data.Void
 import Text.Megaparsec hiding (count)
-import Text.Megaparsec.ByteString
-import qualified Text.Megaparsec.Lexer as L
+import Text.Megaparsec.Char
+import qualified Text.Megaparsec as L
+import qualified Text.Megaparsec.Char.Lexer as L
 import LambdaCube.Linear (V3(..))
 
 import GameEngine.Data.GameCharacter
 
-parseCharacter :: String -> ByteString -> Either String Character
-parseCharacter fname src = case parse (spaceConsumer *> character <* eof) fname $ SB8.map toLower src of
+type Parser a = Parsec Void String a
+
+parseCharacter :: String -> String -> Either String Character
+parseCharacter fname src = case parse (spaceConsumer *> character <* eof) fname $ map toLower src of
   Left err  -> Left (parseErrorPretty err)
   Right e   -> Right e
 
 animation :: Parser Animation
 animation = do
-  first <- integer
-  num <- signedInteger
-  looping <- integer
-  fps <- integer
+  first <- decimal
+  num <- signedDecimal
+  looping <- decimal
+  fps <- decimal
   spaceConsumer
   return $ Animation
     { aFirstFrame = first
@@ -153,18 +157,18 @@ symbol = L.symbol spaceConsumer
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme spaceConsumer
 
-integer :: Parser Int
-integer = fromIntegral <$> lexeme L.integer
+decimal :: Parser Int
+decimal = fromIntegral <$> lexeme L.decimal
 
-signedInteger :: Parser Int
-signedInteger = L.signed spaceConsumer integer
+signedDecimal :: Parser Int
+signedDecimal = L.signed spaceConsumer decimal
 
 signedFloat :: Parser Float
 signedFloat = realToFrac <$> L.signed spaceConsumer (lexeme float) where
   float = choice
     [ try L.float
     , try ((read . ("0."++)) <$ char '.' <*> some digitChar)
-    , fromIntegral <$> L.integer
+    , fromIntegral <$> L.decimal
     ]
 
 value :: a -> String -> Parser a

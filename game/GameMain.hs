@@ -175,7 +175,7 @@ loadMap = do
   SB.writeFile (lc_q3_cache </> bspName ++ ".entities") $ blEntities bsp
 
   -- extract spawn points
-  let ents = case E.parseEntities bspName $ blEntities bsp of
+  let ents = case E.parseEntities bspName $ SB.unpack $ blEntities bsp of
           Left err -> error err
           Right x -> x
   return (pk3Data,loadEntities ents,fullBSPName)

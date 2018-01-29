@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module GameEngine.Loader.ShaderParser
   ( parseShaders
   ) where
@@ -6,12 +7,14 @@ import Control.Applicative
 import Control.Monad
 import Data.ByteString.Char8 (ByteString,pack)
 import Text.Megaparsec hiding (count)
-import qualified Text.Megaparsec.Lexer as L
+import Text.Megaparsec.Char hiding ()
+import qualified Text.Megaparsec.Char.Lexer as L
 
 import Text.Show.Pretty (ppShow)
 
 import Data.Char (toLower,isSpace)
 import Data.List (foldl')
+import Data.Void
 import LambdaCube.Linear
 import qualified Data.ByteString.Char8 as BS8
 
@@ -19,10 +22,10 @@ import GameEngine.Data.Material
 
 import Control.Monad.Trans.Writer.Strict
 
-type Parser = WriterT [String] (Parsec Dec ByteString)
+type Parser = WriterT [String] (Parsec (ErrorFancy Void) String)
 
-parseShaders :: String -> ByteString -> Either String ([(String,CommonAttrs)],[String])
-parseShaders fname src = case parse (runWriterT $ newlineConsumer *> many shader <* eof) fname $ BS8.map toLower src of
+parseShaders :: String -> String -> Either String ([(String,CommonAttrs)],[String])
+parseShaders fname src = case parse (runWriterT $ newlineConsumer *> many shader <* eof) fname $ map toLower src of
   Left err  -> Left $ parseErrorPretty err
   Right a   -> Right a
 
@@ -302,7 +305,7 @@ float = realToFrac <$> L.signed spaceConsumer (lexeme floatLiteral) where
   floatLiteral = choice
     [ try L.float
     , try ((read . ("0."++)) <$ char '.' <*> some digitChar)
-    , fromIntegral <$> L.integer
+    , fromIntegral <$> L.decimal
     ]
 
 filepath :: Parser String
@@ -335,6 +338,6 @@ unknownCommand = do
 test = do
   let n = "/Users/csaba/games/quake3/unpack/scripts/base.shader"
   src <- readFile n
-  case parseShaders n $ pack src of
+  case parseShaders n $ src of
     Left  e -> putStrLn e
     Right (x,w) -> putStrLn $ ppShow x ++ "\n" ++ unlines w

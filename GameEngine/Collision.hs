@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards, ViewPatterns, BangPatterns #-}
+{-# LANGUAGE CPP, RecordWildCards, ViewPatterns, BangPatterns #-}
 module GameEngine.Collision
   ( TraceHit(..)
   , traceRay
@@ -64,7 +64,12 @@ boolean outputAllSolid;  -- mappend: or
 
 instance Monoid TraceHit where
   mempty = TraceHit 1 True False []
+#if !MIN_VERSION_base(4,11,0)
   (TraceHit a1 b1 c1 d1) `mappend` (TraceHit a2 b2 c2 d2) = TraceHit (min a1 a2) (b1 && b2) (c1 || c2) (d1 `mappend` d2)
+#else
+instance Semigroup TraceHit where
+  (TraceHit a1 b1 c1 d1) <> (TraceHit a2 b2 c2 d2) = TraceHit (min a1 a2) (b1 && b2) (c1 || c2) (d1 <> d2)
+#endif
 
 epsilon = 1/32 :: Float
 

@@ -90,7 +90,7 @@ addCharacterInstance pk3 storage name skin = do
         skin <- readSkin <$> getEntry (skinName part)
         addMD3 storage model skin ["worldMat","entityRGB","entityAlpha"]
 
-  character <- parseCharacter animationName <$> getEntry animationName >>= \case
+  character <- parseCharacter animationName . unpack <$> getEntry animationName >>= \case
     Left message  -> fail message
     Right a -> return a
 

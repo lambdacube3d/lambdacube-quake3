@@ -101,7 +101,7 @@ readCharacters pk3Data p0 = do
           characterModels = [[(characterModelSkin name skin part,printf "models/players/%s/%s.md3" name part) | part <- ["head","upper","lower"]] | (name,skin) <- characterNames]
 
   charactersResult <- sequence <$> sequence
-    [ parseCharacter fname <$> readEntry e
+    [ parseCharacter fname . SB.unpack <$> readEntry e
     | (name,skin) <- characterNames
     , let fname = "models/players/" ++ name ++ "/animation.cfg"
           e = maybe (error $ "missing " ++ fname) id $ Map.lookup fname pk3Data
