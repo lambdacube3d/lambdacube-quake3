@@ -25,7 +25,7 @@ before_install:
 
 install:
   - stack update
-  - stack --no-terminal --install-ghc test --only-dependencies
+  - stack --no-terminal --install-ghc test --only-dependencies -j3
 
 script:
-  - stack --no-terminal build
+  - stack --no-terminal build -j3
