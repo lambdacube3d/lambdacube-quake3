@@ -12,6 +12,7 @@ import Data.Binary (encode, decode)
 import System.FilePath
 import System.Directory
 import System.Environment
+import qualified System.Mem
 
 import Data.Char
 import Data.Map (Map)
@@ -100,7 +101,7 @@ play pk3 world0 getScene processInput stepWorld logWorldChange = do
 
       log oldWorld newWorld = maybe (pure ()) putStrLn $ logWorldChange oldWorld newWorld
       deltaTime = 1/60
-      loop oldFraction oldTime oldWorld = do
+      loop firstFrame oldFraction oldTime oldWorld = do
         -- process input
         pollEvents
         newTime <- maybe 0 realToFrac <$> getTime
@@ -138,9 +139,14 @@ play pk3 world0 getScene processInput stepWorld logWorldChange = do
         renderScene renderSystem newTime $ getScene renderSettings receivedWorldSnapshot
         swapBuffers win
         log oldWorld newWorld
-        unless quit $ loop newFractionTime newTime newWorld
+
+        if firstFrame -- cleanup dead data
+          then System.Mem.performGC
+          else pure () -- System.Mem.performMinorGC
+
+        unless quit $ loop False newFractionTime newTime newWorld
   time0 <- maybe 0 realToFrac <$> getTime
-  loop 0 time0 world0
+  loop True 0 time0 world0
 
   destroyWindow win
 

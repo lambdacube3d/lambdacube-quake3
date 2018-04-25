@@ -12,6 +12,7 @@ import System.FilePath
 import System.Directory
 import System.IO
 import System.Exit
+import qualified System.Mem
 
 import "GLFW-b" Graphics.UI.GLFW as GLFW
 import Graphics.GL.Core33
@@ -134,13 +135,26 @@ main = do
             else readIORef rendererRef >>= renderFrame
           captureA
           swapBuffers win
+          System.Mem.performMinorGC
           pollEvents
+
+        cleanupResources = do
+          -- render the first frame to force resource loading
+          renderFrame simpleRenderer
+          readIORef rendererRef >>= renderFrame
+          -- cleanup dead data
+          System.Mem.performGC
+
 
     capRef <- newIORef False
     sc <- start $ do
         u <- scene win levelData graphicsData mousePosition fblrPress capturePress waypointPress capRef
         return $ (draw <$> u)
     s <- fpsState
+
+    -- finish up resource loading
+    cleanupResources
+
     setTime 0
     driveNetwork sc (readInput compileRequest compileReady pplName rendererRef storage win s mousePositionSink fblrPressSink capturePressSink waypointPressSink capRef)
 
