@@ -3,7 +3,7 @@ module GameEngine.Loader.ShaderParser
   ( parseShaders
   ) where
 
-import Control.Applicative
+import Control.Applicative hiding (many, some)
 import Control.Monad
 import Data.ByteString.Char8 (ByteString,pack)
 import Text.Megaparsec hiding (count)

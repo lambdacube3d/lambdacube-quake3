@@ -3,7 +3,7 @@ module GameEngine.Loader.GameCharacter
   ( parseCharacter
   ) where
 
-import Control.Applicative
+import Control.Applicative hiding (many, some)
 import Control.Monad
 import Data.Char
 import Data.HashMap.Strict (HashMap,(!))
