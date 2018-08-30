@@ -3,6 +3,8 @@
 # First person shooter game in Haskell
 However to be honest at current stage it's just a map viewer...
 
+The motivation of the project is to experiment with purely functional design of a real word 3D computer game. 
+
 For technical details check presentation video [The innards of a purely functional 3D shooter game engine (influenced by Quake 3)](https://skillsmatter.com/skillscasts/8733-the-innards-of-a-purely-functional-3d-shooter-game-engine-influenced-by-quake-3) from Haskell Exchange 2016.
 
 ### System Requirements
