@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards, PackageImports #-}
+import GHC.IO (failIO)
 import Control.Monad
 import Control.Arrow
 import Control.Monad.State.Strict
@@ -153,7 +154,7 @@ play pk3 world0 getScene processInput stepWorld logWorldChange = do
 loadMap = do
   -- init PK3 database
   noPak0_pk3 <- null . filter (\n -> "pak0.pk3" == map toLower n) <$> getDirectoryContents "."
-  when noPak0_pk3 $ die "Could not find pak0.pk3. See how to run: https://github.com/lambdacube3d/lambdacube-quake3/blob/master/README.md"
+  when noPak0_pk3 $ failIO "Could not find pak0.pk3. See how to run: https://github.com/lambdacube3d/lambdacube-quake3/blob/master/README.md"
 
   pk3Data <- loadPK3
   args <- getArgs

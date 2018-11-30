@@ -3,7 +3,8 @@ module LoadResources where
 
 import Data.List
 import Data.Maybe
-import Data.Map.Strict as Map
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import GameEngine.Scene (Resource(..))
 import Lens.Micro.Platform
 import World
@@ -18,8 +19,10 @@ weaponInfoMap = Map.fromList [(wiType w,w) | w <- weaponInfos]
 
 worldResources :: World -> [Resource]
 worldResources = nub . concatMap resource . view wEntities where
-  itemModels itemType = [R_MD3 model | model <- itWorldModel (itemMap ! itemType)]
-  missileMD3 w = fmap R_MD3 . maybeToList . wiMissileModel $ weaponInfoMap ! w
+  itemModels itemType
+    | Just it <- Map.lookup itemType itemMap = [R_MD3 model | model <- itWorldModel it]
+    | otherwise = []
+  missileMD3 w = fmap R_MD3 . maybeToList $ do wiMissileModel =<< Map.lookup w weaponInfoMap
   resource = \case
     EBullet b   -> missileMD3 (b^.bType)
     EWeapon a   -> missileMD3 (a^.wType) ++ (itemModels . IT_WEAPON $ a^.wType)
@@ -32,12 +35,12 @@ worldResources = nub . concatMap resource . view wEntities where
     _           -> []
 
 hudResources :: [Resource]
-hudResources = (R_Shader . itIcon <$> items) ++ (R_Shader <$> elems digitMap) where
+hudResources = (R_Shader . itIcon <$> items) ++ (R_Shader <$> Map.elems digitMap) where
 
 type ShaderName = String
 
 digitMap :: Map Char ShaderName
-digitMap = fromList
+digitMap = Map.fromList
     [ ('0', "gfx/2d/numbers/zero_32b")
     , ('1', "gfx/2d/numbers/one_32b")
     , ('2', "gfx/2d/numbers/two_32b")

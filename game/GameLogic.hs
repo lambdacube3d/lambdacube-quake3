@@ -52,7 +52,8 @@ update f a m = fmap f <$> runMaybeT (execStateT (runReaderT m a) a)
 collect :: Monoid w => PureMT -> WriterT w (Rand PureMT) a -> ((a,w),PureMT)
 collect randGen m = runIdentity $ runRandT (runWriterT m) randGen
 
-die = fail "die"
+die :: Monad m => ReaderT s (StateT s (MaybeT m)) a
+die = mzero
 
 respawn t f = do
   s <- get
