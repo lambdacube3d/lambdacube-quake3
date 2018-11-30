@@ -1,5 +1,9 @@
-resolver: lts-10.4
+resolver: nightly-2018-11-07
+#resolver: lts-10.4
 flags: {}
+
+allow-newer: true
+
 packages:
 - '.'
 - location:
@@ -20,3 +24,4 @@ extra-deps:
   - proteaaudio-0.7.0.1
   - vect-0.4.7
   - wavefront-0.7.1.1
+  - megaparsec-6.5.0
