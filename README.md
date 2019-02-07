@@ -8,6 +8,8 @@ The motivation of the project is to experiment with purely functional design of 
 
 For technical details check presentation video [The innards of a purely functional 3D shooter game engine (influenced by Quake 3)](https://skillsmatter.com/skillscasts/8733-the-innards-of-a-purely-functional-3d-shooter-game-engine-influenced-by-quake-3) from Haskell Exchange 2016.
 
+To get an overview of LambdaCube 3D watch the showcase [presentation video](https://www.youtube.com/watch?v=IjtjSqkEhDY).
+
 ### System Requirements
 - OS: Windows/Linux/OSX
 - Graphics: OpenGL 3.3 or better
