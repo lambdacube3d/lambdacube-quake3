@@ -1,5 +1,5 @@
 [![Build Status](https://travis-ci.org/lambdacube3d/lambdacube-quake3.svg?branch=master)](https://travis-ci.org/lambdacube3d/lambdacube-quake3)
-[![Gitter chat](https://badges.gitter.im/lambdacube3d/lambdacube3d.png)](https://gitter.im/LambdaCube-3D/Lobby)
+[![Gitter chat](https://badges.gitter.im/lambdacube3d/lambdacube3d.png)](https://gitter.im/LambdaCube-3D/Lobby) [![Join the chat at https://gitter.im/lambdacube-quake3/community](https://badges.gitter.im/lambdacube-quake3/community.svg)](https://gitter.im/lambdacube-quake3/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 # First person shooter game in Haskell
 However to be honest at current stage it's just a map viewer...
