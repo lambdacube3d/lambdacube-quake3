@@ -11,7 +11,7 @@ For technical details check presentation video [The innards of a purely function
 To get an overview of LambdaCube 3D watch the showcase [presentation video](https://www.youtube.com/watch?v=IjtjSqkEhDY).
 
 ### System Requirements
-- OS: Windows/Linux/OSX
+- OS: Windows/Linux/macOS
 - Graphics: OpenGL 3.3 or better
 
 ### Install Steps
