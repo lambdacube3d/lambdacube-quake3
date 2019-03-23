@@ -328,14 +328,14 @@ clamp minVal maxVal = max minVal. min maxVal
 stepFun :: RenderSystem -> Float -> World -> World
 stepFun engine dt = execState $ do
   -- update time
-  wInput %= (\i -> i {dtime = dt, time = time i + dt}) --deltaidő és eltelt idő frissítése
+  wInput %= (\i -> i {dtime = dt, time = time i + dt}) --update time and deltatime
   input <- use wInput
   ents <- use wEntities
   vis <- use wVisuals
   rand <- use wRandomGen
-  let (r1,e,v1) = updateEntities engine rand input ents --entitások frissítése, KIMENETE: (randomgenerátor(nem fontos), életben maradt! entitások, vizuális effektek)
+  let (r1,e,v1) = updateEntities engine rand input ents --update every entity, collect: new randomseed, entities that made it to the next frame, additional visual effects)
       Input{..} = input
-      (r2,v2) = updateVisuals r1 time dtime vis --vizuális elemek frissítése + generált entitások
+      (r2,v2) = updateVisuals r1 time dtime vis --update visual effects
   wEntities .= e
   wRandomGen .= r2
   wVisuals .= v1 ++ v2

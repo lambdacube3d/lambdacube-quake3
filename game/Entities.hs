@@ -19,7 +19,7 @@ data Player
   { _pPosition    :: Vec3
   , _pDirection   :: Vec3
   , _pVelocity    :: Vec3
-  , _pRotationUV    :: Vec3 --kvaterniós számolásokhoz
+  , _pRotationUV  :: Vec3
   , _pHealth      :: Int
   , _pArmor       :: Int
   , _pArmorType   :: Maybe Items.Armor

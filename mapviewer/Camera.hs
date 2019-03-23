@@ -14,11 +14,11 @@ userCamera :: ([Int] -> Vec3 -> Vec3) -> BSPLevel -> Vec3 -> Signal (Float, Floa
 userCamera camTr bsp p mposs keyss = fmap (\(pos,target,up,i,_) -> (pos,target,up,i)) <$> transfer2 (p,zero,zero,[],(0,0,0)) calcCam mposs keyss
   where
     clamp' minimal maximal = min maximal . max minimal
-    up = Vec3 0 0 1 --felfelé mutató vektor
+    up = Vec3 0 0 1 --up vector
     gravity = 1000
     jumpSpeed0 = 300
     height = 42
-    calcCam dt (dmx,dmy) {-az egér elmozdulása-} (left,forward,backward,right,turbo,jump) (prevCamPos, _ , _,bIdx0,(mx,my,fallingSpeed)) =
+    calcCam dt (dmx,dmy) {-mousecoordinate changes-} (left,forward,backward,right,turbo,jump) (prevCamPos, _ , _,bIdx0,(mx,my,fallingSpeed)) =
       let nil c n = if c then n else zero
           movedCam  = nil left (st &* (-movementScalar)) &+ nil forward (forwardOnlyXY &* movementScalar) &+ nil backward (forwardOnlyXY &* (-movementScalar)) &+ nil right (st &* movementScalar) &+ prevCamPos
           forwardOnlyXY = up &^ st
@@ -26,19 +26,21 @@ userCamera camTr bsp p mposs keyss = fmap (\(pos,target,up,i,_) -> (pos,target,u
           movementScalar = turboScalar * realToFrac dt
           newmx = mx - dmx / 100
           newmy = clamp' 0.1 3.1 (my + dmy / 100)
-          fw = let sinNewmy = sin newmy in Vec3 (cos newmx * sinNewmy) (sin newmx * sinNewmy) (cos  newmy) --gömbi koordináták a parametrikus alakból, https://hu.wikipedia.org/wiki/G%C3%B6mb
+          fw = let sinNewmy = sin newmy in Vec3 (cos newmx * sinNewmy) (sin newmx * sinNewmy) (cos  newmy) --Parametric spherical coordinates, see: https://en.wikipedia.org/wiki/Sphere
           st = normalize $ fw &^ up
           jumpSpeed' = if jump then jumpSpeed0 else 0
           headBob = Vec3 0 0 0
           fallingVec = Vec3 0 0 (fallingSpeed * dt)
           fallCamPos = movedCam &+ fallingVec
-          (camPos,bIdx'1) = case traceRay {-Sphere (height / 2.3)-} bsp prevCamPos fallCamPos of --régi pozícióból az új felé indított sugár ütközik e valamibe? ha nem, akkor léphetünk oda
+          (camPos,bIdx'1) = case traceRay bsp prevCamPos fallCamPos of --Cast a ray from current to desired position. Only move there when the path is clear.
             Nothing -> (fallCamPos,[])
             Just (hit,TraceHit{..}) -> (prevCamPos &+ fallingVec,outputBrushIndex)
       in case traceRay bsp camPos (camPos &- Vec3 0 0 (height+1)) of
-          Just (hit,TraceHit{..}) -> --a kamera megáll az alatta lévő akadály miatt
-                          let finalCamPos = camTr bIdx0 $ hit &+ Vec3 0 0 height --a kamera pozíciója a metszéspont felett adott magasságban lesz
+	      --Cast a ray downwards. If there is an obstacle at our foot, then whe should stop falling
+          Just (hit,TraceHit{..}) -> 
+                          let finalCamPos = camTr bIdx0 $ hit &+ Vec3 0 0 height
                           in (finalCamPos, finalCamPos &+ fw, up, outputBrushIndex ++ bIdx'1, (newmx, newmy, jumpSpeed'))
+		  --If the way is clear then continue falling
           Nothing -> (camPos, camPos &+ fw, up, bIdx'1, (newmx, newmy, fallingSpeed - dt*gravity + jumpSpeed'))
 
 
