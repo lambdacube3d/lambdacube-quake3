@@ -1,4 +1,6 @@
 {-# LANGUAGE RecordWildCards, PackageImports #-}
+module Main where
+
 import GHC.IO (failIO)
 import Control.Monad
 import Control.Arrow
@@ -18,6 +20,7 @@ import qualified System.Mem
 import Data.Char
 import Data.Map (Map)
 import Data.List (find)
+import Data.Vect.Float.Base hiding(Vector)
 import qualified Data.ByteString.Char8 as SB
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Map as Map
@@ -54,13 +57,21 @@ inputFun Event{..} w = w & wInput .~ i' where
   f True = 300
   f False = 0
 
-  i@Input{..} = w^.wInput
+  oldMU = mouseU i
+  oldMV = mouseV i
+  dx = newMouseX - mouseX i
+  dy = newMouseY - mouseY i
+  newMouseX = fst ksMousePosition
+  newMouseY = snd ksMousePosition
+  i = w^.wInput
   i' = i
     { forwardmove = f ksMoveForward - f ksMoveBackward
     , sidemove    = f ksMoveRight - f ksMoveLeft
     , shoot       = ksShoot
-    , mouseX      = fst ksMousePosition
-    , mouseY      = snd ksMousePosition
+    , mouseX      = newMouseX
+    , mouseY      = newMouseY
+	, mouseU      = oldMU  - dx / 100
+	, mouseV      = clamp 0.1 3.1 $ oldMV + dy / 100
     , changeWeapon  = do { key <- ksNumKey; Map.lookup key weaponKeys }
     , toggleHoldable = do { key <- ksHoldableKey; Map.lookup key holdableKeys }
     }
@@ -84,7 +95,7 @@ play :: Map String Entry
      -> IO ()
 play pk3 world0 getScene processInput stepWorld logWorldChange = do
   -- init graphics
-  win <- initWindow "LambdaCube 3D Shooter" 800 600
+  win <- initWindow "LambdaCube 3D Shooter" 1920 1080
   renderSystem <- initRenderSystem pk3
   loadResources renderSystem (worldResources world0 ++ hudResources) []
 

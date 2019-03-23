@@ -163,7 +163,7 @@ setupGameCharacter CharacterInstance{..} time cameraFrustum position orientation
       worldMat = toWorldMatrix position orientation scale
 
       lcMat m = mat4ToM44F . fromProjective $ m .*. rotationEuler (Vec3 (time/5) 0 0) .*. worldMat
-      tagToProj4 Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ Mat3 tgAxisX tgAxisY tgAxisZ)
+      tagToProj4 Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ tgRotationMat)
       getTagProj4 MD3Instance{..} frame name = case mdTags md3instanceModel V.!? frame >>= HashMap.lookup name of
         Nothing -> idmtx
         Just tag -> tagToProj4 tag

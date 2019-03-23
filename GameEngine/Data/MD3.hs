@@ -20,9 +20,7 @@ data Tag
     = Tag
     { tgName    :: !ByteString
     , tgOrigin  :: !Vec3
-    , tgAxisX   :: !Vec3
-    , tgAxisY   :: !Vec3
-    , tgAxisZ   :: !Vec3
+    , tgRotationMat  :: !Mat3
     } deriving Show
 
 data Shader

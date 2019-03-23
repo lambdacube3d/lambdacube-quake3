@@ -336,7 +336,7 @@ void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3]);
                   torsoAnim = animationMap HashMap.! torsoAnimType
                   torsoFrame = aFirstFrame torsoAnim + t `mod` aNumFrames torsoAnim
 
-                  tagToMat4 MD3.Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ Mat3 tgAxisX tgAxisY tgAxisZ)
+                  tagToMat4 MD3.Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ tgRotationMat)
                   hMat = (tagToMat4 $ (MD3.mdTags uMD3 V.! torsoFrame) HashMap.! "tag_head") .*. uMat
                   uMat = (tagToMat4 $ (MD3.mdTags lMD3 V.! legFrame) HashMap.! "tag_torso")
                   lMat = one :: Proj4

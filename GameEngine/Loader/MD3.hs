@@ -28,6 +28,7 @@ getUByte    = B.get :: Get Word8
 getFloat    = getFloat32le :: Get Float
 getVec2     = Vec2 <$> getFloat <*> getFloat :: Get Vec2
 getVec3     = Vec3 <$> getFloat <*> getFloat <*> getFloat :: Get Vec3
+getMat3     = Mat3 <$> getVec3 <*> getVec3 <*> getVec3
 getVec3i16  = (\x y z -> Vec3 (fromIntegral x) (fromIntegral y) (fromIntegral z)) <$> getInt16 <*> getInt16 <*> getInt16 :: Get Vec3
 getInt16    = fromIntegral <$> getInt' :: Get Int
   where getInt' = fromIntegral <$> getWord16le :: Get Int16
@@ -43,7 +44,7 @@ getSV :: SV.Storable a => Int -> Int -> Get a -> LB.ByteString -> SV.Vector a
 getSV o n f dat = runGet (SV.replicateM n f) (LB.drop (fromIntegral o) dat)
 
 getFrame    = Frame <$> getVec3 <*> getVec3 <*> getVec3 <*> getFloat <*> getLowerCaseString 64 :: Get Frame
-getTag      = Tag <$> getLowerCaseString 64 <*> getVec3 <*> getVec3 <*> getVec3 <*> getVec3 :: Get Tag
+getTag      = Tag <$> getLowerCaseString 64 <*> getVec3 <*> getMat3 :: Get Tag
 getShader   = Shader <$> getLowerCaseString 64 <*> getInt  :: Get Shader
 
 getXyzNormal :: Get (Vec3, Vec3)

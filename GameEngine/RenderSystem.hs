@@ -48,6 +48,7 @@ import GameEngine.Loader.MD3 (readMD3)
 import GameEngine.Content
 import GameEngine.Scene
 import GameEngine.Utils
+import GameEngine.Data.MD3
 
 type BSPCache         = HashMap String GPUBSP
 type BSPInstanceCache = HashMap String [BSPInstance]
@@ -319,7 +320,7 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
           addGPUMD3 storage (md3Cache HashMap.! name) mempty ["worldMat","entityRGB","entityAlpha"]
         liftIO $ do
           forM_ md3instanceObject $ \obj -> do
-            enableObject obj $ pointInFrustum position cameraFrustum
+            enableObject obj $ True --((\frame -> boxInFrustum (position + frMins frame + frOrigin frame) (position + frMaxs frame + frOrigin frame) cameraFrustum) . V.head . mdFrames) md3instanceModel  --pointInFrustum position cameraFrustum
             -- set model matrix
             uniformM44F "worldMat" (objectUniformSetter obj) . mat4ToM44F . fromProjective $ toWorldMatrix position orientation scale
             uniformV3F "entityRGB" (objectUniformSetter obj) . vec3ToV3F $ trim rgba

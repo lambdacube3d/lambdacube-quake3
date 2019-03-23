@@ -5,6 +5,7 @@ import Data.List
 import Data.Maybe
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Map.Internal.Debug
 import GameEngine.Scene (Resource(..))
 import Lens.Micro.Platform
 import World

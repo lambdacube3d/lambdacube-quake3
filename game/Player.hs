@@ -17,7 +17,7 @@ addEntities ents = tell (ents,[])
 
 shoots Input{..} = do
   shootTime <- view pShootTime
-  when (shoot && shootTime < time) $ do
+  when (shoot && time - shootTime > 0.1) $ do
     weapon  <- use pSelectedWeapon
     hasAmmo <- (maybe False (>0) . Map.lookup weapon) <$> use pAmmos
     when hasAmmo $ do
@@ -26,7 +26,7 @@ shoots Input{..} = do
       pos       <- use pPosition
       direction <- use pDirection
       addEntities [EBullet $ Bullet (pos + 50 *& direction) (500 *& direction) 1 2 weapon]
-      pShootTime .= time + 0.1
+      pShootTime .= time
 
 changeWeapon Input{..} | isNothing changeWeapon = pure ()
 changeWeapon Input{..} = do

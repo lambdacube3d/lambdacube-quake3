@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase, RecordWildCards, TupleSections, NoMonomorphismRestriction, FlexibleContexts #-}
-module GameLogic where
+module GameLogic where 
 
 import Control.Monad
 import Data.List (find)
@@ -11,6 +11,7 @@ import Lens.Micro.Platform
 import Data.Map.Strict as Map (Map, lookup)
 import Data.Vect hiding (Vector)
 import Data.Vect.Float.Instances
+import Data.Vect.Float.Base hiding(Vector)
 import Data.Vect.Float.Util.Quaternion
 
 import Control.Monad.State.Strict
@@ -25,6 +26,7 @@ import Data.Vector (Vector,(!),(//))
 import qualified Data.Vector as V
 
 import GameEngine.RenderSystem
+import GameEngine.Collision
 
 import qualified Items
 import Entities
@@ -32,6 +34,8 @@ import Visuals
 import World
 import Collision
 import qualified Player
+
+import Debug.Trace
 
 
 type Time = Float
@@ -161,7 +165,7 @@ updateEntities engine randGen input@Input{..} ents = (randGen',catMaybes (V.toLi
     (a,b) | swap -> interact_ False (b,a)
           | otherwise -> return (Just a,Just b)
 
-  pickUpAmmo q w = pAmmos %= Map.adjust ((+) q) w
+  pickUpAmmo q w = pAmmos %= Map.insertWith (+) w q
   pickUpWeapon w = pWeapons %= Set.insert w
 
   oncePerSec = do
@@ -193,8 +197,7 @@ spawnPlayer w = w { _wEntities = entities }
     player = Player
       { _pPosition    = _spPosition spawnPoint
       , _pDirection   = _spAngles spawnPoint
-      , _pFVelocity   = 0
-      , _pSVelocity   = 0
+      , _pVelocity   = Vec3 0 0 0
       , _pHealth      = 100
       , _pArmor       = 0
       , _pArmorType   = Nothing
@@ -207,16 +210,10 @@ spawnPlayer w = w { _wEntities = entities }
       , _pAmmos       = Map.fromList
            [ (Items.WP_GAUNTLET,         1)
            , (Items.WP_MACHINEGUN,     100)
-           , (Items.WP_SHOTGUN,          0)
-           , (Items.WP_GRENADE_LAUNCHER, 0)
-           , (Items.WP_ROCKET_LAUNCHER,  0)
-           , (Items.WP_LIGHTNING,        0)
-           , (Items.WP_RAILGUN,          0)
-           , (Items.WP_PLASMAGUN,        0)
-           , (Items.WP_BFG,              0)
            ]
       , _pHoldables  = Map.empty
       , _pPowerups   = Set.empty
+	  , _pRotationUV = Vec3 0 0 0
       }
 
 addEntities ents = tell (ents,[])
@@ -238,39 +235,37 @@ stepSpawn t dt = do
       EHoldable a -> EHoldable (a & hoTime .~ t)
       EPowerup p  -> EPowerup  (p & puTime .~ t)
       e           -> e
+      
+applyUserIntendedAcceleration :: Input -> EM Player () --changes player velocity according to user input
+applyUserIntendedAcceleration input@Input{..} = do
+ pDirection .= (let sinMV = sin mouseV in Vec3 (cos mouseU * sinMV) (sin mouseU * sinMV) (cos  mouseV))
+ direction <- use pDirection
+ let friction = 0.93
+ pVelocity *= friction 
+ velocity' <- use pVelocity
+ let 
+  up = Vec3 0 0 1
+  runningSpeed = 8
+  acceleration = 3
+  strafeDirection = normalize $ direction `crossprod` up
+  wishDir = normalize (forwardmove *& direction + sidemove *& strafeDirection)
+  currentSpeed = velocity' &. wishDir
+  addSpeed = runningSpeed - currentSpeed
+  accelSpeed = min addSpeed (acceleration * dtime * runningSpeed)
+  finalVel = if addSpeed <= 0 then velocity' else velocity' + accelSpeed *& wishDir
+ pVelocity .= if forwardmove == 0 && sidemove == 0 then velocity' else finalVel
 
 stepPlayer :: Input -> EM Player ()
 stepPlayer input@Input{..} = do
-  -- acceleration according input
-  pDirection .= normalize (Vec3 0 0 (sin $ mouseY / 100) + rotU (Vec3 0 0 1) (-mouseX / 100) *. Vec3 1 0 0)
-  direction <- use pDirection
-  let up = Vec3 0 0 1
-      forward = Vec3 1 0 0
-      strafeDirection = normalize $ direction `crossprod` up
-
-  pFVelocity += forwardmove * dtime
-  pSVelocity += sidemove * dtime
-  -- friction
-  len <- use pFVelocity
-  sideLen <- use pSVelocity
-  let friction = 150
-  pFVelocity %= (*) (max 0 $ (len - dtime * friction * signum len) / len)
-  pSVelocity %= (*) (max 0 $ (sideLen - dtime * friction * signum sideLen) / sideLen)
-
-  -- move
-  pFVelocity %= max (-200) . min 200
-  pSVelocity %= max (-200) . min 200
-  forwardVelocity <- use pFVelocity
-  sideVelocity <- use pSVelocity
-
-  pPosition += (dtime * forwardVelocity) *& direction
-  pPosition += (dtime * sideVelocity) *& strafeDirection
+  pRotationUV .= (Vec3 mouseU 0 mouseV)
+  applyUserIntendedAcceleration input
+  velocity <- use pVelocity
+  pPosition += velocity 
   
   Player.changeWeapon input
   Player.shoots input
   Player.togglesHoldable input
   Player.tickHoldables input
-
   pHealth %= min 200
   -- death
   health <- use pHealth
@@ -327,19 +322,20 @@ stepParticle t dt = do
 -- utils
 unitVectorAtAngle = sinCos
 degToRad a = a/180*pi
+clamp minVal maxVal = max minVal. min maxVal
 
 -- world step function
 stepFun :: RenderSystem -> Float -> World -> World
 stepFun engine dt = execState $ do
   -- update time
-  wInput %= (\i -> i {dtime = dt, time = time i + dt})
+  wInput %= (\i -> i {dtime = dt, time = time i + dt}) --deltaidő és eltelt idő frissítése
   input <- use wInput
   ents <- use wEntities
   vis <- use wVisuals
   rand <- use wRandomGen
-  let (r1,e,v1) = updateEntities engine rand input ents
+  let (r1,e,v1) = updateEntities engine rand input ents --entitások frissítése, KIMENETE: (randomgenerátor(nem fontos), életben maradt! entitások, vizuális effektek)
       Input{..} = input
-      (r2,v2) = updateVisuals r1 time dtime vis
+      (r2,v2) = updateVisuals r1 time dtime vis --vizuális elemek frissítése + generált entitások
   wEntities .= e
   wRandomGen .= r2
   wVisuals .= v1 ++ v2
@@ -359,8 +355,7 @@ logPlayerChange old new = do
     nullSomeValues =
       set pPosition (Vec3 0 0 0)  .
       set pDirection (Vec3 0 0 0) .
-      set pFVelocity 0            .
-      set pSVelocity 0            .
+      set pVelocity (Vec3 0 0 0)  .
       set pShootTime 0
 
 -- FIXME: Order

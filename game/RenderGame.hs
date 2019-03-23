@@ -17,7 +17,10 @@ import GameEngine.Utils
 import Debug.Trace
 import Items
 import LoadResources
+import Debug.Trace
 
+
+up = Vec3 0 0 1
 
 cITEM_SCALEUP_TIME :: Float
 cITEM_SCALEUP_TIME = 1.0
@@ -30,12 +33,13 @@ data RenderSettings
   , mapFile         :: !String
   } deriving Show
 
+add l = tell (l,Last Nothing, Last Nothing)
+white = Vec4 1 1 1 1
+  
 renderFun :: RenderSettings -> WorldSnapshot -> Scene
-renderFun RenderSettings{..} WorldSnapshot{..} = Scene (BSPMap mapFile : renderables) pictures camera where
-  add l = tell (l,Last Nothing, Last Nothing)
+renderFun RenderSettings{..} WorldSnapshot{..} =  Scene (BSPMap mapFile : renderables) pictures camera where
   setCamera c = tell ([],Last $ Just c, Last Nothing)
   setPlayer c = tell ([],Last Nothing, Last $ Just c)
-  white = Vec4 1 1 1 1
   cam camPos camTarget = camera where
     camera = Camera
       { cameraPosition      = camPos
@@ -44,7 +48,6 @@ renderFun RenderSettings{..} WorldSnapshot{..} = Scene (BSPMap mapFile : rendera
       , cameraFrustum       = frust
       , cameraViewportSize  = (windowWidth,windowHeight)
       }
-    up = Vec3 0 0 1
     quakeToGL = lookat zero (Vec3 1 0 0) up
     apsectRatio = fromIntegral windowWidth / fromIntegral windowHeight
     pm = perspective near far (fovDeg / 180 * pi) apsectRatio
@@ -53,7 +56,9 @@ renderFun RenderSettings{..} WorldSnapshot{..} = Scene (BSPMap mapFile : rendera
     s  = 0.005
     near = 0.00001/s
     far  = 100/s
-    fovDeg = 60
+    fovDeg = 70
+    --EPlayer player = head $ filter isPlayer gameEntities
+    --weaponMD5 = map (\path -> ) $ itWorldModel $ fromJust $ Map.lookup (IT_WEAPON (_pSelectedWeapon player)) itemMap 
 
   time' = sceneTime
   zaxis = Vec3 0 0 1
@@ -90,7 +95,9 @@ renderFun RenderSettings{..} WorldSnapshot{..} = Scene (BSPMap mapFile : rendera
                             else 1.0
 
   (renderables,Last mcamera,Last mplayer) = execWriter . forM_ gameEntities $ \case
-    EPlayer a   -> setPlayer a >> setCamera (cam (a^.pPosition) (a^.pDirection)){- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
+    EPlayer a   -> setPlayer a >> setCamera (cam (a^.pPosition) (a^.pDirection)) >> renderPlayerWeapon itemMap weaponInfoMap time' bob a
+	  
+	where
     EBullet b   -- -> add [MD3 (b^.bPosition) one white "models/ammo/rocket/rocket.md3"]
                 -> add [MD3 (b^.bPosition) (fun (b^.bDirection) (Vec3 0 0 1)) 1 white
                             (fromMaybe "models/ammo/rocket/rocket.md3"
@@ -112,7 +119,21 @@ renderFun RenderSettings{..} WorldSnapshot{..} = Scene (BSPMap mapFile : rendera
     -- TEMP: just visualize targets
     ETarget a   -> add [MD3Character (a^.ttPosition) one 1 white "visor" "default"]
     _ -> return ()
+  
+spherical mouseU mouseV = let sinMV = sin mouseV in Vec3 (cos mouseU * sinMV) (sin mouseU * sinMV) (cos  mouseV)
 
+renderPlayerWeapon itemMap weaponInfoMap time bob p = let 
+ strafe = normalize (p^.pDirection &^ (Vec3 0 0 1))
+ playerDown = normalize (p^.pDirection &^ strafe)
+ weaponPos = p^.pPosition + 6 *& p^.pDirection + 3.4 *& playerDown + 4 *& strafe
+ pointingTo = p^.pPosition + 400 *& p^.pDirection
+ weaponRotation = rotationBetween (p^.pDirection) (pointingTo - weaponPos)  .*. (sphere_UV_toQuat $ p^.pRotationUV)
+ flashModel = wiFlashModel (weaponInfoMap ! (p^.pSelectedWeapon))
+ in 
+ add [MD3 (weaponPos + (0.3 * sin (time )) *& playerDown) weaponRotation 0.5 white model | model <- itWorldModel (itemMap ! (IT_WEAPON $ p^.pSelectedWeapon))] >>
+ (when (time - p^.pShootTime < 0.05 && isJust flashModel) $ add [MD3 (weaponPos + 0.15 *& bob + 6*(p^.pDirection)) weaponRotation 0.5 white (fromJust flashModel)])
+	  
+	  
 renderNum x y rgba value = concatMap digit $ zip [0..] $ printf "%d" value where
   digit (i,c) = case Map.lookup c digitMap of
     Nothing -> []
