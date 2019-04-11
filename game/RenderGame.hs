@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, FlexibleContexts, RecordWildCards #-}
+{-# LANGUAGE LambdaCase, FlexibleContexts, RecordWildCards, OverloadedStrings #-}
 module RenderGame where
 
 import Text.Printf
@@ -96,7 +96,16 @@ renderFun RenderSettings{..} WorldSnapshot{..} = Scene (BSPMap mapFile : rendera
                             (fromMaybe "models/ammo/rocket/rocket.md3"
                              . wiMissileModel
                              $ weaponInfoMap ! (b^.bType))]
-    EWeapon a   -> add [MD3 (bob + (a^.wPosition)) rotation (respawnScaleUp (a^.wTime)) white model | model <- itWorldModel (itemMap ! (IT_WEAPON $ a^.wType))]
+
+    EWeapon a   -> add [ MD3New defaultMD3Data
+                          { md3Position     = bob + (a^.wPosition)
+                          , md3Orientation  = rotation
+                          , md3Scale        = respawnScaleUp (a^.wTime)
+                          , md3ModelFile    = model
+                          }
+                       | model <- itWorldModel (itemMap ! (IT_WEAPON $ a^.wType))
+                       ]
+
     EAmmo a     -> add [MD3 (bob + (a^.aPosition)) rotation (respawnScaleUp (a^.aTime)) white model | model <- itWorldModel (itemMap ! (IT_AMMO $ a^.aType))]
     EArmor a    -> add [MD3 (bob + (a^.rPosition)) rotation (respawnScaleUp (a^.rTime)) white model | model <- itWorldModel (itemMap ! (IT_ARMOR $ a^.rType))]
     EHealth a   -> add [MD3 (bob + (a^.hPosition)) rotation (respawnScaleUp (a^.hTime)) white model | model <- itWorldModel (itemMap ! (IT_HEALTH $ a^.hType))]
@@ -110,8 +119,22 @@ renderFun RenderSettings{..} WorldSnapshot{..} = Scene (BSPMap mapFile : rendera
                             ]
 
     -- TEMP: just visualize targets
-    ETarget a   -> add [MD3Character (a^.ttPosition) one 1 white "visor" "default"]
+    --ETarget a   -> add [MD3Character (a^.ttPosition) one 1 white "visor" "default"]
+    ETarget a   -> add [MD3New playerModel {md3Position = a^.ttPosition}]
     _ -> return ()
+
+playerModel :: MD3Data
+playerModel = defaultMD3Data
+  { md3ModelFile    = "models/players/grunt/lower.md3"
+  , md3Attachments  = [(Tag "tag_torso", torso)]
+  } where
+      torso = defaultMD3Data
+        { md3ModelFile    = "models/players/grunt/upper.md3"
+        , md3Attachments  = [(Tag "tag_head", head)]
+        }
+      head = defaultMD3Data
+        { md3ModelFile  = "models/players/grunt/head.md3"
+        }
 
 renderNum x y rgba value = concatMap digit $ zip [0..] $ printf "%d" value where
   digit (i,c) = case Map.lookup c digitMap of
