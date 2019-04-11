@@ -2,10 +2,10 @@
 
 ### TODO:
 
-- expose model and map collision information and query functions
-- remove md3character ; add skin, animation resources
-- allow attaching MD3s via tags
-- move game character and animation related code to game module ; the engine should handle md3 models in general
+- [x] allow attaching MD3s via tags
+- [ ] move game character and animation related code to game module ; the engine should handle md3 models in general
+- [ ] remove md3character ; add skin, animation resources
+- [ ] expose model and map collision information and query functions
 
 ### IDEA:
 
