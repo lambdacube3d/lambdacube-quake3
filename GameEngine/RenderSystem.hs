@@ -7,6 +7,7 @@ module GameEngine.RenderSystem
   , Renderable(..)
   , Picture(..)
   , Scene(..)
+  , BS8.ByteString
   ) where
 
 import Control.Monad
@@ -24,7 +25,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.ByteString.Lazy as LB
-import qualified Data.ByteString.Char8 as SB
+import qualified Data.ByteString.Char8 as BS8
 import Codec.Picture
 import Data.Vector (Vector)
 import qualified Data.Vector as V
@@ -34,6 +35,7 @@ import Lens.Micro.Platform hiding (_4)
 
 import LambdaCube.GL
 
+import qualified GameEngine.Data.MD3 as MD3
 import GameEngine.Data.Material hiding (Vec3)
 import GameEngine.Graphics.Storage
 import GameEngine.Graphics.Frustum
@@ -184,7 +186,7 @@ initStorageTextures RenderSystem{..} storage usedMaterials = do
   putStrLn "loading textures:"
   -- load textures
   animatedTextures <- fmap concat $ forM usedTextures $ \(shName,stageTex,texSlotName,noMip) -> do
-      let texSetter = uniformFTexture2D (SB.pack texSlotName) (uniformSetter storage)
+      let texSetter = uniformFTexture2D (BS8.pack texSlotName) (uniformSetter storage)
           setTex isClamped img = texSetter =<< cachedTexture (not noMip) isClamped shName img
       case stageTex of
           ST_Map img          -> setTex False img >> return []
@@ -251,7 +253,7 @@ updateRenderCache renderSystem@RenderSystem{..} newMD3Materials newBSPMaterials
       initStorageDefaultValues rsTableTextures storage
 
       writeSampleMaterial usedMaterials
-      let filename = show (crc32 . SB.pack $ show usedMaterials) ++ "_ppl.json"
+      let filename = show (crc32 . BS8.pack $ show usedMaterials) ++ "_ppl.json"
       compileQuake3GraphicsCached filename >>= \ok -> unless ok $ fail "no renderer"
       renderer <- fromJust <$> loadQuake3Graphics storage filename
       disposeRenderer =<< readIORef rsRenderer
@@ -305,11 +307,13 @@ renderScene a b c = do
 renderScene' :: RenderSystem -> Float -> Scene -> IO ()
 renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
   -- load new models
-  let resources = mapMaybe asResource renderables
+  let resources = concatMap asResource renderables
   (newMD3Materials,newBSPMaterials,md3Cache,bspCache) <- updateModelCache renderSystem resources pictures
 
   -- check new materials
   (storage,renderer,md3InstanceCache,bspInstanceCache,characterCache,quadCache) <- updateRenderCache renderSystem newMD3Materials newBSPMaterials
+
+  let Camera{..} = camera
 
   -- create new instances
   let addInstance :: Renderable -> RenderM ()
@@ -342,7 +346,38 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
           addCharacterInstance rsFileSystem storage name skin
         liftIO $ setupGameCharacter character effectTime cameraFrustum position orientation scale rgba
 
+      addInstance (MD3New md3Data) = setupMD3Data (one :: Proj4) md3Data
+
       addInstance _ = pure () -- TODO
+
+      setupMD3Data :: Proj4 -> MD3Data -> RenderM ()
+      setupMD3Data baseMat MD3Data{..} = do
+        md3Instance@MD3Instance{..} <- getInstance oldMD3 newMD3 md3ModelFile $ do
+          putStrLn $ "new instance: " ++ md3ModelFile
+          addGPUMD3 storage (md3Cache HashMap.! md3ModelFile) mempty ["worldMat","entityRGB","entityAlpha"]
+        let localMat = toWorldMatrix md3Position md3Orientation md3Scale .*. baseMat :: Proj4
+        -- add md3 to the scene
+        liftIO $ do
+          --setMD3Frame md3Instance md3Frame
+          forM_ md3instanceObject $ \obj -> do
+            enableObject obj $ True -- TODO: pointInFrustum md3Position cameraFrustum ; handle md3 collision geometry + local transformations
+            -- set model matrix
+            uniformM44F "worldMat" (objectUniformSetter obj) . mat4ToM44F $ fromProjective localMat
+            uniformV3F "entityRGB" (objectUniformSetter obj) . vec3ToV3F $ trim md3RGBA
+            uniformFloat "entityAlpha" (objectUniformSetter obj) $ _4 md3RGBA
+
+        -- handle attachments
+        forM_ md3Attachments $ \(Tag tagName, md3Data) -> do
+          let childMat = getTagProj4 md3Instance md3Frame tagName .*. localMat
+          setupMD3Data childMat md3Data
+
+      tagToProj4 :: MD3.Tag -> Proj4
+      tagToProj4 MD3.Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ Mat3 tgAxisX tgAxisY tgAxisZ)
+
+      getTagProj4 :: MD3Instance -> Int -> BS8.ByteString -> Proj4
+      getTagProj4 MD3Instance{..} frame name = case MD3.mdTags md3instanceModel V.!? frame >>= HashMap.lookup name of
+        Nothing   -> idmtx
+        Just tag  -> tagToProj4 tag
 
       addPicture :: Picture -> RenderM ()
       addPicture picture@Picture{..} = do
@@ -355,8 +390,6 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
           uniformM44F "viewProj" (objectUniformSetter quadObject) . mat4ToM44F $ transpose viewProj
           updateQuad quad picture
           enableObject quadObject True
-
-      Camera{..} = camera
 
   InstanceCache{..} <- execStateT (mapM_ addInstance renderables >> mapM_ addPicture pictures) (initCache md3InstanceCache bspInstanceCache characterCache quadCache)
   writeIORef rsMD3InstanceCache $ HashMap.unionWith (++) md3InstanceCache _newMD3
