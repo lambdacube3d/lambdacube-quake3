@@ -16,6 +16,7 @@ import Data.Vect
 import Data.Vect.Float.Util.Quaternion
 
 import LambdaCube.GL
+import LambdaCube.Linear
 
 import GameEngine.Data.GameCharacter
 import GameEngine.Data.MD3
@@ -162,8 +163,13 @@ setupGameCharacter CharacterInstance{..} time cameraFrustum position orientation
       alpha     = _4 rgba
       worldMat  = toWorldMatrix position orientation scale
 
+      lcMat :: Proj4 -> M44F
       lcMat m = mat4ToM44F . fromProjective $ m .*. rotationEuler (Vec3 (time/5) 0 0) .*. worldMat
+
+      tagToProj4 :: Tag -> Proj4
       tagToProj4 Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ Mat3 tgAxisX tgAxisY tgAxisZ)
+
+      getTagProj4 :: MD3Instance -> Int -> ByteString -> Proj4
       getTagProj4 MD3Instance{..} frame name = case mdTags md3instanceModel V.!? frame >>= HashMap.lookup name of
         Nothing   -> idmtx
         Just tag  -> tagToProj4 tag
@@ -171,8 +177,10 @@ setupGameCharacter CharacterInstance{..} time cameraFrustum position orientation
       lowerMat = one :: Proj4
       upperMat = getTagProj4 characterinstanceLowerModel legFrame "tag_torso"
       headMat  = getTagProj4 characterinstanceUpperModel torsoFrame "tag_head" .*. upperMat
+
       --p = trim . _4 $ fromProjective mat
       setup m obj = do
+        --let finalMat = mat4ToM44F . fromProjective $ getTagProj4 characterinstanceUpperModel torsoFrame "tag_head" .*. getTagProj4 characterinstanceLowerModel legFrame "tag_torso" .*. one .*. worldMat
         uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat m
         uniformV3F "entityRGB" (objectUniformSetter obj) $ vec3ToV3F rgb
         uniformFloat "entityAlpha" (objectUniformSetter obj) alpha
