@@ -358,7 +358,9 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
         let localMat = toWorldMatrix md3Position md3Orientation md3Scale .*. baseMat :: Proj4
         -- add md3 to the scene
         liftIO $ do
-          --setMD3Frame md3Instance md3Frame
+          case md3Frame of
+            Just frameIndex -> setMD3Frame md3Instance frameIndex
+            Nothing         -> pure ()
           forM_ md3instanceObject $ \obj -> do
             enableObject obj $ True -- TODO: pointInFrustum md3Position cameraFrustum ; handle md3 collision geometry + local transformations
             -- set model matrix
@@ -374,8 +376,8 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
       tagToProj4 :: MD3.Tag -> Proj4
       tagToProj4 MD3.Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ Mat3 tgAxisX tgAxisY tgAxisZ)
 
-      getTagProj4 :: MD3Instance -> Int -> BS8.ByteString -> Proj4
-      getTagProj4 MD3Instance{..} frame name = case MD3.mdTags md3instanceModel V.!? frame >>= HashMap.lookup name of
+      getTagProj4 :: MD3Instance -> Maybe Int -> BS8.ByteString -> Proj4
+      getTagProj4 MD3Instance{..} frame name = case frame >>= \i -> MD3.mdTags md3instanceModel V.!? i >>= HashMap.lookup name of
         Nothing   -> idmtx
         Just tag  -> tagToProj4 tag
 

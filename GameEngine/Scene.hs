@@ -36,7 +36,7 @@ data MD3Data
   , md3RGBA         :: Vec4
   , md3ModelFile    :: FilePath
   , md3Animation    :: () -- TODO
-  , md3Frame        :: Int
+  , md3Frame        :: Maybe Int -- NOTE: animated models can not be shared due to mutable vertex buffers
   , md3SkinName     :: Maybe String
   , md3Attachments  :: [(Tag, MD3Data)]
   }
@@ -50,7 +50,7 @@ defaultMD3Data = MD3Data
   , md3RGBA         = Vec4 1 1 1 1
   , md3ModelFile    = error "md3ModelFile is mandatory!"
   , md3Animation    = ()
-  , md3Frame        = 0
+  , md3Frame        = Nothing
   , md3SkinName     = Nothing
   , md3Attachments  = []
   }

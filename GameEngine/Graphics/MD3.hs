@@ -46,7 +46,9 @@ data GPUMD3
   }
 
 setMD3Frame :: MD3Instance -> Int -> IO ()
-setMD3Frame (MD3Instance{..}) idx = updateBuffer md3instanceBuffer $ md3instanceFrames V.! idx
+setMD3Frame (MD3Instance{..}) idx = case md3instanceFrames V.!? idx of
+  Just frame  -> updateBuffer md3instanceBuffer frame
+  Nothing     -> pure ()
 
 {-
     buffer layout

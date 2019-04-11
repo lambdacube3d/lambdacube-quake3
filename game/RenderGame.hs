@@ -127,10 +127,12 @@ playerModel :: MD3Data
 playerModel = defaultMD3Data
   { md3ModelFile    = "models/players/grunt/lower.md3"
   , md3Attachments  = [(Tag "tag_torso", torso)]
+  , md3Frame        = Just 0
   } where
       torso = defaultMD3Data
         { md3ModelFile    = "models/players/grunt/upper.md3"
         , md3Attachments  = [(Tag "tag_head", head)]
+        , md3Frame        = Just 0
         }
       head = defaultMD3Data
         { md3ModelFile  = "models/players/grunt/head.md3"
