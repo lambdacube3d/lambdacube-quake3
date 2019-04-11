@@ -6,6 +6,7 @@ allow-newer: true
 
 packages:
 - '.'
+- 'tools/md3-show'
 - location:
     git: https://github.com/lambdacube3d/lambdacube-ir.git
     commit: b8b4ec9fa985b2eb756ac1a5a65af483a0bd586b
