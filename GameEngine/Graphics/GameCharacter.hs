@@ -153,20 +153,20 @@ setupGameCharacter CharacterInstance{..} time cameraFrustum position orientation
       --  transform head to torso (and legs)
       t = floor $ time * 15
       Character{..} = characterinstanceCharacter
-      legAnim = animationMap HashMap.! legAnimType
-      legFrame = aFirstFrame legAnim + t `mod` aNumFrames legAnim
-      torsoAnim = animationMap HashMap.! torsoAnimType
-      torsoFrame = aFirstFrame torsoAnim + t `mod` aNumFrames torsoAnim
+      legAnim       = animationMap HashMap.! legAnimType
+      legFrame      = aFirstFrame legAnim + t `mod` aNumFrames legAnim
+      torsoAnim     = animationMap HashMap.! torsoAnimType
+      torsoFrame    = aFirstFrame torsoAnim + t `mod` aNumFrames torsoAnim
 
-      rgb = trim rgba
-      alpha = _4 rgba
-      worldMat = toWorldMatrix position orientation scale
+      rgb       = trim rgba
+      alpha     = _4 rgba
+      worldMat  = toWorldMatrix position orientation scale
 
       lcMat m = mat4ToM44F . fromProjective $ m .*. rotationEuler (Vec3 (time/5) 0 0) .*. worldMat
       tagToProj4 Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ Mat3 tgAxisX tgAxisY tgAxisZ)
       getTagProj4 MD3Instance{..} frame name = case mdTags md3instanceModel V.!? frame >>= HashMap.lookup name of
-        Nothing -> idmtx
-        Just tag -> tagToProj4 tag
+        Nothing   -> idmtx
+        Just tag  -> tagToProj4 tag
 
       lowerMat = one :: Proj4
       upperMat = getTagProj4 characterinstanceLowerModel legFrame "tag_torso"
