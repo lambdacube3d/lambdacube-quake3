@@ -34,7 +34,7 @@ import GameLogic
 import LoadEntities
 import LoadResources
 import RenderGame
-import GameEngine.RenderSystem
+import GameEngine.RenderSystem as RenderSystem
 
 
 data Event
@@ -120,8 +120,9 @@ play pk3 world0 getScene processInput stepWorld logWorldChange = do
         let frameTime = newTime - oldTime
             batchedTime = frameTime + oldFraction
         when (batchedTime > 10) $ putStrLn $ "WARNING: slow machine!"
+        --resourceCache <- RenderSystem.getResourceCache renderSystem
         let stepSimulation t w | t < deltaTime = (t,w)
-                               | otherwise = stepSimulation (t - deltaTime) (stepWorld renderSystem deltaTime w)
+                               | otherwise = stepSimulation (t - deltaTime) (stepWorld {-resourceCache-} renderSystem deltaTime w)
             (newFractionTime,newWorld) = stepSimulation batchedTime (processInput ks oldWorld)
 
         -- render current state
