@@ -39,7 +39,6 @@ executable shooter
     bytestring,
     vector,
     MonadRandom,
-    lambdacube-gl,
     lambdacube-quake3-engine
 
   GHC-Options: -rtsopts
