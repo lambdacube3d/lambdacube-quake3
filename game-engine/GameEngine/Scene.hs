@@ -11,6 +11,7 @@ module GameEngine.Scene
   , module GameEngine.Scene
   ) where
 
+import Data.Maybe
 import Data.Vect
 import System.FilePath
 import Data.Vect.Float.Util.Quaternion
@@ -35,7 +36,6 @@ data MD3Data
   , md3Scale        :: Float
   , md3RGBA         :: Vec4
   , md3ModelFile    :: FilePath
-  , md3Animation    :: () -- TODO
   , md3Frame        :: Maybe Int -- NOTE: animated models can not be shared due to mutable vertex buffers
   , md3SkinName     :: Maybe String
   , md3Attachments  :: [(Tag, MD3Data)]
@@ -49,7 +49,6 @@ defaultMD3Data = MD3Data
   , md3Scale        = 1
   , md3RGBA         = Vec4 1 1 1 1
   , md3ModelFile    = error "md3ModelFile is mandatory!"
-  , md3Animation    = ()
   , md3Frame        = Nothing
   , md3SkinName     = Nothing
   , md3Attachments  = []
@@ -86,6 +85,8 @@ data Resource
   | R_MD3Character    FilePath SkinName
   | R_Shader          ShaderName
   | R_BSPMap          FilePath
+  | R_Skin            FilePath
+  | R_AnimationCfg    FilePath
   deriving (Eq, Show)
 
 asResource :: Renderable -> [Resource]
@@ -97,7 +98,7 @@ asResource = \case
   BSPMap          name              -> [R_BSPMap name]
  where
   collectMD3 :: MD3Data -> [Resource]
-  collectMD3 d = R_MD3 (md3ModelFile d) : concatMap (collectMD3 . snd) (md3Attachments d)
+  collectMD3 d = R_MD3 (md3ModelFile d) : maybeToList (R_Skin <$> md3SkinName d) ++ concatMap (collectMD3 . snd) (md3Attachments d)
 
 data Picture
   = Picture

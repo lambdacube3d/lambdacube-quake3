@@ -1,13 +1,17 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, ViewPatterns #-}
 module GameEngine.Loader.MD3
   ( readMD3
   , loadMD3
+  , readMD3Skin
   ) where
 
 import Control.Monad
 import Data.Int
 import Data.Char
+import Data.List
+import Data.Maybe
 
+import qualified Data.Map as Map
 import qualified Data.HashMap.Strict as HashMap
 import Data.Binary as B
 import Data.Binary.Get as B
@@ -90,3 +94,13 @@ loadMD3 n = readMD3 <$> LB.readFile n
 
 readMD3 :: LB.ByteString -> MD3Model
 readMD3 dat = runGet getMD3Model dat
+
+readMD3Skin :: ByteString -> MD3Skin
+readMD3Skin txt = Map.fromList
+  [ (head k,head v)
+  | l <- lines . map toLower $ SB8.unpack txt
+  , i <- maybeToList $ elemIndex ',' l
+  , let (words -> k,words . tail -> v) = splitAt i l
+  , not . null $ k
+  , not . null $ v
+  ]

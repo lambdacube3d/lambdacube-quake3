@@ -1,6 +1,7 @@
 module GameEngine.Data.MD3 where
 
 import Data.Int
+import Data.Map (Map)
 import Data.HashMap.Strict
 import Data.Vect hiding (Vector)
 import Data.Vector (Vector)
@@ -46,3 +47,5 @@ data MD3Model
     , mdTags        :: !(Vector (HashMap ByteString Tag))
     , mdSurfaces    :: !(Vector Surface)
     } deriving Show
+
+type MD3Skin = Map String String

@@ -128,14 +128,17 @@ playerModel = defaultMD3Data
   { md3ModelFile    = "models/players/grunt/lower.md3"
   , md3Attachments  = [(Tag "tag_torso", torso)]
   , md3Frame        = Just 0
+  , md3SkinName     = Just "models/players/grunt/lower_default.skin"
   } where
       torso = defaultMD3Data
         { md3ModelFile    = "models/players/grunt/upper.md3"
         , md3Attachments  = [(Tag "tag_head", head)]
         , md3Frame        = Just 0
+        , md3SkinName     = Just "models/players/grunt/upper_default.skin"
         }
       head = defaultMD3Data
         { md3ModelFile  = "models/players/grunt/head.md3"
+        , md3SkinName   = Just "models/players/grunt/head_default.skin"
         }
 
 renderNum x y rgba value = concatMap digit $ zip [0..] $ printf "%d" value where

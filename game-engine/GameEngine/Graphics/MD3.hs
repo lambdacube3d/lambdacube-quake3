@@ -34,8 +34,6 @@ data MD3Instance
   , md3instanceModel  :: MD3Model
   }
 
-type MD3Skin = Map String String
-
 data GPUMD3
   = GPUMD3
   { gpumd3Buffer    :: Buffer

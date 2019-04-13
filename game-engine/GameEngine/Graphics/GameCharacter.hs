@@ -67,16 +67,6 @@ data CharacterInstance
   , characterinstanceLowerModel :: MD3Instance
   }
 
-readSkin :: ByteString -> Map String String
-readSkin txt = Map.fromList
-  [ (head k,head v)
-  | l <- lines . map toLower $ unpack txt
-  , i <- maybeToList $ elemIndex ',' l
-  , let (words -> k,words . tail -> v) = splitAt i l
-  , not . null $ k
-  , not . null $ v
-  ]
-
 addCharacterInstance :: Map String Entry -> GLStorage -> String -> String -> IO CharacterInstance
 addCharacterInstance pk3 storage name skin = do
   let skinName part   = printf "models/players/%s/%s_%s.skin" name part skin
@@ -88,7 +78,7 @@ addCharacterInstance pk3 storage name skin = do
       loadInstance :: String -> IO MD3Instance
       loadInstance part = do
         model <- readMD3 . LB.fromStrict <$> getEntry (modelName part)
-        skin <- readSkin <$> getEntry (skinName part)
+        skin <- readMD3Skin <$> getEntry (skinName part)
         addMD3 storage model skin ["worldMat","entityRGB","entityAlpha"]
 
   character <- parseCharacter animationName . unpack <$> getEntry animationName >>= \case

@@ -53,7 +53,7 @@ import GameEngine.Graphics.BSP
 import GameEngine.Graphics.GameCharacter
 import GameEngine.Loader.Zip
 import GameEngine.Loader.BSP (readBSP)
-import GameEngine.Loader.MD3 (readMD3)
+import GameEngine.Loader.MD3 (readMD3, readMD3Skin)
 import GameEngine.Content
 import GameEngine.Scene
 import GameEngine.Utils
@@ -170,6 +170,11 @@ loadResources renderSystem resources pictures = do
   -- check new materials
   (storage,renderer,md3InstanceCache,bspInstanceCache,characterCache,quadCache) <- updateRenderCache renderSystem newMD3Materials newBSPMaterials
   return ()
+
+loadMD3Skin :: Map String Entry -> String -> IO MD3.MD3Skin
+loadMD3Skin pk3 name = case Map.lookup name pk3 of
+  Nothing -> fail $ "file not found: " ++ name
+  Just a -> readMD3Skin <$> readEntry a
 
 loadMD3 :: Map String Entry -> String -> IO GPUMD3
 loadMD3 pk3 name = case Map.lookup name pk3 of
@@ -377,7 +382,8 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
       setupMD3Data baseMat MD3Data{..} = do
         md3Instance@MD3Instance{..} <- getInstance oldMD3 newMD3 md3ModelFile $ do
           putStrLn $ "new instance: " ++ md3ModelFile
-          addGPUMD3 storage (md3Cache HashMap.! md3ModelFile) mempty ["worldMat","entityRGB","entityAlpha"]
+          skin <- maybe (pure mempty) (loadMD3Skin rsFileSystem) md3SkinName
+          addGPUMD3 storage (md3Cache HashMap.! md3ModelFile) skin ["worldMat","entityRGB","entityAlpha"]
         let localMat = toWorldMatrix md3Position md3Orientation md3Scale .*. baseMat :: Proj4
         -- add md3 to the scene
         liftIO $ do
