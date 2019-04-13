@@ -80,8 +80,8 @@ data Interaction
   step entities, also collect generated entities
   append generated entities
 -}
-updateEntities :: RenderSystem -> PureMT -> Input -> [Entity] -> (PureMT,[Entity],[Visual])
-updateEntities engine randGen input@Input{..} ents = (randGen',catMaybes (V.toList nextEnts) ++ newEnts,newVisuals) where
+updateEntities :: ResourceCache -> RenderSystem -> PureMT -> Input -> [Entity] -> (PureMT,[Entity],[Visual])
+updateEntities resources engine randGen input@Input{..} ents = (randGen',catMaybes (V.toList nextEnts) ++ newEnts,newVisuals) where
 
   entityVector :: Vector (Maybe Entity)
   entityVector = V.fromList $ map Just ents
@@ -329,15 +329,15 @@ unitVectorAtAngle = sinCos
 degToRad a = a/180*pi
 
 -- world step function
-stepFun :: RenderSystem -> Float -> World -> World
-stepFun engine dt = execState $ do
+stepFun :: ResourceCache -> RenderSystem -> Float -> World -> World
+stepFun resources engine dt = execState $ do
   -- update time
   wInput %= (\i -> i {dtime = dt, time = time i + dt})
   input <- use wInput
   ents <- use wEntities
   vis <- use wVisuals
   rand <- use wRandomGen
-  let (r1,e,v1) = updateEntities engine rand input ents
+  let (r1,e,v1) = updateEntities resources engine rand input ents
       Input{..} = input
       (r2,v2) = updateVisuals r1 time dtime vis
   wEntities .= e

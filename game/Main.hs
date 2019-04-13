@@ -79,7 +79,7 @@ play :: Map String Entry
      -> World
      -> (RenderSettings -> WorldSnapshot -> Scene)
      -> (Event -> World -> World)
-     -> (RenderSystem -> Float -> World -> World)
+     -> (ResourceCache -> RenderSystem -> Float -> World -> World)
      -> (World -> World -> Maybe String)
      -> IO ()
 play pk3 world0 getScene processInput stepWorld logWorldChange = do
@@ -120,9 +120,9 @@ play pk3 world0 getScene processInput stepWorld logWorldChange = do
         let frameTime = newTime - oldTime
             batchedTime = frameTime + oldFraction
         when (batchedTime > 10) $ putStrLn $ "WARNING: slow machine!"
-        --resourceCache <- RenderSystem.getResourceCache renderSystem
+        resourceCache <- RenderSystem.getResourceCache renderSystem
         let stepSimulation t w | t < deltaTime = (t,w)
-                               | otherwise = stepSimulation (t - deltaTime) (stepWorld {-resourceCache-} renderSystem deltaTime w)
+                               | otherwise = stepSimulation (t - deltaTime) (stepWorld resourceCache renderSystem deltaTime w)
             (newFractionTime,newWorld) = stepSimulation batchedTime (processInput ks oldWorld)
 
         -- render current state

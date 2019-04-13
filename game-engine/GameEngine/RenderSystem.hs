@@ -8,6 +8,12 @@ module GameEngine.RenderSystem
   , Picture(..)
   , Scene(..)
   , BS8.ByteString
+
+  -- resource cache
+  , ResourceCache
+  , getResourceCache
+  , lookupBSPData
+  , lookupMD3Data
   ) where
 
 import Control.Monad
@@ -35,6 +41,7 @@ import Lens.Micro.Platform hiding (_4)
 
 import LambdaCube.GL
 
+import qualified GameEngine.Data.BSP as BSP
 import qualified GameEngine.Data.MD3 as MD3
 import GameEngine.Data.Material hiding (Vec3)
 import GameEngine.Graphics.Storage
@@ -72,6 +79,22 @@ type AnimatedTexture  = (Float, SetterFun TextureData, Vector TextureData)
     updateModelCache
     updateRenderCache
 -}
+
+data ResourceCache
+  = ResourceCache
+  { rcBSPCache  :: BSPCache
+  , rcMD3Cache  :: MD3Cache
+  }
+
+getResourceCache :: RenderSystem -> IO ResourceCache
+getResourceCache RenderSystem{..} = ResourceCache <$> readIORef rsBSPCache <*> readIORef rsMD3Cache
+
+lookupBSPData :: String -> ResourceCache -> Maybe BSP.BSPLevel
+lookupBSPData name ResourceCache{..} = gpubspBSPLevel <$> HashMap.lookup name rcBSPCache
+
+lookupMD3Data :: String -> ResourceCache -> Maybe MD3.MD3Model
+lookupMD3Data name ResourceCache{..} = gpumd3Model <$> HashMap.lookup name rcMD3Cache
+
 data RenderSystem
   = RenderSystem
   -- static values
