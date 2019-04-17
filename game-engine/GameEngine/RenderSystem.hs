@@ -60,6 +60,7 @@ import GameEngine.Utils
 
 type BSPCache         = HashMap String GPUBSP
 type BSPInstanceCache = HashMap String [BSPInstance]
+type MD3SkinCache     = HashMap String MD3.MD3Skin
 type MD3Cache         = HashMap String GPUMD3
 type MD3InstanceCache = HashMap String [MD3Instance]
 type QuadCache        = HashMap String [QuadInstance]
@@ -107,6 +108,7 @@ data RenderSystem
   , rsBSPCache          :: IORef BSPCache
   , rsBSPInstanceCache  :: IORef BSPInstanceCache
   , rsBSPShaderCache    :: IORef ShaderCache
+  , rsMD3SkinCache      :: IORef MD3SkinCache
   , rsMD3Cache          :: IORef MD3Cache
   , rsMD3InstanceCache  :: IORef MD3InstanceCache
   , rsMD3ShaderCache    :: IORef ShaderCache
@@ -124,6 +126,7 @@ initRenderSystem pk3 = do
   bspCache <- newIORef mempty
   bspInstanceCache <- newIORef mempty
   bspShaderCache <- newIORef mempty
+  md3SkinCache <- newIORef mempty
   md3Cache <- newIORef mempty
   md3InstanceCache <- newIORef mempty
   md3ShaderCache <- newIORef mempty
@@ -152,6 +155,7 @@ initRenderSystem pk3 = do
     , rsBSPCache          = bspCache
     , rsBSPInstanceCache  = bspInstanceCache
     , rsBSPShaderCache    = bspShaderCache
+    , rsMD3SkinCache      = md3SkinCache
     , rsMD3Cache          = md3Cache
     , rsMD3InstanceCache  = md3InstanceCache
     , rsMD3ShaderCache    = md3ShaderCache
@@ -166,7 +170,7 @@ initRenderSystem pk3 = do
 loadResources :: RenderSystem -> [Resource] -> [Picture] -> IO ()
 loadResources renderSystem resources pictures = do
   -- load new models
-  (newMD3Materials,newBSPMaterials,md3Cache,bspCache) <- updateModelCache renderSystem resources pictures
+  (newMD3Materials,newBSPMaterials,md3Cache,bspCache,_skinCache) <- updateModelCache renderSystem resources pictures
   -- check new materials
   (storage,renderer,md3InstanceCache,bspInstanceCache,characterCache,quadCache) <- updateRenderCache renderSystem newMD3Materials newBSPMaterials
   return ()
@@ -227,8 +231,16 @@ initStorageTextures RenderSystem{..} storage usedMaterials = do
 
   writeIORef rsAnimatedTextures animatedTextures
 
-updateModelCache :: RenderSystem -> [Resource] -> [Picture] -> IO (HashSet String,HashSet String,HashMap String GPUMD3,HashMap String GPUBSP)
+updateModelCache :: RenderSystem -> [Resource] -> [Picture] -> IO (HashSet String,HashSet String,HashMap String GPUMD3,HashMap String GPUBSP,MD3SkinCache)
 updateModelCache RenderSystem{..} resources pictures = do
+  -- load new md3 skins
+  skinCache <- readIORef rsMD3SkinCache
+  let newSkinNames = setNub [name | R_Skin name <- resources, not $ HashMap.member name skinCache]
+  newSkins <- forM newSkinNames $ loadMD3Skin rsFileSystem
+  let skinCache' = skinCache `HashMap.union` HashMap.fromList (zip newSkinNames newSkins)
+  unless (null newSkinNames) $ putStrLn $ unlines $ "new skins:" : newSkinNames
+  writeIORef rsMD3SkinCache skinCache'
+
   -- load new md3 models
   md3Cache <- readIORef rsMD3Cache
   let newModelNames = setNub [name | R_MD3 name <- resources, not $ HashMap.member name md3Cache]
@@ -248,10 +260,11 @@ updateModelCache RenderSystem{..} resources pictures = do
   -- collect new materials
   md3ShaderCache <- readIORef rsMD3ShaderCache
   bspShaderCache <- readIORef rsBSPShaderCache
-  let pictureMaterials = HashSet.fromList (map pictureShader pictures ++ [name | R_Shader name <- resources])
-      newMD3Materials = HashSet.unions (pictureMaterials : map gpumd3Shaders newModels) `HashSet.difference` md3ShaderCache
+  let pictureMaterials  = HashSet.fromList (map pictureShader pictures ++ [name | R_Shader name <- resources])
+      skinMaterials     = HashSet.fromList (concatMap Map.elems newSkins)
+      newMD3Materials = HashSet.unions (pictureMaterials : skinMaterials : map gpumd3Shaders newModels) `HashSet.difference` md3ShaderCache
       newBSPMaterials = HashSet.unions (map gpubspShaders newBSPs) `HashSet.difference` bspShaderCache
-  return (newMD3Materials,newBSPMaterials,md3Cache',bspCache')
+  return (newMD3Materials,newBSPMaterials,md3Cache',bspCache',skinCache')
 
 updateRenderCache :: RenderSystem -> HashSet String -> HashSet String -> IO (GLStorage,GLRenderer,MD3InstanceCache,BSPInstanceCache,CharacterCache,QuadCache)
 updateRenderCache renderSystem@RenderSystem{..} newMD3Materials newBSPMaterials
@@ -336,7 +349,7 @@ renderScene' :: RenderSystem -> Float -> Scene -> IO ()
 renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
   -- load new models
   let resources = concatMap asResource renderables
-  (newMD3Materials,newBSPMaterials,md3Cache,bspCache) <- updateModelCache renderSystem resources pictures
+  (newMD3Materials,newBSPMaterials,md3Cache,bspCache,skinCache) <- updateModelCache renderSystem resources pictures
 
   -- check new materials
   (storage,renderer,md3InstanceCache,bspInstanceCache,characterCache,quadCache) <- updateRenderCache renderSystem newMD3Materials newBSPMaterials
@@ -382,7 +395,7 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
       setupMD3Data baseMat MD3Data{..} = do
         md3Instance@MD3Instance{..} <- getInstance oldMD3 newMD3 md3ModelFile $ do
           putStrLn $ "new instance: " ++ md3ModelFile
-          skin <- maybe (pure mempty) (loadMD3Skin rsFileSystem) md3SkinName
+          let skin = maybe mempty (skinCache HashMap.!) md3SkinName
           addGPUMD3 storage (md3Cache HashMap.! md3ModelFile) skin ["worldMat","entityRGB","entityAlpha"]
         let localMat = toWorldMatrix md3Position md3Orientation md3Scale .*. baseMat :: Proj4
         -- add md3 to the scene
