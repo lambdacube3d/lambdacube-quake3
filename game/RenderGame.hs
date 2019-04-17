@@ -120,25 +120,25 @@ renderFun RenderSettings{..} WorldSnapshot{..} = Scene (BSPMap mapFile : rendera
 
     -- TEMP: just visualize targets
     --ETarget a   -> add [MD3Character (a^.ttPosition) one 1 white "visor" "default"]
-    ETarget a   -> add [MD3New playerModel {md3Position = a^.ttPosition}]
+    ETarget a   -> add [MD3New (playerModel "visor") {md3Position = a^.ttPosition}]
     _ -> return ()
 
-playerModel :: MD3Data
-playerModel = defaultMD3Data
-  { md3ModelFile    = "models/players/grunt/lower.md3"
+playerModel :: String -> MD3Data
+playerModel name = defaultMD3Data
+  { md3ModelFile    = printf "models/players/%s/lower.md3" name
   , md3Attachments  = [(Tag "tag_torso", torso)]
   , md3Frame        = Just 0
-  , md3SkinName     = Just "models/players/grunt/lower_default.skin"
+  , md3SkinName     = Just $ printf "models/players/%s/lower_default.skin" name
   } where
       torso = defaultMD3Data
-        { md3ModelFile    = "models/players/grunt/upper.md3"
+        { md3ModelFile    = printf "models/players/%s/upper.md3" name
         , md3Attachments  = [(Tag "tag_head", head)]
         , md3Frame        = Just 0
-        , md3SkinName     = Just "models/players/grunt/upper_default.skin"
+        , md3SkinName     = Just $ printf "models/players/%s/upper_default.skin" name
         }
       head = defaultMD3Data
-        { md3ModelFile  = "models/players/grunt/head.md3"
-        , md3SkinName   = Just "models/players/grunt/head_default.skin"
+        { md3ModelFile  = printf "models/players/%s/head.md3" name
+        , md3SkinName   = Just $ printf "models/players/%s/head_default.skin" name
         }
 
 renderNum x y rgba value = concatMap digit $ zip [0..] $ printf "%d" value where
