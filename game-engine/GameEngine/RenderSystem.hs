@@ -14,6 +14,7 @@ module GameEngine.RenderSystem
   , getResourceCache
   , lookupBSPData
   , lookupMD3Data
+  , lookupAnimationData
   ) where
 
 import Control.Monad
@@ -43,6 +44,7 @@ import LambdaCube.GL
 
 import qualified GameEngine.Data.BSP as BSP
 import qualified GameEngine.Data.MD3 as MD3
+import qualified GameEngine.Data.GameCharacter as GCH
 import GameEngine.Data.Material hiding (Vec3)
 import GameEngine.Graphics.Storage
 import GameEngine.Graphics.Frustum
@@ -54,10 +56,12 @@ import GameEngine.Graphics.GameCharacter
 import GameEngine.Loader.Zip
 import GameEngine.Loader.BSP (readBSP)
 import GameEngine.Loader.MD3 (readMD3, readMD3Skin)
+import GameEngine.Loader.GameCharacter
 import GameEngine.Content
 import GameEngine.Scene
 import GameEngine.Utils
 
+type AnimationCache   = HashMap String GCH.Character
 type BSPCache         = HashMap String GPUBSP
 type BSPInstanceCache = HashMap String [BSPInstance]
 type MD3SkinCache     = HashMap String MD3.MD3Skin
@@ -83,18 +87,22 @@ type AnimatedTexture  = (Float, SetterFun TextureData, Vector TextureData)
 
 data ResourceCache
   = ResourceCache
-  { rcBSPCache  :: BSPCache
-  , rcMD3Cache  :: MD3Cache
+  { rcBSPCache        :: BSPCache
+  , rcMD3Cache        :: MD3Cache
+  , rcAnimationCache  :: AnimationCache
   }
 
 getResourceCache :: RenderSystem -> IO ResourceCache
-getResourceCache RenderSystem{..} = ResourceCache <$> readIORef rsBSPCache <*> readIORef rsMD3Cache
+getResourceCache RenderSystem{..} = ResourceCache <$> readIORef rsBSPCache <*> readIORef rsMD3Cache <*> readIORef rsAnimationCache
 
 lookupBSPData :: String -> ResourceCache -> Maybe BSP.BSPLevel
 lookupBSPData name ResourceCache{..} = gpubspBSPLevel <$> HashMap.lookup name rcBSPCache
 
 lookupMD3Data :: String -> ResourceCache -> Maybe MD3.MD3Model
 lookupMD3Data name ResourceCache{..} = gpumd3Model <$> HashMap.lookup name rcMD3Cache
+
+lookupAnimationData :: String -> ResourceCache -> Maybe GCH.Character
+lookupAnimationData name ResourceCache{..} = HashMap.lookup name rcAnimationCache
 
 data RenderSystem
   = RenderSystem
@@ -105,6 +113,7 @@ data RenderSystem
   , rsWhiteTexture      :: TextureData
   , rsTableTextures     :: TableTextures
   -- resource caches
+  , rsAnimationCache    :: IORef AnimationCache
   , rsBSPCache          :: IORef BSPCache
   , rsBSPInstanceCache  :: IORef BSPInstanceCache
   , rsBSPShaderCache    :: IORef ShaderCache
@@ -123,6 +132,7 @@ data RenderSystem
 
 initRenderSystem :: Map String Entry -> IO RenderSystem
 initRenderSystem pk3 = do
+  animationCache <- newIORef mempty
   bspCache <- newIORef mempty
   bspInstanceCache <- newIORef mempty
   bspShaderCache <- newIORef mempty
@@ -152,6 +162,7 @@ initRenderSystem pk3 = do
     , rsCheckerTexture    = checkerTexture
     , rsWhiteTexture      = whiteTexture
     , rsTableTextures     = tableTextures
+    , rsAnimationCache    = animationCache
     , rsBSPCache          = bspCache
     , rsBSPInstanceCache  = bspInstanceCache
     , rsBSPShaderCache    = bspShaderCache
@@ -174,6 +185,13 @@ loadResources renderSystem resources pictures = do
   -- check new materials
   (storage,renderer,md3InstanceCache,bspInstanceCache,characterCache,quadCache) <- updateRenderCache renderSystem newMD3Materials newBSPMaterials
   return ()
+
+loadAnimation :: Map String Entry -> String -> IO GCH.Character
+loadAnimation pk3 name = case Map.lookup name pk3 of
+  Nothing -> fail $ "file not found: " ++ name
+  Just a -> parseCharacter name . BS8.unpack <$> readEntry a >>= \case
+    Left message  -> fail message
+    Right a -> pure a
 
 loadMD3Skin :: Map String Entry -> String -> IO MD3.MD3Skin
 loadMD3Skin pk3 name = case Map.lookup name pk3 of
@@ -233,6 +251,14 @@ initStorageTextures RenderSystem{..} storage usedMaterials = do
 
 updateModelCache :: RenderSystem -> [Resource] -> [Picture] -> IO (HashSet String,HashSet String,HashMap String GPUMD3,HashMap String GPUBSP,MD3SkinCache)
 updateModelCache RenderSystem{..} resources pictures = do
+  -- load new animations
+  animationCache <- readIORef rsAnimationCache
+  let newAnimationNames = setNub [name | R_AnimationCfg name <- resources, not $ HashMap.member name animationCache]
+  newAnimations <- forM newAnimationNames $ loadAnimation rsFileSystem
+  let animationCache' = animationCache `HashMap.union` HashMap.fromList (zip newAnimationNames newAnimations)
+  unless (null newAnimationNames) $ putStrLn $ unlines $ "new animations:" : newAnimationNames
+  writeIORef rsAnimationCache animationCache'
+
   -- load new md3 skins
   skinCache <- readIORef rsMD3SkinCache
   let newSkinNames = setNub [name | R_Skin name <- resources, not $ HashMap.member name skinCache]
