@@ -4,7 +4,7 @@
 
 - [x] allow attaching MD3s via tags
 - [ ] ~~move game character and animation related code to game module ; the engine should handle md3 models in general~~
-- [ ] add skin, animation resources
+- [x] add skin, animation resources
 - [ ] remove md3character
 - [x] expose model and map collision information and query functions
 
