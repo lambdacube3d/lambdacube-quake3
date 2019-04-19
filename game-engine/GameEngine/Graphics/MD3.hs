@@ -34,8 +34,6 @@ data MD3Instance
   , md3instanceModel  :: MD3Model
   }
 
-type MD3Skin = Map String String
-
 data GPUMD3
   = GPUMD3
   { gpumd3Buffer    :: Buffer
@@ -46,7 +44,9 @@ data GPUMD3
   }
 
 setMD3Frame :: MD3Instance -> Int -> IO ()
-setMD3Frame (MD3Instance{..}) idx = updateBuffer md3instanceBuffer $ md3instanceFrames V.! idx
+setMD3Frame (MD3Instance{..}) idx = case md3instanceFrames V.!? idx of
+  Just frame  -> updateBuffer md3instanceBuffer frame
+  Nothing     -> pure ()
 
 {-
     buffer layout

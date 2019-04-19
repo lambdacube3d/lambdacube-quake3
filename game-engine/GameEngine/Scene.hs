@@ -8,12 +8,16 @@ module GameEngine.Scene
   , Scene(..)
   , Resource(..)
   , asResource
+  , module GameEngine.Scene
   ) where
 
+import Data.Maybe
 import Data.Vect
 import System.FilePath
 import Data.Vect.Float.Util.Quaternion
+import Data.Vect.Float.Instances
 import GameEngine.Graphics.Frustum
+import Data.ByteString (ByteString)
 
 type Scale = Float
 type Position = Vec3
@@ -22,9 +26,38 @@ type RGBA = Vec4
 type SkinName = String
 type ShaderName = String
 
+newtype Tag = Tag ByteString
+  deriving (Show)
+
+data MD3Data
+  = MD3Data
+  { md3Position     :: Vec3
+  , md3Orientation  :: UnitQuaternion
+  , md3Scale        :: Float
+  , md3RGBA         :: Vec4
+  , md3ModelFile    :: FilePath
+  , md3Frame        :: Maybe Int -- NOTE: animated models can not be shared due to mutable vertex buffers
+  , md3SkinName     :: Maybe String
+  , md3Attachments  :: [(Tag, MD3Data)]
+  }
+  deriving (Show)
+
+defaultMD3Data :: MD3Data
+defaultMD3Data = MD3Data
+  { md3Position     = Vec3 0 0 0
+  , md3Orientation  = unitU
+  , md3Scale        = 1
+  , md3RGBA         = Vec4 1 1 1 1
+  , md3ModelFile    = error "md3ModelFile is mandatory!"
+  , md3Frame        = Nothing
+  , md3SkinName     = Nothing
+  , md3Attachments  = []
+  }
+
 data Renderable
   = MD3             Position Orientation Scale RGBA FilePath
   | MD3Character    Position Orientation Scale RGBA FilePath SkinName
+  | MD3New          MD3Data
   | BSPInlineModel  Position Orientation Scale RGBA FilePath Int
   | BSPMap          FilePath
   deriving Show
@@ -52,14 +85,20 @@ data Resource
   | R_MD3Character    FilePath SkinName
   | R_Shader          ShaderName
   | R_BSPMap          FilePath
+  | R_Skin            FilePath
+  | R_AnimationCfg    FilePath
   deriving (Eq, Show)
 
-asResource :: Renderable -> Maybe Resource
+asResource :: Renderable -> [Resource]
 asResource = \case
-  MD3             _ _ _ _ name      -> Just $ R_MD3 name
-  MD3Character    _ _ _ _ name skin -> Just $ R_MD3Character name skin
-  BSPInlineModel  _ _ _ _ _ _       -> Nothing
-  BSPMap          name              -> Just $ R_BSPMap name
+  MD3New d                          -> collectMD3 d
+  MD3             _ _ _ _ name      -> [R_MD3 name]
+  MD3Character    _ _ _ _ name skin -> [R_MD3Character name skin]
+  BSPInlineModel  _ _ _ _ _ _       -> []
+  BSPMap          name              -> [R_BSPMap name]
+ where
+  collectMD3 :: MD3Data -> [Resource]
+  collectMD3 d = R_MD3 (md3ModelFile d) : maybeToList (R_Skin <$> md3SkinName d) ++ concatMap (collectMD3 . snd) (md3Attachments d)
 
 data Picture
   = Picture

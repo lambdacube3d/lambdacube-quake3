@@ -60,8 +60,6 @@ import qualified GameEngine.Loader.Entity as E
 import Entity
 import Content
 
-import Paths_lambdacube_quake3
-
 type EngineContent =
   ( BSPLevel
   , Map ByteString MD3.MD3Model

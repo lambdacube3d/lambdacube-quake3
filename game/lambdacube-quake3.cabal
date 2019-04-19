@@ -1,0 +1,44 @@
+name:                lambdacube-quake3
+version:             0.1.0.0
+synopsis:            first person shooter game inspired by Quake 3
+homepage:            lambdacube3d.com
+license:             BSD3
+author:              Csaba Hruska
+maintainer:          csaba.hruska@gmail.com
+category:            Game
+build-type:          Simple
+cabal-version:       >=1.10
+
+executable shooter
+  main-is:          Main.hs
+  other-modules:    RenderGame
+                    LoadEntities
+                    LoadResources
+                    Collision
+                    Entities
+                    Visuals
+                    World
+                    GameLogic
+                    Items
+                    Player
+  default-language: Haskell2010
+
+  build-depends:
+    base,
+    containers,
+    filepath,
+    directory,
+    microlens-platform,
+    mtl,
+    transformers,
+    mersenne-random-pure64,
+    binary,
+    vect,
+    GLFW-b,
+    OpenGLRaw,
+    bytestring,
+    vector,
+    MonadRandom,
+    lambdacube-quake3-engine
+
+  GHC-Options: -rtsopts

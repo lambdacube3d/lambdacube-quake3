@@ -16,6 +16,7 @@ import Data.Vect
 import Data.Vect.Float.Util.Quaternion
 
 import LambdaCube.GL
+import LambdaCube.Linear
 
 import GameEngine.Data.GameCharacter
 import GameEngine.Data.MD3
@@ -66,16 +67,6 @@ data CharacterInstance
   , characterinstanceLowerModel :: MD3Instance
   }
 
-readSkin :: ByteString -> Map String String
-readSkin txt = Map.fromList
-  [ (head k,head v)
-  | l <- lines . map toLower $ unpack txt
-  , i <- maybeToList $ elemIndex ',' l
-  , let (words -> k,words . tail -> v) = splitAt i l
-  , not . null $ k
-  , not . null $ v
-  ]
-
 addCharacterInstance :: Map String Entry -> GLStorage -> String -> String -> IO CharacterInstance
 addCharacterInstance pk3 storage name skin = do
   let skinName part   = printf "models/players/%s/%s_%s.skin" name part skin
@@ -87,7 +78,7 @@ addCharacterInstance pk3 storage name skin = do
       loadInstance :: String -> IO MD3Instance
       loadInstance part = do
         model <- readMD3 . LB.fromStrict <$> getEntry (modelName part)
-        skin <- readSkin <$> getEntry (skinName part)
+        skin <- readMD3Skin <$> getEntry (skinName part)
         addMD3 storage model skin ["worldMat","entityRGB","entityAlpha"]
 
   character <- parseCharacter animationName . unpack <$> getEntry animationName >>= \case
@@ -153,26 +144,33 @@ setupGameCharacter CharacterInstance{..} time cameraFrustum position orientation
       --  transform head to torso (and legs)
       t = floor $ time * 15
       Character{..} = characterinstanceCharacter
-      legAnim = animationMap HashMap.! legAnimType
-      legFrame = aFirstFrame legAnim + t `mod` aNumFrames legAnim
-      torsoAnim = animationMap HashMap.! torsoAnimType
-      torsoFrame = aFirstFrame torsoAnim + t `mod` aNumFrames torsoAnim
+      legAnim       = animationMap HashMap.! legAnimType
+      legFrame      = aFirstFrame legAnim + t `mod` aNumFrames legAnim
+      torsoAnim     = animationMap HashMap.! torsoAnimType
+      torsoFrame    = aFirstFrame torsoAnim + t `mod` aNumFrames torsoAnim
 
-      rgb = trim rgba
-      alpha = _4 rgba
-      worldMat = toWorldMatrix position orientation scale
+      rgb       = trim rgba
+      alpha     = _4 rgba
+      worldMat  = toWorldMatrix position orientation scale
 
+      lcMat :: Proj4 -> M44F
       lcMat m = mat4ToM44F . fromProjective $ m .*. rotationEuler (Vec3 (time/5) 0 0) .*. worldMat
+
+      tagToProj4 :: Tag -> Proj4
       tagToProj4 Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ tgRotationMat)
+
+      getTagProj4 :: MD3Instance -> Int -> ByteString -> Proj4
       getTagProj4 MD3Instance{..} frame name = case mdTags md3instanceModel V.!? frame >>= HashMap.lookup name of
-        Nothing -> idmtx
-        Just tag -> tagToProj4 tag
+        Nothing   -> idmtx
+        Just tag  -> tagToProj4 tag
 
       lowerMat = one :: Proj4
       upperMat = getTagProj4 characterinstanceLowerModel legFrame "tag_torso"
       headMat  = getTagProj4 characterinstanceUpperModel torsoFrame "tag_head" .*. upperMat
+
       --p = trim . _4 $ fromProjective mat
       setup m obj = do
+        --let finalMat = mat4ToM44F . fromProjective $ getTagProj4 characterinstanceUpperModel torsoFrame "tag_head" .*. getTagProj4 characterinstanceLowerModel legFrame "tag_torso" .*. one .*. worldMat
         uniformM44F "worldMat" (objectUniformSetter obj) $ lcMat m
         uniformV3F "entityRGB" (objectUniformSetter obj) $ vec3ToV3F rgb
         uniformFloat "entityAlpha" (objectUniformSetter obj) alpha

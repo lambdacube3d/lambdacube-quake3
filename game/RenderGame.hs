@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, FlexibleContexts, RecordWildCards #-}
+{-# LANGUAGE LambdaCase, FlexibleContexts, RecordWildCards, OverloadedStrings #-}
 module RenderGame where
 
 import Text.Printf
@@ -35,6 +35,10 @@ data RenderSettings
 
 add l = tell (l,Last Nothing, Last Nothing)
 white = Vec4 1 1 1 1
+
+attachedTo :: (MD3Data, Tag) -> MD3Data -> MD3Data
+attachedTo (childData, tag) md3data = md3data{ md3Attachments = (tag, childData) : currentAttachments }
+ where currentAttachments = md3Attachments md3data
   
 renderFun :: RenderSettings -> WorldSnapshot -> Scene
 renderFun RenderSettings{..} WorldSnapshot{..} =  Scene (BSPMap mapFile : renderables) pictures camera where
@@ -95,7 +99,7 @@ renderFun RenderSettings{..} WorldSnapshot{..} =  Scene (BSPMap mapFile : render
                             else 1.0
 
   (renderables,Last mcamera,Last mplayer) = execWriter . forM_ gameEntities $ \case
-    EPlayer a   -> setPlayer a >> setCamera (cam (a^.pPosition) (a^.pDirection)) >> renderPlayerWeapon itemMap weaponInfoMap time' bob a
+    EPlayer a   -> setPlayer a >> setCamera (cam (a^.pPosition) (a^.pDirection)) >> renderPlayerWeapon itemMap weaponInfoMap time' a
 	  
 	where
     EBullet b   -- -> add [MD3 (b^.bPosition) one white "models/ammo/rocket/rocket.md3"]
@@ -103,7 +107,16 @@ renderFun RenderSettings{..} WorldSnapshot{..} =  Scene (BSPMap mapFile : render
                             (fromMaybe "models/ammo/rocket/rocket.md3"
                              . wiMissileModel
                              $ weaponInfoMap ! (b^.bType))]
-    EWeapon a   -> add [MD3 (bob + (a^.wPosition)) rotation (respawnScaleUp (a^.wTime)) white model | model <- itWorldModel (itemMap ! (IT_WEAPON $ a^.wType))]
+
+    EWeapon a   -> add [ MD3New defaultMD3Data
+                          { md3Position     = bob + (a^.wPosition)
+                          , md3Orientation  = rotation
+                          , md3Scale        = respawnScaleUp (a^.wTime)
+                          , md3ModelFile    = model
+                          }
+                       | model <- itWorldModel (itemMap ! (IT_WEAPON $ a^.wType))
+                       ]
+
     EAmmo a     -> add [MD3 (bob + (a^.aPosition)) rotation (respawnScaleUp (a^.aTime)) white model | model <- itWorldModel (itemMap ! (IT_AMMO $ a^.aType))]
     EArmor a    -> add [MD3 (bob + (a^.rPosition)) rotation (respawnScaleUp (a^.rTime)) white model | model <- itWorldModel (itemMap ! (IT_ARMOR $ a^.rType))]
     EHealth a   -> add [MD3 (bob + (a^.hPosition)) rotation (respawnScaleUp (a^.hTime)) white model | model <- itWorldModel (itemMap ! (IT_HEALTH $ a^.hType))]
@@ -117,23 +130,58 @@ renderFun RenderSettings{..} WorldSnapshot{..} =  Scene (BSPMap mapFile : render
                             ]
 
     -- TEMP: just visualize targets
-    ETarget a   -> add [MD3Character (a^.ttPosition) one 1 white "visor" "default"]
+    --ETarget a   -> add [MD3Character (a^.ttPosition) one 1 white "visor" "default"]
+    ETarget a   -> add [MD3New (playerModel "visor") {md3Position = a^.ttPosition}]
     _ -> return ()
-  
-spherical mouseU mouseV = let sinMV = sin mouseV in Vec3 (cos mouseU * sinMV) (sin mouseU * sinMV) (cos  mouseV)
+    
+    
+    
+renderPlayerWeapon :: MonadWriter ([Renderable], Last a1, Last a2) m => Map ItemType Item -> Map Items.Weapon WeaponInfo -> Float -> Player -> m ()
+renderPlayerWeapon itemMap weaponInfoMap time p = let 
+ frame = Just (min (floor $ 22 * (time - p^.pShootTime)) 5)
+ weaponInfo = weaponInfoMap ! (p^.pSelectedWeapon)
+ flashModelName = wiFlashModel weaponInfo
+ flashModel = defaultMD3Data { md3ModelFile = fromJust flashModelName, md3Frame = frame }
+ handModelName = fromJust $ wiHandModel weaponInfo  
+ barrelModelName = wiBarrelModel weaponInfo
+ handMD3 = defaultMD3Data
+  { 
+    md3Position = p^.pPosition,
+    md3Orientation =  sphere_UV_toQuat $ p^.pRotationUV,
+    md3ModelFile = handModelName,
+    md3Frame = frame
+  }
+ attachWeaponToHand weaponModelName =  MD3New . attachBarrelModel  $ (setupWeapon weaponModelName, Tag "tag_weapon") `attachedTo` handMD3
+ setupWeapon weaponModelName = attachFlashModel $ defaultMD3Data
+  {
+    md3ModelFile = weaponModelName,
+    md3Frame = frame
+  }
+ attachFlashModel = if time - p^.pShootTime < 0.05 && isJust flashModelName then attachedTo (flashModel, Tag "tag_flash") else id  
+ attachBarrelModel = maybe id (\modelname -> attachedTo (defaultMD3Data { md3ModelFile = modelname, md3Frame = frame }, Tag "tag_barrel")) barrelModelName
+ in (add . map attachWeaponToHand . itWorldModel) (itemMap ! (IT_WEAPON $ p^.pSelectedWeapon))
+  --(when (time - p^.pShootTime < 0.05 && isJust flashModel) $ add [MD3 (weaponPos + 6*(p^.pDirection)) weaponRotation 0.5 white $ fromJust flashModel])
+	  
+	
 
-renderPlayerWeapon itemMap weaponInfoMap time bob p = let 
- strafe = normalize (p^.pDirection &^ (Vec3 0 0 1))
- playerDown = normalize (p^.pDirection &^ strafe)
- weaponPos = p^.pPosition + 6 *& p^.pDirection + 3.4 *& playerDown + 4 *& strafe
- pointingTo = p^.pPosition + 400 *& p^.pDirection
- weaponRotation = rotationBetween (p^.pDirection) (pointingTo - weaponPos)  .*. (sphere_UV_toQuat $ p^.pRotationUV)
- flashModel = wiFlashModel (weaponInfoMap ! (p^.pSelectedWeapon))
- in 
- add [MD3 (weaponPos + (0.3 * sin (time )) *& playerDown) weaponRotation 0.5 white model | model <- itWorldModel (itemMap ! (IT_WEAPON $ p^.pSelectedWeapon))] >>
- (when (time - p^.pShootTime < 0.05 && isJust flashModel) $ add [MD3 (weaponPos + 0.15 *& bob + 6*(p^.pDirection)) weaponRotation 0.5 white (fromJust flashModel)])
-	  
-	  
+playerModel :: String -> MD3Data
+playerModel name = defaultMD3Data
+  { md3ModelFile    = printf "models/players/%s/lower.md3" name
+  , md3Attachments  = [(Tag "tag_torso", torso)]
+  , md3Frame        = Just 0
+  , md3SkinName     = Just $ printf "models/players/%s/lower_default.skin" name
+  } where
+      torso = defaultMD3Data
+        { md3ModelFile    = printf "models/players/%s/upper.md3" name
+        , md3Attachments  = [(Tag "tag_head", head)]
+        , md3Frame        = Just 0
+        , md3SkinName     = Just $ printf "models/players/%s/upper_default.skin" name
+        }
+      head = defaultMD3Data
+        { md3ModelFile  = printf "models/players/%s/head.md3" name
+        , md3SkinName   = Just $ printf "models/players/%s/head_default.skin" name
+        }
+
 renderNum x y rgba value = concatMap digit $ zip [0..] $ printf "%d" value where
   digit (i,c) = case Map.lookup c digitMap of
     Nothing -> []

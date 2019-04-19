@@ -166,3 +166,5 @@ sphere_UV_toQuat (Vec3 u _ v) = v_rot .*. u_rot
 rotationBetween :: Vec3 -> Vec3 -> UnitQuaternion
 rotationBetween u v = rotU (crossprod u v) (acos $ dotprod (normalize u) (normalize v))
 
+spherical mouseU mouseV = let sinMV = sin mouseV in Vec3 (cos mouseU * sinMV) (sin mouseU * sinMV) (cos  mouseV)
+

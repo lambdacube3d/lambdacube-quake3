@@ -27,7 +27,7 @@ import GameEngine.Loader.Zip
 import GameEngine.Loader.Image
 import GameEngine.Utils
 
-import Paths_lambdacube_quake3
+import Paths_lambdacube_quake3_engine
 
 data TableTextures
   = TableTextures

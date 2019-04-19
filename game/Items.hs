@@ -463,8 +463,10 @@ items =
 data WeaponInfo
   = WeaponInfo
   { wiMissileModel :: Maybe String
-  , wiType         :: Weapon
   , wiFlashModel   :: Maybe String
+  , wiHandModel    :: Maybe String
+  , wiBarrelModel  :: Maybe String
+  , wiType         :: Weapon
   , wiRPM          :: Int         --weapon rate of fire
   }
 
@@ -480,24 +482,31 @@ weaponInfos =
     { wiMissileModel = Nothing
     , wiType         = WP_MACHINEGUN
 	, wiFlashModel   = Just "models/weapons2/machinegun/machinegun_flash.md3"
+    , wiHandModel    = Just "models/weapons2/machinegun/machinegun_hand.md3"
+    , wiBarrelModel  = Just "models/weapons2/machinegun/machinegun_barrel.md3"
 	, wiRPM 		 = 500
     }
   , WeaponInfo
     { wiMissileModel = Nothing
     , wiType         = WP_SHOTGUN
 	, wiFlashModel   = Just "models/weapons2/shotgun/shotgun_flash.md3"
+    , wiHandModel    = Just "models/weapons2/shotgun/shotgun_hand.md3"
+    , wiBarrelModel  = Nothing
 	, wiRPM 		 = 300
     }
   , WeaponInfo
     { wiMissileModel = Just "models/ammo/grenade1.md3"
     , wiType         = WP_GRENADE_LAUNCHER
 	, wiFlashModel   = Nothing
+    , wiBarrelModel  = Nothing
 	, wiRPM 		 = 100
     }
   , WeaponInfo
     { wiMissileModel = Just "models/ammo/rocket/rocket.md3"
+    , wiHandModel    = Just "models/weapons2/rocketl/rocketl_hand.md3"
+    , wiFlashModel   = Just "models/weapons2/rocketl/rocketl_flash.md3"
+    , wiBarrelModel  = Nothing
     , wiType         = WP_ROCKET_LAUNCHER
-	, wiFlashModel   = Nothing
 	, wiRPM 		 = 200
     }
   , WeaponInfo
@@ -515,7 +524,9 @@ weaponInfos =
   , WeaponInfo
     { wiMissileModel = Nothing
     , wiType         = WP_PLASMAGUN
-	, wiFlashModel   = Nothing
+    , wiHandModel    = Just "models/weapons2/plasma/plasma_hand.md3"
+	, wiFlashModel   = Just "models/weapons2/plasma/plasma_flash.md3"
+    , wiBarrelModel  = Nothing
 	, wiRPM 		 = 100
     }
   , WeaponInfo
@@ -526,6 +537,7 @@ weaponInfos =
     }
   , WeaponInfo
     { wiMissileModel = Just "models/ammo/rocket/rocket.md3"
+    , wiBarrelModel  = Nothing
     , wiType         = WP_GRAPPLING_HOOK
 	, wiFlashModel   = Nothing
 	, wiRPM 		 = 100
