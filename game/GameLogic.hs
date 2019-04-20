@@ -18,6 +18,7 @@ import Control.Monad.State.Strict
 import Control.Monad.Writer.Strict
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
+import Control.Monad.RWS
 import Data.Functor.Identity
 import Control.Monad.Random
 import System.Random.Mersenne.Pure64
@@ -27,6 +28,9 @@ import qualified Data.Vector as V
 
 import GameEngine.RenderSystem
 import GameEngine.Collision
+import GameEngine.Data.BSP
+import GameEngine.Data.MD3
+import GameEngine.RenderSystem
 
 import qualified Items
 import Entities
@@ -50,7 +54,34 @@ type VM s a = ReaderT s (StateT s (MaybeT (WriterT ([Visual]) (Rand PureMT)))) a
 -- monad for collect new entites or visuals
 type CM a = WriterT ([Entity],[Visual]) (Rand PureMT) a
 
---update :: Monoid w => (s -> e) -> s -> ReaderT s (StateT s (MaybeT (WriterT w (Rand PureMT)))) a -> CM (Maybe e)
+-- Entities have access to this data
+data SceneData = SceneData {
+  resources :: ResourceCache,
+  t :: Time
+}
+
+type UpdateM w s = RWST SceneData w s (Rand PureMT)
+
+type EntityM e = UpdateM ([Entity], [Visual]) e
+
+type VisualM v = UpdateM [Visual] v
+
+type CollectM = WriterT ([Entity],[Visual]) (Rand PureMT)
+
+runUpdateM :: SceneData -> s -> UpdateM w s a -> PureMT -> w
+runUpdateM sceneData state update randGen = snd $ evalRand (evalRWST update sceneData state) randGen
+
+runEntityM :: SceneData -> e -> EntityM e () -> PureMT -> ([Entity], [Visual])
+runEntityM = runUpdateM
+
+runVisualM :: SceneData -> v -> VisualM v () -> PureMT -> [Visual]
+runVisualM = runUpdateM
+
+runCollectM :: PureMT -> CollectM a -> (([Entity], [Visual]), PureMT)
+runCollectM randGen collector = runIdentity $ runRandT (execWriterT collector) randGen
+
+
+update :: Monad f => (s -> e) -> s -> ReaderT s (StateT s (MaybeT f)) a2 -> f (Maybe e)
 update f a m = fmap f <$> runMaybeT (execStateT (runReaderT m a) a)
 
 collect :: Monoid w => PureMT -> WriterT w (Rand PureMT) a -> ((a,w),PureMT)
@@ -58,6 +89,12 @@ collect randGen m = runIdentity $ runRandT (runWriterT m) randGen
 
 die :: Monad m => ReaderT s (StateT s (MaybeT m)) a
 die = mzero
+
+--die helyett survive
+survive :: (e -> Entity) -> EntityM e ()
+survive transformation = do
+ entity <- get
+ tell ([transformation entity], [])
 
 respawn t f = do
   s <- get
@@ -213,7 +250,9 @@ spawnPlayer w = w { _wEntities = entities }
            ]
       , _pHoldables  = Map.empty
       , _pPowerups   = Set.empty
-	  , _pRotationUV = Vec3 0 0 0
+      , _pRotationUV = Vec3 0 0 0
+      , _pMD3Model   = "visor"
+      , _pModelFrame = Just 0
       }
 
 addEntities ents = tell (ents,[])
@@ -325,7 +364,7 @@ degToRad a = a/180*pi
 clamp minVal maxVal = max minVal. min maxVal
 
 -- world step function
-stepFun :: ResourceCache -> RenderSystem -> Float -> World -> World
+stepFun :: ResourceCache -> RenderSystem -> DTime -> World -> World
 stepFun resources engine dt = execState $ do
   -- update time
   wInput %= (\i -> i {dtime = dt, time = time i + dt}) --update time and deltatime
@@ -381,3 +420,54 @@ holdableKeys = Map.fromList
   , (3, Items.HI_PORTAL)
   , (4, Items.HI_INVULNERABILITY)
   ]
+  
+  
+-- general mover typeclass
+-- any type of object can be moved around the map provided that it implements this interface
+class Mover object where 
+ getPosition :: object -> Vec3
+ getBounds :: object ->  EntityM object (Vec3, Vec3)
+ moveToDesiredPosition :: object -> object
+ reactToCollision :: EntityM object ()
+ 
+ 
+instance Mover Player where
+  getPosition player = player^.pPosition
+  moveToDesiredPosition player = player { _pPosition = _pPosition player + _pVelocity player }
+  reactToCollision = return ()
+  getBounds player = do
+    let 
+     getFrameBounds frame = (frMins frame, frMaxs frame)
+     frameNum = maybe 0 id (_pModelFrame player)
+    md3Data <- (lookupMD3Data (_pMD3Model player) . resources) <$> ask
+    return $ maybe (zero, zero) (\md3 -> getFrameBounds $ mdFrames md3 ! frameNum) md3Data    
+
+--updateMover :: Mover object => object -> EntityM object ()
+--The Mover typeclass provides all the necessary functions to implement a generic move method.
+--Idea:
+-- move the object using its own logic (in case of a player, that means adding the velocity vector to the current position)
+-- test for a collision and if there is one, leave it in its original position
+--  
+ 
+ 
+updateScene :: ResourceCache -> RenderSystem -> PureMT -> Input -> [Entity] -> (PureMT,[Entity],[Visual])
+updateScene resources engine randGen input@Input{..} ents = (newRandGen, entitiesInNextFrame, newVisuals) 
+  where
+    entityVector :: Vector Entity
+    entityVector = V.fromList ents
+
+    collisions :: [(Int,Int)]
+    collisions = getCollisions engine ents
+
+    interactions :: [(Int,Int)] -> [Interaction]
+    interactions _ = [] 
+
+ 
+    ((entitiesInNextFrame, newVisuals), newRandGen) = runCollectM randGen (mapM_ step entityVector)
+
+    step :: Entity -> CollectM ()
+    step _ = return ()
+
+
+
+
