@@ -55,30 +55,43 @@ type VM s a = ReaderT s (StateT s (MaybeT (WriterT ([Visual]) (Rand PureMT)))) a
 type CM a = WriterT ([Entity],[Visual]) (Rand PureMT) a
 
 -- Entities have access to this data
-data SceneData = SceneData {
+data EntityEnvironment = EntityEnvironment {
   resources :: ResourceCache,
-  t :: Time
+  level :: BSPLevel,
+  userInput :: Input
 }
 
-type UpdateM w s = RWST SceneData w s (Rand PureMT)
+type UpdateM w s = RWST EntityEnvironment w s (Rand PureMT)
 
-type EntityM e = UpdateM ([Entity], [Visual]) e
+type Collected_Objects = ([Entity], [Visual])
+
+type EntityM e = UpdateM  Collected_Objects e
 
 type VisualM v = UpdateM [Visual] v
 
-type CollectM = WriterT ([Entity],[Visual]) (Rand PureMT)
+type CollectM = WriterT Collected_Objects (Rand PureMT)
 
-runUpdateM :: SceneData -> s -> UpdateM w s a -> PureMT -> w
-runUpdateM sceneData state update randGen = snd $ evalRand (evalRWST update sceneData state) randGen
+runUpdateM :: EntityEnvironment -> s -> UpdateM w s a -> PureMT -> (a, w)
+runUpdateM entityEnvironment state update randGen = evalRand (evalRWST update entityEnvironment state) randGen
 
-runEntityM :: SceneData -> e -> EntityM e () -> PureMT -> ([Entity], [Visual])
+runEntityM :: EntityEnvironment -> e -> EntityM e e -> PureMT -> (e, ([Entity], [Visual]))
 runEntityM = runUpdateM
 
-runVisualM :: SceneData -> v -> VisualM v () -> PureMT -> [Visual]
+runVisualM :: EntityEnvironment -> v -> VisualM v v -> PureMT -> (v, [Visual])
 runVisualM = runUpdateM
 
 runCollectM :: PureMT -> CollectM a -> (([Entity], [Visual]), PureMT)
 runCollectM randGen collector = runIdentity $ runRandT (execWriterT collector) randGen
+
+addEntities' :: MonadWriter ([Entity], [Visual]) m => [Entity] -> m ()
+addEntities' entities = tell (entities, [])
+
+addEntity = addEntities . pure
+
+addVisuals' :: MonadWriter ([Entity], [Visual]) m => [Visual] -> m ()
+addVisuals' visuals = tell ([], visuals)
+
+addVisual = addVisuals . pure   
 
 
 update :: Monad f => (s -> e) -> s -> ReaderT s (StateT s (MaybeT f)) a2 -> f (Maybe e)
@@ -90,11 +103,11 @@ collect randGen m = runIdentity $ runRandT (runWriterT m) randGen
 die :: Monad m => ReaderT s (StateT s (MaybeT m)) a
 die = mzero
 
---die helyett survive
+--die instead of survive
 survive :: (e -> Entity) -> EntityM e ()
 survive transformation = do
- entity <- get
- tell ([transformation entity], [])
+ entity <- transformation <$> get
+ addEntity entity
 
 respawn t f = do
   s <- get
@@ -121,8 +134,8 @@ data Interaction
   step entities, also collect generated entities
   append generated entities
 -}
-updateEntities :: ResourceCache -> RenderSystem -> PureMT -> Input -> [Entity] -> (PureMT,[Entity],[Visual])
-updateEntities resources engine randGen input@Input{..} ents = (randGen',catMaybes (V.toList nextEnts) ++ newEnts,newVisuals) where
+updateEntities :: BSPLevel -> ResourceCache -> RenderSystem -> PureMT -> Input -> [Entity] -> (PureMT,[Entity],[Visual])
+updateEntities level resources engine randGen input@Input{..} ents = (randGen',catMaybes (V.toList nextEnts) ++ newEnts,newVisuals) where
 
   entityVector :: Vector (Maybe Entity)
   entityVector = V.fromList $ map Just ents
@@ -364,15 +377,15 @@ degToRad a = a/180*pi
 clamp minVal maxVal = max minVal. min maxVal
 
 -- world step function
-stepFun :: ResourceCache -> RenderSystem -> DTime -> World -> World
-stepFun resources engine dt = execState $ do
+stepFun :: BSPLevel -> ResourceCache -> RenderSystem -> DTime -> World -> World
+stepFun map resources engine dt = execState $ do
   -- update time
   wInput %= (\i -> i {dtime = dt, time = time i + dt}) --update time and deltatime
   input <- use wInput
   ents <- use wEntities
   vis <- use wVisuals
   rand <- use wRandomGen
-  let (r1,e,v1) = updateEntities resources engine rand input ents
+  let (r1,e,v1) = updateScene map resources engine rand input ents
       Input{..} = input
       (r2,v2) = updateVisuals r1 time dtime vis --update visual effects
   wEntities .= e
@@ -425,34 +438,83 @@ holdableKeys = Map.fromList
 -- general mover typeclass
 -- any type of object can be moved around the map provided that it implements this interface
 class Mover object where 
- getPosition :: object -> Vec3
- getBounds :: object ->  EntityM object (Vec3, Vec3)
- moveToDesiredPosition :: object -> object
+ getPosition :: EntityM object Vec3
+ getBounds :: EntityM object (Vec3, Vec3)
+ setPosition :: Vec3 -> EntityM object ()
+ moveToDesiredPosition :: EntityM object ()
  reactToCollision :: EntityM object ()
  
  
 instance Mover Player where
-  getPosition player = player^.pPosition
-  moveToDesiredPosition player = player { _pPosition = _pPosition player + _pVelocity player }
+  getPosition = use pPosition
+  
+  moveToDesiredPosition = do
+   velocity <- use pVelocity
+   pPosition += velocity
+   
   reactToCollision = return ()
-  getBounds player = do
+  
+  setPosition newPos = pPosition .= newPos
+  getBounds = do
+    player <- get
     let 
      getFrameBounds frame = (frMins frame, frMaxs frame)
      frameNum = maybe 0 id (_pModelFrame player)
     md3Data <- (lookupMD3Data (_pMD3Model player) . resources) <$> ask
     return $ maybe (zero, zero) (\md3 -> getFrameBounds $ mdFrames md3 ! frameNum) md3Data    
 
+updateMover :: Mover object => EntityM object ()
+updateMover = do
+ trace "updateing mover" (return ())
+ bsplevel <- level <$> ask
+ 
+ object <- get
+ oldPosition <- getPosition
+ (frMin, frMax) <- getBounds
+ 
+ moveToDesiredPosition
+ newPosition <- getPosition
+ case traceBox frMin frMax bsplevel oldPosition newPosition of
+  Nothing -> return ()
+  Just (hitPos, traceHit) -> put object
+    
 --updateMover :: Mover object => object -> EntityM object ()
 --The Mover typeclass provides all the necessary functions to implement a generic move method.
 --Idea:
 -- move the object using its own logic (in case of a player, that means adding the velocity vector to the current position)
 -- test for a collision and if there is one, leave it in its original position
 --  
+
+applyUserIntendedAcceleration' :: EntityM Player () --changes player velocity according to user input
+applyUserIntendedAcceleration' = do
+ Input{..} <- userInput <$> ask
+ pDirection .= (let sinMV = sin mouseV in Vec3 (cos mouseU * sinMV) (sin mouseU * sinMV) (cos  mouseV))
+ direction <- use pDirection
+ let friction = 0.93
+ pVelocity *= friction 
+ velocity' <- use pVelocity
+ let 
+  up = Vec3 0 0 1
+  runningSpeed = 8
+  acceleration = 3
+  strafeDirection = normalize $ direction `crossprod` up
+  wishDir = normalize (forwardmove *& direction + sidemove *& strafeDirection)
+  currentSpeed = velocity' &. wishDir
+  addSpeed = runningSpeed - currentSpeed
+  accelSpeed = min addSpeed (acceleration * dtime * runningSpeed)
+  finalVel = if addSpeed <= 0 then velocity' else velocity' + accelSpeed *& wishDir
+ pVelocity .= if forwardmove == 0 && sidemove == 0 then velocity' else finalVel
  
  
-updateScene :: ResourceCache -> RenderSystem -> PureMT -> Input -> [Entity] -> (PureMT,[Entity],[Visual])
-updateScene resources engine randGen input@Input{..} ents = (newRandGen, entitiesInNextFrame, newVisuals) 
+updateScene :: BSPLevel -> ResourceCache -> RenderSystem -> PureMT -> Input -> [Entity] -> (PureMT,[Entity],[Visual])
+updateScene map resourceCache engine randGen input ents = (newRandGen, entitiesInNextFrame, newVisuals) 
   where
+    entityEnv = EntityEnvironment { 
+     resources = resourceCache, 
+     level = map, 
+     userInput = input
+    }
+    
     entityVector :: Vector Entity
     entityVector = V.fromList ents
 
@@ -464,10 +526,39 @@ updateScene resources engine randGen input@Input{..} ents = (newRandGen, entitie
 
  
     ((entitiesInNextFrame, newVisuals), newRandGen) = runCollectM randGen (mapM_ step entityVector)
+    
+    updateEntity :: (e -> Entity ) -> e -> EntityM e e -> CollectM ()
+    updateEntity transformation initialState action = do
+     seed <- getRandom
+     let (modifiedEntity, newObjects) = trace "updating entity" $ runEntityM entityEnv initialState action (pureMT $ fromIntegral (seed :: Int))
+     addEntity $ transformation modifiedEntity
+     tell newObjects
 
     step :: Entity -> CollectM ()
-    step _ = return ()
-
+    step (EPlayer player) = updateEntity EPlayer player stepPlayer
+    step (PSpawn spawn) = updateEntity PSpawn spawn stepSpawn
+    step x = addEntity x 
+    
+    stepPlayer :: EntityM Player Player
+    stepPlayer = applyUserIntendedAcceleration' >> updateMover >> get
+    
+    {-stepSpawn :: EntityM Spawn Spawn
+    stepSpawn = do
+     spawnTime <- get sSpawnTime
+     unless (t < spawnTime) $ do
+     ent <- setSpawnTime <$> view sEntity
+     addEntity ent
+      where
+       setSpawnTime = \case
+       EWeapon a   -> EWeapon   (a & wTime  .~ t)
+       EAmmo a     -> EAmmo     (a & aTime  .~ t)
+       EArmor a    -> EArmor    (a & rTime  .~ t)
+       EHealth a   -> EHealth   (a & hTime  .~ t)
+       EHoldable a -> EHoldable (a & hoTime .~ t)
+       EPowerup p  -> EPowerup  (p & puTime .~ t)
+       e           -> e-}
+     
+    
 
 
 

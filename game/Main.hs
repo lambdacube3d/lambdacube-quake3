@@ -80,9 +80,9 @@ mapTuple :: (a -> b) -> (a,a) -> (b,b)
 mapTuple = join (***)
 
 main = do
-  (pk3,ents,mapfile) <- loadMap
+  (pk3,ents,mapfile,bsp) <- loadMap
   putStrLn $ "entity count: " ++ show (length ents)
-  play pk3 (initWorld ents mapfile $ pureMT 123456789) renderFun inputFun stepFun logPlayerChange
+  play pk3 (initWorld ents mapfile $ pureMT 123456789) renderFun inputFun (stepFun bsp) logPlayerChange
 
 noLog _ _ = Nothing
 
@@ -197,7 +197,7 @@ loadMap = do
   let ents = case E.parseEntities bspName $ SB.unpack $ blEntities bsp of
           Left err -> error err
           Right x -> x
-  return (pk3Data,loadEntities ents,fullBSPName)
+  return (pk3Data,loadEntities ents,fullBSPName, bsp)
 
 initWindow :: String -> Int -> Int -> IO Window
 initWindow title width height = do
