@@ -39,6 +39,8 @@ import LoadResources
 import RenderGame
 import GameEngine.RenderSystem as RenderSystem
 
+import Debug.Trace
+
 
 data Event
   = Event
@@ -46,7 +48,7 @@ data Event
   , ksMoveBackward  :: !Bool
   , ksMoveRight     :: !Bool
   , ksMoveLeft      :: !Bool
-  , ksShoot         :: !Bool
+  , ksSpace         :: !Bool
   , ksNumKey        :: !(Maybe Int)
   , ksHoldableKey   :: !(Maybe Int)
   , ksMousePosition :: !(Float,Float)
@@ -67,13 +69,14 @@ inputFun Event{..} w = w & wInput .~ i' where
   i' = i
     { forwardmove = f ksMoveForward - f ksMoveBackward
     , sidemove    = f ksMoveRight - f ksMoveLeft
-    , shoot       = ksShoot
+    , shoot       = ksSpace
     , mouseX      = newMouseX
     , mouseY      = newMouseY
 	, mouseU      = oldMU  - dx / 100
 	, mouseV      = clamp 0.1 3.1 $ oldMV + dy / 100
     , changeWeapon  = do { key <- ksNumKey; Map.lookup key weaponKeys }
     , toggleHoldable = do { key <- ksHoldableKey; Map.lookup key holdableKeys }
+    , World.jump        = ksSpace
     }
 
 mapTuple :: (a -> b) -> (a,a) -> (b,b)

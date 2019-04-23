@@ -23,6 +23,7 @@ data Input
   , mouseV         :: !Float
   , changeWeapon   :: !(Maybe Items.Weapon)
   , toggleHoldable :: !(Maybe Items.Holdable)
+  , jump           :: Bool
   } deriving (Show, Generic)
 
 data World
@@ -56,6 +57,7 @@ initInput = Input
   , mouseV         = 0
   , changeWeapon   = Nothing
   , toggleHoldable = Nothing
+  , jump           = False
   }
 
 data WorldSnapshot

@@ -32,8 +32,7 @@ data Player
   , _pSelectedWeapon :: Items.Weapon
   , _pHoldables   :: Map Items.Holdable (Bool, Float)
   , _pPowerups    :: Set Items.Powerup
-  , _pMD3Model    :: String
-  , _pModelFrame  :: Maybe Int
+  , _pCanJump     :: Bool
   } deriving (Eq, Show, Generic)
 
 data Bullet
