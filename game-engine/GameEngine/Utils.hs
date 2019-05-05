@@ -168,3 +168,10 @@ rotationBetween u v = rotU (crossprod u v) (acos $ dotprod (normalize u) (normal
 
 spherical mouseU mouseV = let sinMV = sin mouseV in Vec3 (cos mouseU * sinMV) (sin mouseU * sinMV) (cos  mouseV)
 
+
+unitVectorAtAngle = sinCos
+
+degToRad a = a/180*pi
+
+clamp minVal maxVal = max minVal. min maxVal
+

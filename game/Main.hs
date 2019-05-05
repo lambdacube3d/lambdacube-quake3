@@ -25,7 +25,7 @@ import qualified Data.ByteString.Char8 as SB
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Map as Map
 
-import GameEngine.Utils (lc_q3_cache)
+import GameEngine.Utils (lc_q3_cache, clamp)
 import GameEngine.Content (loadPK3)
 import GameEngine.Data.BSP
 import GameEngine.Loader.BSP
@@ -69,11 +69,11 @@ inputFun Event{..} w = w & wInput .~ i' where
   i' = i
     { forwardmove = f ksMoveForward - f ksMoveBackward
     , sidemove    = f ksMoveRight - f ksMoveLeft
-    , shoot       = ksSpace
+    , shoot       = maybe False (==2) ksHoldableKey
     , mouseX      = newMouseX
     , mouseY      = newMouseY
-	, mouseU      = oldMU  - dx / 100
-	, mouseV      = clamp 0.1 3.1 $ oldMV + dy / 100
+    , mouseU      = oldMU  - dx / 100
+    , mouseV      = clamp 0.1 3.1 $ oldMV + dy / 100
     , changeWeapon  = do { key <- ksNumKey; Map.lookup key weaponKeys }
     , toggleHoldable = do { key <- ksHoldableKey; Map.lookup key holdableKeys }
     , World.jump        = ksSpace

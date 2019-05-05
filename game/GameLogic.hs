@@ -12,19 +12,23 @@ import Data.Map.Strict as Map (Map, lookup)
 import Data.Vect hiding (Vector)
 import Data.Vect.Float.Instances
 import Data.Vect.Float.Base hiding(Vector)
+import qualified Data.Vect.Float.Base as VB (_1, _2, _3)
 import Data.Vect.Float.Util.Quaternion
+
 
 import Control.Monad.State.Strict
 import Control.Monad.Writer.Strict
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import Control.Monad.RWS
+import Control.Monad.ST
 import Data.Functor.Identity
 import Control.Monad.Random
 import System.Random.Mersenne.Pure64
 
 import Data.Vector (Vector,(!),(//))
 import qualified Data.Vector as V
+import qualified Data.Vector.Mutable as MV
 
 import GameEngine.RenderSystem
 import GameEngine.Collision
@@ -38,6 +42,8 @@ import Visuals
 import World
 import Collision
 import qualified Player
+import Monads
+import Movers
 
 import Debug.Trace
 
@@ -45,54 +51,11 @@ import Debug.Trace
 type Time = Float
 type DTime = Float
 
--- entity update monad (mutable state + collect new entities/visuals)
-type EM s a = ReaderT s (StateT s (MaybeT (WriterT ([Entity],[Visual]) (Rand PureMT)))) a
-
 -- visual item update monad + collect new visual items
 type VM s a = ReaderT s (StateT s (MaybeT (WriterT ([Visual]) (Rand PureMT)))) a
 
 -- monad for collect new entites or visuals
 type CM a = WriterT ([Entity],[Visual]) (Rand PureMT) a
-
--- Entities have access to this data
-data EntityEnvironment = EntityEnvironment {
-  resources :: ResourceCache,
-  level :: BSPLevel,
-  userInput :: Input,
-  gravity :: Vec3
-}
-
-type UpdateM w s = MaybeT (RWST EntityEnvironment w s (Rand PureMT))
-
-type Collected_Objects = ([Entity], [Visual])
-
-type EntityM e = UpdateM  Collected_Objects e
-
-type VisualM v = UpdateM [Visual] v
-
-type CollectM = WriterT Collected_Objects (Rand PureMT)
-
-runUpdateM :: EntityEnvironment -> s -> UpdateM w s s -> PureMT -> (Maybe s, w)
-runUpdateM entityEnvironment state update randGen = evalRand (evalRWST (runMaybeT update) entityEnvironment state) randGen
-
-runEntityM :: EntityEnvironment -> e -> EntityM e e -> PureMT -> (Maybe e, ([Entity], [Visual]))
-runEntityM = runUpdateM
-
-runVisualM :: EntityEnvironment -> v -> VisualM v v -> PureMT -> (Maybe v, [Visual])
-runVisualM = runUpdateM
-
-runCollectM :: PureMT -> CollectM a -> (([Entity], [Visual]), PureMT)
-runCollectM randGen collector = runIdentity $ runRandT (execWriterT collector) randGen
-
-addEntities' :: MonadWriter ([Entity], [Visual]) m => [Entity] -> m ()
-addEntities' entities = tell (entities, [])
-
-addEntity = addEntities . pure
-
-addVisuals' :: MonadWriter ([Entity], [Visual]) m => [Visual] -> m ()
-addVisuals' visuals = tell ([], visuals)
-
-addVisual = addVisuals . pure
 
 
 update :: Monad f => (s -> e) -> s -> ReaderT s (StateT s (MaybeT f)) a2 -> f (Maybe e)
@@ -100,20 +63,12 @@ update f a m = fmap f <$> runMaybeT (execStateT (runReaderT m a) a)
 
 collect :: Monoid w => PureMT -> WriterT w (Rand PureMT) a -> ((a,w),PureMT)
 collect randGen m = runIdentity $ runRandT (runWriterT m) randGen
-
-die :: MonadPlus m => m a
-die = mzero
-
---die instead of survive
-survive :: (e -> Entity) -> EntityM e ()
-survive transformation = do
- entity <- transformation <$> get
- addEntity entity
-
-respawn t f = do
-  s <- get
-  t' <- getRandomR (t + 5, t + 10)
-  addEntities [PSpawn $ Spawn t' (f s)]
+  
+respawn :: Time -> (e -> Entity) -> EntityM e ()
+respawn time create_entity = do
+  entity <- get
+  t' <- getRandomR (time + 5, time + 10)
+  addEntities [PSpawn $ Spawn t' $ create_entity entity]
   die
 
 data Interaction
@@ -128,13 +83,17 @@ data Interaction
   -- bullet
   | PlayerBullet  Player Bullet
   -- add: bullet-level,bullet-item
+  
+  
+data Action 
+ = Damage Int {- index of receiving entity -} Int {- damage quantity -}
 
 {-
   collect collided entities
   transform entities in interaction, collect newly generated entities
   step entities, also collect generated entities
   append generated entities
--}
+
 updateEntities :: BSPLevel -> ResourceCache -> RenderSystem -> PureMT -> Input -> [Entity] -> (PureMT,[Entity],[Visual])
 updateEntities level resources engine randGen input@Input{..} ents = (randGen',catMaybes (V.toList nextEnts) ++ newEnts,newVisuals) where
 
@@ -224,135 +183,32 @@ updateEntities level resources engine randGen input@Input{..} ents = (randGen',c
     if t > time then return False else do
       pDamageTimer .= time + 1
       return True
+-}
 
 applyWorldRules :: World -> World
-applyWorldRules = spawnPlayer
+applyWorldRules = Player.spawnPlayer
 
--- | Spawn a player if there is none.
-spawnPlayer :: World -> World
-spawnPlayer w = w { _wEntities = entities }
-  where
-    wTime = w ^. wInput . to time
-    entities = (case find hasPlayer (_wEntities w) of
-                  Nothing -> ((PSpawn . Spawn wTime $ EPlayer player):)
-                  Just _  -> id) $ _wEntities w
-
-    hasPlayer (EPlayer _)                    = True
-    hasPlayer (PSpawn (Spawn _ (EPlayer _))) = True
-    hasPlayer _                              = False
-
-    isSpawnPoint (ESpawnPoint _) = True
-    isSpawnPoint _               = False
-
-    (ESpawnPoint spawnPoint) = fromJust $ find isSpawnPoint (_wEntities w)
-    player = Player
-      { _pPosition    = _spPosition spawnPoint + Vec3 0 0 80
-      , _pDirection   = _spAngles spawnPoint
-      , _pVelocity   = Vec3 0 0 0
-      , _pHealth      = 100
-      , _pArmor       = 0
-      , _pArmorType   = Nothing
-      , _pShootTime   = 0
-      , _pDamageTimer = 0
-      , _pName        = "Bones"
-      , _pId          = 0
-      , _pWeapons     = Set.fromList [Items.WP_GAUNTLET, Items.WP_MACHINEGUN]
-      , _pSelectedWeapon = Items.WP_MACHINEGUN
-      , _pAmmos       = Map.fromList
-           [ (Items.WP_GAUNTLET,         1)
-           , (Items.WP_MACHINEGUN,     100)
-           ]
-      , _pHoldables  = Map.empty
-      , _pPowerups   = Set.empty
-      , _pRotationUV = Vec3 0 0 0
-      , _pCanJump    = True
-      }
-
-addEntities ents = tell (ents,[])
-addVisuals vis = tell ([],vis)
-
-stepSpawn :: Time -> DTime -> EM Spawn ()
-stepSpawn t dt = do
-  spawnTime <- view sSpawnTime
-  unless (t < spawnTime) $ do
-    ent <- setSpawnTime <$> view sEntity
-    addEntities [ent]
-    die
-  where
-    setSpawnTime = \case
-      EWeapon a   -> EWeapon   (a & wTime  .~ t)
-      EAmmo a     -> EAmmo     (a & aTime  .~ t)
-      EArmor a    -> EArmor    (a & rTime  .~ t)
-      EHealth a   -> EHealth   (a & hTime  .~ t)
-      EHoldable a -> EHoldable (a & hoTime .~ t)
-      EPowerup p  -> EPowerup  (p & puTime .~ t)
-      e           -> e
-      
-applyUserIntendedAcceleration :: Input -> EM Player () --changes player velocity according to user input
-applyUserIntendedAcceleration input@Input{..} = do
- pDirection .= (let sinMV = sin mouseV in Vec3 (cos mouseU * sinMV) (sin mouseU * sinMV) (cos  mouseV))
- direction <- use pDirection
- let friction = 0.93
- pVelocity *= friction 
- velocity' <- use pVelocity
- let 
-  up = Vec3 0 0 1
-  runningSpeed = 8
-  acceleration = 3
-  strafeDirection = normalize $ direction `crossprod` up
-  wishDir = normalize (forwardmove *& direction + sidemove *& strafeDirection)
-  currentSpeed = velocity' &. wishDir
-  addSpeed = runningSpeed - currentSpeed
-  accelSpeed = min addSpeed (acceleration * dtime * runningSpeed)
-  finalVel = if addSpeed <= 0 then velocity' else velocity' + accelSpeed *& wishDir
- pVelocity .= if forwardmove == 0 && sidemove == 0 then velocity' else finalVel
-
-stepPlayer :: Input -> EM Player ()
-stepPlayer input@Input{..} = do
-  pRotationUV .= (Vec3 mouseU 0 mouseV)
-  applyUserIntendedAcceleration input
-  velocity <- use pVelocity
-  pPosition += velocity 
+instance Mover Bullet where
+  getPosition = use bPosition
+  getVelocity = use bDirection
+  reactToCollision _ _ = die
+  reactToGroundHit _ _ = die
+  reactToFalling = return ()
+  setPosition newPos = bPosition .= newPos
+  setVelocity newVel = bDirection .= newVel 
+  getBounds = return $ (,) (Vec3 0 0 0) (Vec3 0 0 0)
   
-  Player.changeWeapon input
-  Player.shoots input
-  Player.togglesHoldable input
-  Player.tickHoldables input
-  pHealth %= min 200
-  -- death
-  health <- use pHealth
-  unless (health > 0) $ playerDie time
-
-playerDie time = do
-    pos <- use pPosition
-    ammos     <- Map.toList <$> use pAmmos
-    armor     <- use pArmor
-    armorType <- use pArmorType
-    weapons <- Set.toList <$> use pWeapons
-    let randomPos = (pos +) <$> getRandomR (Vec3 (-50) (-50) (-50), Vec3 50 50 50) 
-    droppedAmmos <- forM ammos $ \(weapon, amount) -> do
-      rpos <- randomPos
-      return $ EAmmo $ Ammo rpos amount True weapon time
-    droppedWeapos <- forM weapons $ \weapon -> do
-      rpos <- randomPos
-      return $ EWeapon $ Weapon rpos True weapon time
-    droppedArmors <- case armorType of
-      Just at | armor > 0 -> do
-        rpos <- randomPos
-        return [(EArmor $ Armor rpos armor True at time)]
-      _ -> return []
-    addEntities $ concat [droppedArmors, droppedWeapos, droppedAmmos]
-    addVisuals [VParticle $ Particle pos (400 *& (extendZero . unitVectorAtAngle $ pi / 50 * i)) 1 | i <- [0..100]]
-    die
-
-stepBullet :: Time -> DTime -> EM Bullet ()
-stepBullet t dt = do
-  dir <- use bDirection
-  bPosition += dt *& dir
-  -- die on spent lifetime
-  bLifeTime -= dt
-  lifeTime <- use bLifeTime
-  when (lifeTime < 0) die
+stepRocket :: EntityM Bullet Bullet
+stepRocket = do
+ Input{..} <- userInput <$> ask
+ dir       <- use bDirection
+ tryMovingWithRay (bPosition += dtime *& dir) reactToCollision
+ bLifeTime -= dtime
+ lifeTime <- use bLifeTime
+ when (lifeTime < 0) die
+ get
+ 
+ 
 
 updateVisuals :: PureMT -> Time -> DTime -> [Visual] -> (PureMT,[Visual])
 updateVisuals randGen time dtime visuals = (randGen',catMaybes visuals' ++ newVisuals) where
@@ -370,11 +226,6 @@ stepParticle t dt = do
   vpLifeTime -= dt
   lifeTime <- use vpLifeTime
   when (lifeTime < 0) die
-
--- utils
-unitVectorAtAngle = sinCos
-degToRad a = a/180*pi
-clamp minVal maxVal = max minVal. min maxVal
 
 -- world step function
 stepFun :: BSPLevel -> ResourceCache -> RenderSystem -> DTime -> World -> World
@@ -433,106 +284,6 @@ holdableKeys = Map.fromList
   , (3, Items.HI_PORTAL)
   , (4, Items.HI_INVULNERABILITY)
   ]
-  
-  
--- general mover typeclass
--- any type of object can be moved around the map provided that it implements this interface
-class Mover object where 
- getPosition :: EntityM object Vec3
- getVelocity :: EntityM object Vec3
- getBounds :: EntityM object (Vec3, Vec3)
- setPosition :: Vec3 -> EntityM object ()
- setVelocity :: Vec3 -> EntityM object ()
- setJump     :: Bool -> EntityM object ()
- reactToCollision :: EntityM object ()
- 
- 
-instance Mover Player where
-  getPosition = use pPosition
-  
-  getVelocity = use pVelocity
-  
-  setJump canJump = pCanJump .= canJump
-   
-  reactToCollision = return ()
-  
-  setPosition newPos = pPosition .= newPos
-  setVelocity newVel = pVelocity .= newVel
-  
-  getBounds = return $ (,) (Vec3 (-2) (-2) (-60)) (Vec3 2 2 2)
-  
-modifyPosition :: Mover object => Vec3 -> EntityM object ()
-modifyPosition vector = do
- position <- getPosition
- setPosition (position + vector)
- 
---returns whether the object was successfully moved or not
---the second argument is a function that handles collisions. it gets the initial state of the mover
-tryMovingWith:: Mover object => EntityM object () -> (object -> Vec3 -> TraceHit -> EntityM object ()) -> EntityM object Bool 
-tryMovingWith transformation corrigation = do
- bsplevel <- level <$> ask 
- object <- get
- oldPosition <- getPosition
- (frMin, frMax) <- getBounds
- transformation
- newPosition <- getPosition
- case traceBox frMin frMax bsplevel oldPosition newPosition of
-  Nothing -> return True 
-  Just (hitPos, traceHit) -> corrigation object hitPos traceHit >> return False
- 
-velocityCorrigation :: Mover object => object -> Vec3 -> TraceHit -> EntityM object ()
-velocityCorrigation object _ _ = put object
-
-gravityCorrigation :: Mover object => object -> Vec3 -> TraceHit -> EntityM object ()
-gravityCorrigation object hitPos traceHit = put object >> setJump True
-
-modifyZ :: (Float -> Float) -> Vec3 -> Vec3
-modifyZ f (Vec3 x y z) = Vec3 x y $ f z
-
-clearZ :: Vec3 -> Vec3
-clearZ = modifyZ $ const 0
-
-
-updateMover :: Mover object => EntityM object ()
-updateMover = do
- Input{..} <- userInput <$> ask
- velocity <- getVelocity
- moved <- tryMovingWith (modifyPosition velocity) velocityCorrigation
- gravity <- gravity <$> ask
- falling <- tryMovingWith (modifyPosition gravity) gravityCorrigation
- if falling then setVelocity (velocity + dtime *& gravity) else unless moved (setVelocity zero)
- 
-jumpMover :: Mover object => EntityM object ()
-jumpMover = getVelocity >>= \velocity -> setVelocity (velocity + modifyZ (+10) zero)
- 
- 
-    
---updateMover :: Mover object => object -> EntityM object ()
---The Mover typeclass provides all the necessary functions to implement a generic move method.
---Idea:
--- move the object using its own logic (in case of a player, that means adding the velocity vector to the current position)
--- test for a collision and if there is one, leave it in its original position
---  
-
-applyUserIntendedAcceleration' :: EntityM Player () --changes player velocity according to user input
-applyUserIntendedAcceleration' = do
- Input{..} <- userInput <$> ask
- pDirection .= (let sinMV = sin mouseV in Vec3 (cos mouseU * sinMV) (sin mouseU * sinMV) (cos  mouseV))
- direction <- use pDirection
- let friction = 0.93
- pVelocity *= friction 
- velocity' <- use pVelocity
- let 
-  up = Vec3 0 0 1
-  runningSpeed = 8
-  acceleration = 3
-  strafeDirection = normalize $ direction `crossprod` up
-  wishDir = clearZ $ normalize (forwardmove *& direction + sidemove *& strafeDirection)
-  currentSpeed = velocity' &. wishDir
-  addSpeed = runningSpeed - currentSpeed
-  accelSpeed = min addSpeed (acceleration * dtime * runningSpeed)
-  finalVel = if addSpeed <= 0 then velocity' else velocity' + accelSpeed *& wishDir
- pVelocity .= if forwardmove == 0 && sidemove == 0 then velocity' else finalVel
  
  
 class Spawnable object where
@@ -547,17 +298,26 @@ instance Spawnable Entity where
    EHoldable a -> EHoldable (a & hoTime .~ t)
    EPowerup p  -> EPowerup  (p & puTime .~ t)
    e           -> e
- 
+   
+  
+updateEntity :: EntityEnvironment -> (e -> Entity) -> e -> EntityM e e -> CollectM ()
+updateEntity entityEnv transformation initialState action = do
+  seed <- getRandom
+  let (modifiedEntity, newObjects) = runEntityM entityEnv initialState action (pureMT $ fromIntegral (seed :: Int))
+  maybe (return ()) (addEntity . transformation) modifiedEntity
+  tell newObjects
  
 updateScene :: BSPLevel -> ResourceCache -> RenderSystem -> PureMT -> Input -> [Entity] -> (PureMT,[Entity],[Visual])
 updateScene map resourceCache engine randGen input ents = (newRandGen, entitiesInNextFrame, newVisuals) 
   where
-    entityEnv = EntityEnvironment { 
-     resources = resourceCache, 
-     level = map, 
-     userInput = input,
-     gravity = Vec3 0 0 (-2.6)
-    }
+    entityEnv = EntityEnvironment 
+     { 
+       resources = resourceCache
+     , level     = map 
+     , userInput = input
+     , gravity   = Vec3 0 0 (-15.6)
+     , entites   = entityVector
+     }
     
     entityVector :: Vector Entity
     entityVector = V.fromList ents
@@ -567,38 +327,30 @@ updateScene map resourceCache engine randGen input ents = (newRandGen, entitiesI
 
     interactions :: [(Int,Int)] -> [Interaction]
     interactions _ = [] 
-
- 
-    ((entitiesInNextFrame, newVisuals), newRandGen) = runCollectM randGen (mapM_ step entityVector)
     
-    updateEntity :: (e -> Entity ) -> e -> EntityM e e -> CollectM ()
-    updateEntity transformation initialState action = do
-     seed <- getRandom
-     let (modifiedEntity, newObjects) = runEntityM entityEnv initialState action (pureMT $ fromIntegral (seed :: Int))
-     maybe (return ()) (addEntity . transformation) modifiedEntity
-     tell newObjects
+    interact_ :: Bool -> (Entity, Entity) -> (Maybe Entity, Maybe Entity)
+    interact_ _ (e1, e2) = (Just e1, Just e2)
+    
+    ((entitiesInNextFrame, newVisuals), newRandGen) = runCollectM randGen $ do 
+      let 
+        entities_after_interaction = V.mapMaybe id $ V.modify (\mvector -> mapM_ (go mvector) collisions) $ V.map Just entityVector
+        writeUpdatedEnts mvector i1 i2 (e1, e2) = MV.write mvector i1 e1 >> MV.write mvector i2 e2
+        go mvector (i1,i2) = ((,) <$> MV.read mvector i1 <*> MV.read mvector i2) >>= 
+         \case 
+          (Just e1, Just e2) -> writeUpdatedEnts mvector i1 i2 (interact_ True (e1,e2)) 
+          _ -> return ()
+      mapM_ step entities_after_interaction
+      
+    update = updateEntity entityEnv
 
     step :: Entity -> CollectM ()
-    step (EPlayer player) = updateEntity EPlayer player stepPlayer
-    step (PSpawn spawn) = updateEntity PSpawn spawn stepSpawn'
+    step (EPlayer player) = update EPlayer player Player.stepPlayer
+    step (PSpawn spawn) = update PSpawn spawn stepSpawn
+    step (EBullet bullet) = update EBullet bullet stepRocket
     step x = addEntity x 
     
-    stepPlayer :: EntityM Player Player
-    stepPlayer = do
-     Input{..} <- userInput <$> ask
-     pRotationUV .= (Vec3 mouseU 0 mouseV)
-     applyUserIntendedAcceleration'
-     canJump <- use pCanJump
-     if jump &&  canJump
-      then do 
-       pCanJump .= False
-       jumpMover 
-      else return ()
-     updateMover
-     get
-    
-    stepSpawn' :: EntityM Spawn Spawn
-    stepSpawn' = do
+    stepSpawn :: EntityM Spawn Spawn
+    stepSpawn = do
      let 
       spawnEntity t = do
        ent <- setSpawnTime t <$> use sEntity

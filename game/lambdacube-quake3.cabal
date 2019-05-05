@@ -21,6 +21,8 @@ executable shooter
                     GameLogic
                     Items
                     Player
+                    Monads
+                    Movers
   default-language: Haskell2010
 
   build-depends:
