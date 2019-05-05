@@ -83,10 +83,6 @@ data Interaction
   -- bullet
   | PlayerBullet  Player Bullet
   -- add: bullet-level,bullet-item
-  
-  
-data Action 
- = Damage Int {- index of receiving entity -} Int {- damage quantity -}
 
 {-
   collect collided entities
@@ -306,6 +302,11 @@ updateEntity entityEnv transformation initialState action = do
   let (modifiedEntity, newObjects) = runEntityM entityEnv initialState action (pureMT $ fromIntegral (seed :: Int))
   maybe (return ()) (addEntity . transformation) modifiedEntity
   tell newObjects
+  
+  
+applyAction :: Action -> Entity -> Entity
+applyAction (Damage dmg) (EPlayer p) = EPlayer $ p { _pHealth = _pHealth p - dmg } 
+applyAction _ _ = undefined
  
 updateScene :: BSPLevel -> ResourceCache -> RenderSystem -> PureMT -> Input -> [Entity] -> (PureMT,[Entity],[Visual])
 updateScene map resourceCache engine randGen input ents = (newRandGen, entitiesInNextFrame, newVisuals) 
@@ -316,7 +317,7 @@ updateScene map resourceCache engine randGen input ents = (newRandGen, entitiesI
      , level     = map 
      , userInput = input
      , gravity   = Vec3 0 0 (-15.6)
-     , entites   = entityVector
+     , entities   = entityVector
      }
     
     entityVector :: Vector Entity
@@ -331,17 +332,21 @@ updateScene map resourceCache engine randGen input ents = (newRandGen, entitiesI
     interact_ :: Bool -> (Entity, Entity) -> (Maybe Entity, Maybe Entity)
     interact_ _ (e1, e2) = (Just e1, Just e2)
     
-    ((entitiesInNextFrame, newVisuals), newRandGen) = runCollectM randGen $ do 
-      let 
-        entities_after_interaction = V.mapMaybe id $ V.modify (\mvector -> mapM_ (go mvector) collisions) $ V.map Just entityVector
-        writeUpdatedEnts mvector i1 i2 (e1, e2) = MV.write mvector i1 e1 >> MV.write mvector i2 e2
-        go mvector (i1,i2) = ((,) <$> MV.read mvector i1 <*> MV.read mvector i2) >>= 
-         \case 
-          (Just e1, Just e2) -> writeUpdatedEnts mvector i1 i2 (interact_ True (e1,e2)) 
-          _ -> return ()
+    entities_after_interaction = V.mapMaybe id $ V.modify (\mvector -> mapM_ (go mvector) collisions) $ V.map Just entityVector
+    writeUpdatedEnts mvector i1 i2 (e1, e2) = MV.write mvector i1 e1 >> MV.write mvector i2 e2
+    go mvector (i1,i2) = ((,) <$> MV.read mvector i1 <*> MV.read mvector i2) >>= \case 
+     (Just e1, Just e2) -> writeUpdatedEnts mvector i1 i2 (interact_ True (e1,e2)) 
+     _ -> return ()
+    
+    applyActions ents actions = ents // fmap (apply ents) actions 
+    
+    apply ents (index, action) = (index, applyAction action (ents ! index))
+    
+    
+    ((entitiesInNextFrame, newVisuals, actions), newRandGen) = runCollectM randGen $ do 
       mapM_ step entities_after_interaction
       
-    update = updateEntity entityEnv
+    update = updateEntity $ entityEnv { entities = entities_after_interaction }
 
     step :: Entity -> CollectM ()
     step (EPlayer player) = update EPlayer player Player.stepPlayer

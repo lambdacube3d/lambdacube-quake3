@@ -35,12 +35,12 @@ data EntityEnvironment = EntityEnvironment
   , level     :: BSPLevel
   , userInput :: Input
   , gravity   :: Vec3
-  , entites   :: Vector Entity
+  , entities  :: Vector Entity
  }
 
 type UpdateM w s = MaybeT (RWST EntityEnvironment w s (Rand PureMT))
 
-type Collected_Objects = ([Entity], [Visual])
+type Collected_Objects = ([Entity], [Visual], [(Int, Action)])
 
 type EntityM e = UpdateM  Collected_Objects e
 
@@ -53,29 +53,35 @@ type CollectM = CollectMT Identity
 runUpdateM :: EntityEnvironment -> s -> UpdateM w s s -> PureMT -> (Maybe s, w)
 runUpdateM entityEnvironment state update randGen = evalRand (evalRWST (runMaybeT update) entityEnvironment state) randGen
 
-runEntityM :: EntityEnvironment -> e -> EntityM e e -> PureMT -> (Maybe e, ([Entity], [Visual]))
+runEntityM :: EntityEnvironment -> e -> EntityM e e -> PureMT -> (Maybe e, Collected_Objects)
 runEntityM = runUpdateM
 
 runVisualM :: EntityEnvironment -> v -> VisualM v v -> PureMT -> (Maybe v, [Visual])
 runVisualM = runUpdateM
 
-runCollectMT :: Monad m => PureMT -> CollectMT m a -> m (([Entity], [Visual]), PureMT)
+runCollectMT :: Monad m => PureMT -> CollectMT m a -> m (Collected_Objects, PureMT)
 runCollectMT randGen collector = runRandT (execWriterT collector) randGen
 
-runCollectM :: PureMT -> CollectM a -> (([Entity], [Visual]), PureMT)
+runCollectM :: PureMT -> CollectM a -> (Collected_Objects, PureMT)
 runCollectM p c = runIdentity $ runCollectMT p c
 
-addEntities :: MonadWriter ([Entity], [Visual]) m => [Entity] -> m ()
-addEntities entities = tell (entities, [])
+addEntities :: MonadWriter Collected_Objects m => [Entity] -> m ()
+addEntities entities = tell (entities, [], [])
 
-addEntity :: MonadWriter ([Entity], [Visual]) m => Entity -> m ()
+addEntity :: MonadWriter Collected_Objects m => Entity -> m ()
 addEntity = addEntities . pure
 
-addVisuals :: MonadWriter ([Entity], [Visual]) m => [Visual] -> m ()
-addVisuals visuals = tell ([], visuals)
+addVisuals :: MonadWriter Collected_Objects m => [Visual] -> m ()
+addVisuals visuals = tell ([], visuals, [])
 
-addVisual :: MonadWriter ([Entity], [Visual]) m => Visual -> m ()
+addVisual :: MonadWriter Collected_Objects m => Visual -> m ()
 addVisual = addVisuals . pure
+
+addActions :: MonadWriter Collected_Objects m => [(Int, Action)] -> m ()
+addActions actions = tell ([],[],actions)
+
+addAction :: MonadWriter Collected_Objects m => (Int, Action) -> m ()
+addAction = addActions . pure
 
 die :: MonadPlus m => m a
 die = mzero

@@ -149,54 +149,8 @@ isPlayer :: Entity -> Bool
 isPlayer (EPlayer _) = True
 isPlayer _ = False
   
-{-
-Role of EM:
-Entities get updated in this monad.
-The final output is a pair of entities and visuals to render next frame.
-It features mutable state for manipulating an entity before adding it to the output.
-For example: updatePlayer :: EM Player ()  
--}
-  
-class Entity' a where
--- think :: CM 
-  
-{-
-typedef enum {
-	ET_GENERAL,
-	ET_PLAYER,
-	ET_ITEM,
-	ET_MISSILE,
-	ET_MOVER,
-	ET_BEAM,
-	ET_PORTAL,
-	ET_SPEAKER,
-	ET_PUSH_TRIGGER,
-	ET_TELEPORT_TRIGGER,
-	ET_INVISIBLE,
-	ET_GRAPPLE,				// grapple hooked on wall
-	ET_TEAM,
-
-	ET_EVENTS				// any of the EV_* events can be added freestanding
-							// by setting eType to ET_EVENTS + eventNum
-							// this avoids having to set eFlags and eventNum
-} entityType_t; 
-
-typedef enum {
-	IT_BAD,
-	IT_WEAPON,				// EFX: rotate + upscale + minlight
-	IT_AMMO,				// EFX: rotate
-	IT_ARMOR,				// EFX: rotate + minlight
-	IT_HEALTH,				// EFX: static external sphere + rotating internal
-	IT_POWERUP,				// instant on, timer based
-							// EFX: rotate + external ring that rotates
-	IT_HOLDABLE,			// single use, holdable item
-							// EFX: rotate + bob
-	IT_PERSISTANT_POWERUP,
-	IT_TEAM
-} itemType_t;
-
-
--}
+data Action 
+ = Damage Int --damage quantity
 
 concat <$> mapM makeLenses [''Player, ''Bullet, ''Weapon, ''Ammo, ''Armor, ''Spawn, ''Health, ''Lava, ''Teleport, ''Target, ''Killbox, ''Holdable, ''Powerup]
 
