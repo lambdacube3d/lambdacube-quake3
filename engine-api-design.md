@@ -11,3 +11,19 @@
 ### IDEA:
 
 - allow resource quierying from game logic code ; this follows the c game logic design
+
+## Towards Client-Server Architecture
+
+- associate clients with ID to identify them in WorldSnapshot
+- move input to player entity record ; each player should contain its own input
+- enhance input handling to cope with multiple clients
+- dummy client ; just shoots
+- modify renderer to use local client entity (identified by local client ID)
+
+## State Patching
+
+### use-case: weapon / shooting
+
+*basis for the case-study*
+
+- rocket launcher: apply damage to surrounding players
