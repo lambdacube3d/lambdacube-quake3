@@ -486,7 +486,7 @@ weaponInfos =
     , wiFlashModel   = Just "models/weapons2/machinegun/machinegun_flash.md3"
     , wiHandModel    = Just "models/weapons2/machinegun/machinegun_hand.md3"
     , wiBarrelModel  = Just "models/weapons2/machinegun/machinegun_barrel.md3"
-    , wiRPM          = 500
+    , wiRPM          = 800
     }
   , WeaponInfo
     { wiMissileModel = Nothing

@@ -192,7 +192,7 @@ instance Mover Bullet where
   reactToFalling = return ()
   setPosition newPos = bPosition .= newPos
   setVelocity newVel = bDirection .= newVel 
-  getBounds = return $ (,) (Vec3 0 0 0) (Vec3 0 0 0)
+  getBounds = return $ (,) (Vec3 (-3) (-3) (-3)) (Vec3 3 3 3)
   
 stepRocket :: EntityM Bullet Bullet
 stepRocket = do
@@ -304,12 +304,12 @@ updateEntity entityEnv transformation initialState action = do
   tell newObjects
   
   
-applyAction :: Action -> Entity -> Entity
-applyAction (Damage dmg) (EPlayer p) = EPlayer $ p { _pHealth = _pHealth p - dmg } 
-applyAction _ _ = undefined
+applyAction :: EntityEnvironment -> Action -> Entity -> Maybe Entity
+applyAction env (Damage dmg) (EPlayer p)  = Just $ EPlayer $ p { _pHealth = _pHealth p - dmg } 
+applyAction _ _ _ = undefined
  
 updateScene :: BSPLevel -> ResourceCache -> RenderSystem -> PureMT -> Input -> [Entity] -> (PureMT,[Entity],[Visual])
-updateScene map resourceCache engine randGen input ents = (newRandGen, entitiesInNextFrame, newVisuals) 
+updateScene map resourceCache engine randGen input ents = (newRandGen, actionProcessedEntites, newVisuals) 
   where
     entityEnv = EntityEnvironment 
      { 
@@ -317,7 +317,7 @@ updateScene map resourceCache engine randGen input ents = (newRandGen, entitiesI
      , level     = map 
      , userInput = input
      , gravity   = Vec3 0 0 (-15.6)
-     , entities   = entityVector
+     , entities  = entityVector
      }
     
     entityVector :: Vector Entity
@@ -340,11 +340,13 @@ updateScene map resourceCache engine randGen input ents = (newRandGen, entitiesI
     
     applyActions ents actions = ents // fmap (apply ents) actions 
     
-    apply ents (index, action) = (index, applyAction action (ents ! index))
+    apply ents (index, action) = let entity = ents ! index in (index, maybe Nothing (applyAction actionEnv action) entity)
     
+    ((entitiesInNextFrame, newVisuals, actions), newRandGen) = runCollectM randGen $ mapM_ step entities_after_interaction
+    actionProcessedEntites = V.toList $ V.mapMaybe id $ applyActions (V.map Just $ entitiesInNextFrameAsVector) actions
     
-    ((entitiesInNextFrame, newVisuals, actions), newRandGen) = runCollectM randGen $ do 
-      mapM_ step entities_after_interaction
+    entitiesInNextFrameAsVector = V.fromList entitiesInNextFrame
+    actionEnv = entityEnv { entities =  entitiesInNextFrameAsVector }
       
     update = updateEntity $ entityEnv { entities = entities_after_interaction }
 

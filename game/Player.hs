@@ -7,6 +7,8 @@ import Monads
 import Visuals
 import Items
 import Movers
+import LoadResources(itemMap, weaponInfoMap)
+import Collision
 
 import Control.Monad
 import Control.Monad.Writer.Strict
@@ -14,6 +16,7 @@ import Control.Monad.Reader
 import Control.Monad.Random
 import Control.Monad.State
 import qualified Data.Map.Strict as Map
+import Data.Map.Strict((!))
 import Data.Maybe
 import qualified Data.Set as Set
 import Data.Vect hiding (Vector)
@@ -21,23 +24,52 @@ import Data.Foldable
 import Lens.Micro.Platform
 
 import GameEngine.Utils
-  
+import GameEngine.Collision
+import Debug.Trace 
+
+
+---Weapon behaviours
   
 shoots :: EntityM Player ()  
 shoots = do
   Input{..} <- userInput <$> ask
   shootTime <- use pShootTime
-  when (shoot && time - shootTime > 0.1) $ do
-    weapon  <- use pSelectedWeapon
-    hasAmmo <- maybe False (>0) . Map.lookup weapon <$> use pAmmos
-    when hasAmmo $ do
-      pAmmos %= Map.update (\amount -> Just $ if amount < 1 then 0 else (amount - 1)) weapon
-      pos       <- use pPosition
-      direction <- use pDirection
-      addEntities [EBullet $ Bullet (pos + 50 *& direction) (500 *& direction) 1 2 weapon]
-      pShootTime .= time
+  weapon    <- use pSelectedWeapon
+  hasAmmo   <- maybe False (>0) . Map.lookup weapon <$> use pAmmos
+  let WeaponInfo{..} = weaponInfoMap ! weapon
+  when (shoot && time - shootTime > 60 / fromIntegral wiRPM && hasAmmo) $ do
+    pAmmos %= Map.update (\amount -> Just $ if amount < 1 then 0 else (amount - 1)) weapon
+    fireWeapon weapon
+    pShootTime .= time
     
-    
+fireWeapon :: Items.Weapon -> EntityM Player ()
+fireWeapon = \case
+ WP_MACHINEGUN -> fireMachineGun 
+ WP_SHOTGUN    -> fireShotGun
+ _ -> do
+  pos       <- use pPosition
+  direction <- use pDirection
+  weapon    <- use pSelectedWeapon
+  addEntities [EBullet $ Bullet (pos + 50 *& direction) (500 *& direction) 1 2 weapon]
+---
+
+
+fireMachineGun :: EntityM Player ()
+fireMachineGun = do
+  pos       <- use pPosition
+  direction <- use pDirection
+  weapon    <- use pSelectedWeapon
+  entities  <- entities <$> ask
+  level     <- level <$> ask
+  let entityHits = getEntitiesIntersectingRay entities pos direction
+  --We can add actions here to damage the entities in entityHits
+  maybe (return ()) (\(hitPos, trHit) -> addEntity (EBullet $ Bullet { _bPosition = hitPos, _bDirection = (-100)*&direction, _bDamage = 1, _bLifeTime = 10, _bType = weapon})) (traceRay level pos (pos + 200 *& direction))
+ 
+ 
+
+fireShotGun :: EntityM Player ()
+fireShotGun = undefined
+ 
 changeWeapon :: EntityM Player () 
 changeWeapon = do
   let 
@@ -150,11 +182,12 @@ spawnPlayer w = w { _wEntities = entities }
       , _pDamageTimer = 0
       , _pName        = "Bones"
       , _pId          = 0
-      , _pWeapons     = Set.fromList [Items.WP_GAUNTLET, Items.WP_MACHINEGUN]
+      , _pWeapons     = Set.fromList [Items.WP_GAUNTLET, Items.WP_MACHINEGUN, Items.WP_ROCKET_LAUNCHER]
       , _pSelectedWeapon = Items.WP_MACHINEGUN
       , _pAmmos       = Map.fromList
            [ (Items.WP_GAUNTLET,         1)
            , (Items.WP_MACHINEGUN,     100)
+           , (Items.WP_ROCKET_LAUNCHER, 100)
            ]
       , _pHoldables  = Map.empty
       , _pPowerups   = Set.empty

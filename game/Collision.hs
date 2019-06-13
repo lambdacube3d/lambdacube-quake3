@@ -10,6 +10,7 @@ import Lens.Micro.Platform
 --import qualified Data.KdMap.Static as KDT
 import GameEngine.RenderSystem
 import GameEngine.Data.MD3
+import GameEngine.Collision
 import Entities
 import Monads
 
@@ -130,7 +131,12 @@ rayIntersectsAABB
 
 rayIntersectsBox :: Vec3 -> Vec3 -> Mat4 -> Vec3 -> Vec3 -> Bool
 rayIntersectsBox rayOrigin rayDir transformation boxMin boxMax = undefined
+
+data RayHit = RayHit 
+ {
+  fraction :: Float
+ }
     
-getEntitiesIntersectingRay :: [Entity] -> Vec3 -> Vec3 -> [Entity]
-getEntitiesIntersectingRay ents = undefined
- where models = map getModel ents 
+getEntitiesIntersectingRay :: V.Vector Entity -> Vec3 -> Vec3 -> [(RayHit, Entity)]
+getEntitiesIntersectingRay ents pos dir = undefined
+ where models = V.map getModel ents 

@@ -42,7 +42,7 @@ type UpdateM w s = MaybeT (RWST EntityEnvironment w s (Rand PureMT))
 
 type Collected_Objects = ([Entity], [Visual], [(Int, Action)])
 
-type EntityM e = UpdateM  Collected_Objects e
+type EntityM e = UpdateM Collected_Objects e
 
 type VisualM v = UpdateM [Visual] v
 
