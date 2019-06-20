@@ -1,4 +1,6 @@
 {-# LANGUAGE RecordWildCards, PackageImports #-}
+module Main where
+
 import GHC.IO (failIO)
 import Control.Monad
 import Control.Arrow
@@ -18,11 +20,12 @@ import qualified System.Mem
 import Data.Char
 import Data.Map (Map)
 import Data.List (find)
+import Data.Vect.Float.Base hiding(Vector)
 import qualified Data.ByteString.Char8 as SB
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Map as Map
 
-import GameEngine.Utils (lc_q3_cache)
+import GameEngine.Utils (lc_q3_cache, clamp)
 import GameEngine.Content (loadPK3)
 import GameEngine.Data.BSP
 import GameEngine.Loader.BSP
@@ -36,6 +39,8 @@ import LoadResources
 import RenderGame
 import GameEngine.RenderSystem as RenderSystem
 
+import Debug.Trace
+
 
 data Event
   = Event
@@ -43,7 +48,7 @@ data Event
   , ksMoveBackward  :: !Bool
   , ksMoveRight     :: !Bool
   , ksMoveLeft      :: !Bool
-  , ksShoot         :: !Bool
+  , ksSpace         :: !Bool
   , ksNumKey        :: !(Maybe Int)
   , ksHoldableKey   :: !(Maybe Int)
   , ksMousePosition :: !(Float,Float)
@@ -54,24 +59,33 @@ inputFun Event{..} w = w & wInput .~ i' where
   f True = 300
   f False = 0
 
-  i@Input{..} = w^.wInput
+  oldMU = mouseU i
+  oldMV = mouseV i
+  dx = newMouseX - mouseX i
+  dy = newMouseY - mouseY i
+  newMouseX = fst ksMousePosition
+  newMouseY = snd ksMousePosition
+  i = w^.wInput
   i' = i
     { forwardmove = f ksMoveForward - f ksMoveBackward
     , sidemove    = f ksMoveRight - f ksMoveLeft
-    , shoot       = ksShoot
-    , mouseX      = fst ksMousePosition
-    , mouseY      = snd ksMousePosition
+    , shoot       = maybe False (==2) ksHoldableKey
+    , mouseX      = newMouseX
+    , mouseY      = newMouseY
+    , mouseU      = oldMU  - dx / 100
+    , mouseV      = clamp 0.1 3.1 $ oldMV + dy / 100
     , changeWeapon  = do { key <- ksNumKey; Map.lookup key weaponKeys }
     , toggleHoldable = do { key <- ksHoldableKey; Map.lookup key holdableKeys }
+    , World.jump        = ksSpace
     }
 
 mapTuple :: (a -> b) -> (a,a) -> (b,b)
 mapTuple = join (***)
 
 main = do
-  (pk3,ents,mapfile) <- loadMap
+  (pk3,ents,mapfile,bsp) <- loadMap
   putStrLn $ "entity count: " ++ show (length ents)
-  play pk3 (initWorld ents mapfile $ pureMT 123456789) renderFun inputFun stepFun logPlayerChange
+  play pk3 (initWorld ents mapfile $ pureMT 123456789) renderFun inputFun (stepFun bsp) logPlayerChange
 
 noLog _ _ = Nothing
 
@@ -84,7 +98,7 @@ play :: Map String Entry
      -> IO ()
 play pk3 world0 getScene processInput stepWorld logWorldChange = do
   -- init graphics
-  win <- initWindow "LambdaCube 3D Shooter" 800 600
+  win <- initWindow "LambdaCube 3D Shooter" 1920 1080
   renderSystem <- initRenderSystem pk3
   loadResources renderSystem (worldResources world0 ++ hudResources) []
 
@@ -186,7 +200,7 @@ loadMap = do
   let ents = case E.parseEntities bspName $ SB.unpack $ blEntities bsp of
           Left err -> error err
           Right x -> x
-  return (pk3Data,loadEntities ents,fullBSPName)
+  return (pk3Data,loadEntities ents,fullBSPName, bsp)
 
 initWindow :: String -> Int -> Int -> IO Window
 initWindow title width height = do

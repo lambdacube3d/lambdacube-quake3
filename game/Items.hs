@@ -3,6 +3,7 @@ module Items where
 
 import GHC.Generics (Generic)
 import Data.Binary
+import qualified Data.IntMap as IM
 
 import Data.Map.Strict as Map
 
@@ -61,7 +62,7 @@ data Weapon
   | WP_PLASMAGUN
   | WP_BFG
   | WP_GRAPPLING_HOOK
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, Enum)
 
 instance Binary Powerup
 instance Binary Team
@@ -455,11 +456,18 @@ items =
     , itSounds      = []
     }
   ]
+  
+--weaponModel_Map :: IM.IntMap Item
+
 
 data WeaponInfo
   = WeaponInfo
   { wiMissileModel :: Maybe String
+  , wiFlashModel   :: Maybe String
+  , wiHandModel    :: Maybe String
+  , wiBarrelModel  :: Maybe String
   , wiType         :: Weapon
+  , wiRPM          :: Int         --weapon rate of fire
   }
 
 weaponInfos :: [WeaponInfo]
@@ -467,41 +475,81 @@ weaponInfos =
   [ WeaponInfo
     { wiMissileModel = Nothing
     , wiType         = WP_GAUNTLET
+    , wiFlashModel   = Nothing
+    , wiHandModel    = Nothing
+    , wiBarrelModel  = Nothing
+    , wiRPM          = 500
     }
   , WeaponInfo
     { wiMissileModel = Nothing
     , wiType         = WP_MACHINEGUN
+    , wiFlashModel   = Just "models/weapons2/machinegun/machinegun_flash.md3"
+    , wiHandModel    = Just "models/weapons2/machinegun/machinegun_hand.md3"
+    , wiBarrelModel  = Just "models/weapons2/machinegun/machinegun_barrel.md3"
+    , wiRPM          = 800
     }
   , WeaponInfo
     { wiMissileModel = Nothing
     , wiType         = WP_SHOTGUN
+    , wiFlashModel   = Just "models/weapons2/shotgun/shotgun_flash.md3"
+    , wiHandModel    = Just "models/weapons2/shotgun/shotgun_hand.md3"
+    , wiBarrelModel  = Nothing
+    , wiRPM          = 300
     }
   , WeaponInfo
     { wiMissileModel = Just "models/ammo/grenade1.md3"
     , wiType         = WP_GRENADE_LAUNCHER
+    , wiFlashModel   = Nothing
+    , wiHandModel    = Nothing
+    , wiBarrelModel  = Nothing
+    , wiRPM          = 100
     }
   , WeaponInfo
     { wiMissileModel = Just "models/ammo/rocket/rocket.md3"
+    , wiHandModel    = Just "models/weapons2/rocketl/rocketl_hand.md3"
+    , wiFlashModel   = Just "models/weapons2/rocketl/rocketl_flash.md3"
+    , wiBarrelModel  = Nothing
     , wiType         = WP_ROCKET_LAUNCHER
+    , wiRPM          = 200
     }
   , WeaponInfo
     { wiMissileModel = Nothing
     , wiType         = WP_LIGHTNING
+    , wiFlashModel   = Nothing
+    , wiHandModel    = Nothing
+    , wiBarrelModel  = Nothing
+    , wiRPM          = 100
     }
   , WeaponInfo
     { wiMissileModel = Nothing
     , wiType         = WP_RAILGUN
+    , wiFlashModel   = Nothing
+    , wiHandModel    = Nothing
+    , wiBarrelModel  = Nothing
+    , wiRPM          = 100
     }
   , WeaponInfo
     { wiMissileModel = Nothing
     , wiType         = WP_PLASMAGUN
+    , wiHandModel    = Just "models/weapons2/plasma/plasma_hand.md3"
+    , wiFlashModel   = Just "models/weapons2/plasma/plasma_flash.md3"
+    , wiBarrelModel  = Nothing
+    , wiRPM          = 100
     }
   , WeaponInfo
     { wiMissileModel = Just "models/weaphits/bfg.md3"
     , wiType         = WP_BFG
+    , wiFlashModel   = Nothing
+    , wiHandModel    = Nothing
+    , wiBarrelModel  = Nothing
+    , wiRPM          = 100
     }
   , WeaponInfo
     { wiMissileModel = Just "models/ammo/rocket/rocket.md3"
+    , wiBarrelModel  = Nothing
+    , wiHandModel    = Nothing
     , wiType         = WP_GRAPPLING_HOOK
+    , wiFlashModel   = Nothing
+    , wiRPM          = 100
     }
   ]

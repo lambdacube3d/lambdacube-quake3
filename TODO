@@ -60,6 +60,15 @@ game
     - gravity
     - door handling; need inline model support
     - refactor entities to use q3 item types
+    - Allow entities to indirectly modify other entities:
+      In each frame, when an entity gets updated, it can inspect the previous state of any entity
+      Use case: shooting
+      Based on this information, the entity can make Actions
+      After every entity has been updated, the collected actions are processed, putting the entities in their final state for the next frame
+    - Hit detection (Ray -> Entity)
+      Blocker: 
+       No general method yet for entity collision geometry query (Problem: which frame?)
+
 
 refactor notes:
   - use proper resource monad

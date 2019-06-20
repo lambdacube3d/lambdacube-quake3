@@ -19,8 +19,11 @@ data Input
   , time           :: !Float
   , mouseX         :: !Float
   , mouseY         :: !Float
+  , mouseU         :: !Float
+  , mouseV         :: !Float
   , changeWeapon   :: !(Maybe Items.Weapon)
   , toggleHoldable :: !(Maybe Items.Holdable)
+  , jump           :: Bool
   } deriving (Show, Generic)
 
 data World
@@ -49,9 +52,12 @@ initInput = Input
   , dtime          = 0
   , time           = 0
   , mouseX         = 0
-  , mouseY         = 0
+  , mouseY         = 100 * pi / 2
+  , mouseU         = 0
+  , mouseV         = 0
   , changeWeapon   = Nothing
   , toggleHoldable = Nothing
+  , jump           = False
   }
 
 data WorldSnapshot

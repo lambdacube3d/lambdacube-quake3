@@ -18,8 +18,8 @@ data Player
   = Player
   { _pPosition    :: Vec3
   , _pDirection   :: Vec3
-  , _pFVelocity   :: Float
-  , _pSVelocity   :: Float
+  , _pVelocity    :: Vec3
+  , _pRotationUV  :: Vec3
   , _pHealth      :: Int
   , _pArmor       :: Int
   , _pArmorType   :: Maybe Items.Armor
@@ -32,6 +32,7 @@ data Player
   , _pSelectedWeapon :: Items.Weapon
   , _pHoldables   :: Map Items.Holdable (Bool, Float)
   , _pPowerups    :: Set Items.Powerup
+  , _pCanJump     :: Bool
   } deriving (Eq, Show, Generic)
 
 data Bullet
@@ -143,6 +144,13 @@ data Entity
   | EHoldable   Holdable
   | EPowerup    Powerup
   deriving (Eq, Show, Generic)
+  
+isPlayer :: Entity -> Bool
+isPlayer (EPlayer _) = True
+isPlayer _ = False
+  
+data Action 
+ = Damage Int --damage quantity
 
 concat <$> mapM makeLenses [''Player, ''Bullet, ''Weapon, ''Ammo, ''Armor, ''Spawn, ''Health, ''Lava, ''Teleport, ''Target, ''Killbox, ''Holdable, ''Powerup]
 

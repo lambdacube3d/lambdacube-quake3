@@ -17,7 +17,10 @@ import GameEngine.Utils
 import Debug.Trace
 import Items
 import LoadResources
+import Debug.Trace
 
+
+up = Vec3 0 0 1
 
 cITEM_SCALEUP_TIME :: Float
 cITEM_SCALEUP_TIME = 1.0
@@ -30,12 +33,17 @@ data RenderSettings
   , mapFile         :: !String
   } deriving Show
 
+add l = tell (l,Last Nothing, Last Nothing)
+white = Vec4 1 1 1 1
+
+attachedTo :: (MD3Data, Tag) -> MD3Data -> MD3Data
+attachedTo (childData, tag) md3data = md3data{ md3Attachments = (tag, childData) : currentAttachments }
+ where currentAttachments = md3Attachments md3data
+  
 renderFun :: RenderSettings -> WorldSnapshot -> Scene
-renderFun RenderSettings{..} WorldSnapshot{..} = Scene (BSPMap mapFile : renderables) pictures camera where
-  add l = tell (l,Last Nothing, Last Nothing)
+renderFun RenderSettings{..} WorldSnapshot{..} =  Scene (BSPMap mapFile : renderables) pictures camera where
   setCamera c = tell ([],Last $ Just c, Last Nothing)
   setPlayer c = tell ([],Last Nothing, Last $ Just c)
-  white = Vec4 1 1 1 1
   cam camPos camTarget = camera where
     camera = Camera
       { cameraPosition      = camPos
@@ -44,7 +52,6 @@ renderFun RenderSettings{..} WorldSnapshot{..} = Scene (BSPMap mapFile : rendera
       , cameraFrustum       = frust
       , cameraViewportSize  = (windowWidth,windowHeight)
       }
-    up = Vec3 0 0 1
     quakeToGL = lookat zero (Vec3 1 0 0) up
     apsectRatio = fromIntegral windowWidth / fromIntegral windowHeight
     pm = perspective near far (fovDeg / 180 * pi) apsectRatio
@@ -53,7 +60,9 @@ renderFun RenderSettings{..} WorldSnapshot{..} = Scene (BSPMap mapFile : rendera
     s  = 0.005
     near = 0.00001/s
     far  = 100/s
-    fovDeg = 60
+    fovDeg = 70
+    --EPlayer player = head $ filter isPlayer gameEntities
+    --weaponMD5 = map (\path -> ) $ itWorldModel $ fromJust $ Map.lookup (IT_WEAPON (_pSelectedWeapon player)) itemMap 
 
   time' = sceneTime
   zaxis = Vec3 0 0 1
@@ -90,7 +99,9 @@ renderFun RenderSettings{..} WorldSnapshot{..} = Scene (BSPMap mapFile : rendera
                             else 1.0
 
   (renderables,Last mcamera,Last mplayer) = execWriter . forM_ gameEntities $ \case
-    EPlayer a   -> setPlayer a >> setCamera (cam (a^.pPosition) (a^.pDirection)){- >> add [MD3 (a^.pPosition) "models/players/grunt/head.md3"]-} where
+    EPlayer a   -> setPlayer a >> setCamera (cam (a^.pPosition) (a^.pDirection)) >> renderPlayerWeapon itemMap weaponInfoMap time' a
+	  
+	where
     EBullet b   -- -> add [MD3 (b^.bPosition) one white "models/ammo/rocket/rocket.md3"]
                 -> add [MD3 (b^.bPosition) (fun (b^.bDirection) (Vec3 0 0 1)) 1 white
                             (fromMaybe "models/ammo/rocket/rocket.md3"
@@ -122,6 +133,36 @@ renderFun RenderSettings{..} WorldSnapshot{..} = Scene (BSPMap mapFile : rendera
     --ETarget a   -> add [MD3Character (a^.ttPosition) one 1 white "visor" "default"]
     ETarget a   -> add [MD3New (playerModel "visor") {md3Position = a^.ttPosition}]
     _ -> return ()
+    
+    
+    
+renderPlayerWeapon :: MonadWriter ([Renderable], Last a1, Last a2) m => Map ItemType Item -> Map Items.Weapon WeaponInfo -> Float -> Player -> m ()
+renderPlayerWeapon itemMap weaponInfoMap time p = let 
+ frame = Just (min (floor $ 22 * (time - p^.pShootTime)) 5)
+ weaponInfo = weaponInfoMap ! (p^.pSelectedWeapon)
+ flashModelName = wiFlashModel weaponInfo
+ flashModel = defaultMD3Data { md3ModelFile = fromJust flashModelName, md3Frame = frame }
+ handModelName = fromJust $ wiHandModel weaponInfo  
+ barrelModelName = wiBarrelModel weaponInfo
+ handMD3 = defaultMD3Data
+  { 
+    md3Position = p^.pPosition,
+    md3Orientation =  sphere_UV_toQuat $ p^.pRotationUV,
+    md3ModelFile = handModelName,
+    md3Frame = frame
+  }
+ attachWeaponToHand weaponModelName =  MD3New . attachBarrelModel  $ (setupWeapon weaponModelName, Tag "tag_weapon") `attachedTo` handMD3
+ setupWeapon weaponModelName = attachFlashModel $ defaultMD3Data
+  {
+    md3ModelFile = weaponModelName,
+    md3Frame = frame
+  }
+ attachFlashModel = if time - p^.pShootTime < 0.05 && isJust flashModelName then attachedTo (flashModel, Tag "tag_flash") else id  
+ attachBarrelModel = maybe id (\modelname -> attachedTo (defaultMD3Data { md3ModelFile = modelname, md3Frame = frame }, Tag "tag_barrel")) barrelModelName
+ in (add . map attachWeaponToHand . itWorldModel) (itemMap ! (IT_WEAPON $ p^.pSelectedWeapon))
+  --(when (time - p^.pShootTime < 0.05 && isJust flashModel) $ add [MD3 (weaponPos + 6*(p^.pDirection)) weaponRotation 0.5 white $ fromJust flashModel])
+	  
+	
 
 playerModel :: String -> MD3Data
 playerModel name = defaultMD3Data

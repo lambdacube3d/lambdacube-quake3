@@ -60,6 +60,7 @@ import GameEngine.Loader.GameCharacter
 import GameEngine.Content
 import GameEngine.Scene
 import GameEngine.Utils
+import GameEngine.Data.MD3
 
 type AnimationCache   = HashMap String GCH.Character
 type BSPCache         = HashMap String GPUBSP
@@ -390,7 +391,7 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
           addGPUMD3 storage (md3Cache HashMap.! name) mempty ["worldMat","entityRGB","entityAlpha"]
         liftIO $ do
           forM_ md3instanceObject $ \obj -> do
-            enableObject obj $ pointInFrustum position cameraFrustum
+            enableObject obj $ True --((\frame -> boxInFrustum (position + frMins frame + frOrigin frame) (position + frMaxs frame + frOrigin frame) cameraFrustum) . V.head . mdFrames) md3instanceModel  --pointInFrustum position cameraFrustum
             -- set model matrix
             uniformM44F "worldMat" (objectUniformSetter obj) . mat4ToM44F . fromProjective $ toWorldMatrix position orientation scale
             uniformV3F "entityRGB" (objectUniformSetter obj) . vec3ToV3F $ trim rgba
@@ -437,15 +438,15 @@ renderScene' renderSystem@RenderSystem{..} effectTime Scene{..} = do
             uniformFloat "entityAlpha" (objectUniformSetter obj) $ _4 md3RGBA
 
         -- handle attachments
-        forM_ md3Attachments $ \(Tag tagName, md3Data) -> do
+        forM_ md3Attachments $ \(GameEngine.Scene.Tag tagName, md3Data) -> do
           let childMat = getTagProj4 md3Instance md3Frame tagName .*. localMat
           setupMD3Data childMat md3Data
 
       tagToProj4 :: MD3.Tag -> Proj4
-      tagToProj4 MD3.Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ Mat3 tgAxisX tgAxisY tgAxisZ)
+      tagToProj4 MD3.Tag{..} = translateAfter4 tgOrigin (orthogonal . toOrthoUnsafe $ tgRotationMat)
 
       getTagProj4 :: MD3Instance -> Maybe Int -> BS8.ByteString -> Proj4
-      getTagProj4 MD3Instance{..} frame name = case frame >>= \i -> MD3.mdTags md3instanceModel V.!? i >>= HashMap.lookup name of
+      getTagProj4 MD3Instance{..} frame name = let tags = MD3.mdTags md3instanceModel in case frame >>= \i -> tags V.!? (i `mod` V.length tags) >>= HashMap.lookup name of
         Nothing   -> idmtx
         Just tag  -> tagToProj4 tag
 

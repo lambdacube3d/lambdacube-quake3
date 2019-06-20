@@ -13,36 +13,36 @@ userCamera :: ([Int] -> Vec3 -> Vec3) -> BSPLevel -> Vec3 -> Signal (Float, Floa
            -> SignalGen Float (Signal (Vec3, Vec3, Vec3, [Int]))
 userCamera camTr bsp p mposs keyss = fmap (\(pos,target,up,i,_) -> (pos,target,up,i)) <$> transfer2 (p,zero,zero,[],(0,0,0)) calcCam mposs keyss
   where
-    d0 = Vec4 0 (-1) 0 1
-    u0 = Vec4 0 0 (-1) 1
+    clamp' minimal maximal = min maximal . max minimal
+    up = Vec3 0 0 1 --up vector
     gravity = 1000
     jumpSpeed0 = 300
     height = 42
-    calcCam dt (dmx,dmy) (left,up,down,right,turbo,jump) (p0,_,_,bIdx0,(mx,my,fallingSpeed)) =
+    calcCam dt (dmx,dmy) {-mousecoordinate changes-} (left,forward,backward,right,turbo,jump) (prevCamPos, _ , _,bIdx0,(mx,my,fallingSpeed)) =
       let nil c n = if c then n else zero
-          p'  = nil left (v &* (-t)) &+ nil up (d &* t) &+ nil down (d &* (-t)) &+ nil right (v &* t) &+ p0
-          k   = if turbo then 500 else 200
-          t   = k * realToFrac dt
-          mx' = dmx + mx
-          my' = dmy + my
-          rm  = fromProjective $ rotationEuler $ Vec3 (mx' / 100) (my' / 100) 0
-          d   = trim $ rm *. d0 :: Vec3
-          u   = trim $ rm *. u0 :: Vec3
-          v   = normalize $ d &^ u
+          movedCam  = nil left (st &* (-movementScalar)) &+ nil forward (forwardOnlyXY &* movementScalar) &+ nil backward (forwardOnlyXY &* (-movementScalar)) &+ nil right (st &* movementScalar) &+ prevCamPos
+          forwardOnlyXY = up &^ st
+          turboScalar = if turbo then 500 else 200
+          movementScalar = turboScalar * realToFrac dt
+          newmx = mx - dmx / 100
+          newmy = clamp' 0.1 3.1 (my + dmy / 100)
+          fw = let sinNewmy = sin newmy in Vec3 (cos newmx * sinNewmy) (sin newmx * sinNewmy) (cos  newmy) --Parametric spherical coordinates, see: https://en.wikipedia.org/wiki/Sphere
+          st = normalize $ fw &^ up
           jumpSpeed' = if jump then jumpSpeed0 else 0
+          headBob = Vec3 0 0 0
           fallingVec = Vec3 0 0 (fallingSpeed * dt)
-          p'2 = p' &+ fallingVec
-          (p'3,bIdx'1) = case traceRay {-Sphere (height / 2.3)-} bsp p0 p'2 of
-            Nothing -> (p'2,[])
-            Just (hit,TraceHit{..}) -> (p0 &+ fallingVec,outputBrushIndex)
-      in case traceRay bsp p'3 (p'3 &- Vec3 0 0 (height+1)) of
-          Just (hit,TraceHit{..}) ->
-                          let p'4 = camTr bIdx0 $ hit &+ Vec3 0 0 height
-                          in (p'4,p'4 &+ d,u,outputBrushIndex ++ bIdx'1,(mx',my',jumpSpeed'))
-          Nothing -> (p'3,p'3 &+ d,u,bIdx'1,(mx',my',fallingSpeed - dt*gravity + jumpSpeed'))
+          fallCamPos = movedCam &+ fallingVec
+          (camPos,bIdx'1) = case traceRay bsp prevCamPos fallCamPos of --Cast a ray from current to desired position. Only move there when the path is clear.
+            Nothing -> (fallCamPos,[])
+            Just (hit,TraceHit{..}) -> (prevCamPos &+ fallingVec,outputBrushIndex)
+      in case traceRay bsp camPos (camPos &- Vec3 0 0 (height+1)) of
+	      --Cast a ray downwards. If there is an obstacle at our foot, then whe should stop falling
+          Just (hit,TraceHit{..}) -> 
+                          let finalCamPos = camTr bIdx0 $ hit &+ Vec3 0 0 height
+                          in (finalCamPos, finalCamPos &+ fw, up, outputBrushIndex ++ bIdx'1, (newmx, newmy, jumpSpeed'))
+		  --If the way is clear then continue falling
+          Nothing -> (camPos, camPos &+ fw, up, bIdx'1, (newmx, newmy, fallingSpeed - dt*gravity + jumpSpeed'))
 
-rotationEuler :: Vec3 -> Proj4
-rotationEuler (Vec3 a b c) = orthogonal $ toOrthoUnsafe $ rotMatrixZ a .*. rotMatrixX b .*. rotMatrixY (-c)
 
 recordSignalSamples :: Signal Bool -> Signal Bool -> Signal a -> SignalGen p (Signal [a])
 recordSignalSamples = transfer3 [] record

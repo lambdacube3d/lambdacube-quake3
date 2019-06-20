@@ -156,3 +156,22 @@ printTimeDiff message m = do
 setNub :: Ord a => [a] -> [a]
 setNub = Set.toList . Set.fromList
 
+sphere_UV_toQuat :: Vec3 -> UnitQuaternion
+sphere_UV_toQuat (Vec3 u _ v) = v_rot .*. u_rot 
+ where 
+  u_rot = rotU' (toNormalUnsafe $ Vec3 0 0 1) u
+  axis = u_rot `actU` Vec3 0 1 0
+  v_rot = rotU axis (v - pi / 2)
+  
+rotationBetween :: Vec3 -> Vec3 -> UnitQuaternion
+rotationBetween u v = rotU (crossprod u v) (acos $ dotprod (normalize u) (normalize v))
+
+spherical mouseU mouseV = let sinMV = sin mouseV in Vec3 (cos mouseU * sinMV) (sin mouseU * sinMV) (cos  mouseV)
+
+
+unitVectorAtAngle = sinCos
+
+degToRad a = a/180*pi
+
+clamp minVal maxVal = max minVal. min maxVal
+

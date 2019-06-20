@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase, RecordWildCards, TupleSections, NoMonomorphismRestriction, FlexibleContexts #-}
-module GameLogic where
+module GameLogic where 
 
 import Control.Monad
 import Data.List (find)
@@ -11,19 +11,29 @@ import Lens.Micro.Platform
 import Data.Map.Strict as Map (Map, lookup)
 import Data.Vect hiding (Vector)
 import Data.Vect.Float.Instances
+import Data.Vect.Float.Base hiding(Vector)
+import qualified Data.Vect.Float.Base as VB (_1, _2, _3)
 import Data.Vect.Float.Util.Quaternion
+
 
 import Control.Monad.State.Strict
 import Control.Monad.Writer.Strict
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
+import Control.Monad.RWS
+import Control.Monad.ST
 import Data.Functor.Identity
 import Control.Monad.Random
 import System.Random.Mersenne.Pure64
 
 import Data.Vector (Vector,(!),(//))
 import qualified Data.Vector as V
+import qualified Data.Vector.Mutable as MV
 
+import GameEngine.RenderSystem
+import GameEngine.Collision
+import GameEngine.Data.BSP
+import GameEngine.Data.MD3
 import GameEngine.RenderSystem
 
 import qualified Items
@@ -32,13 +42,14 @@ import Visuals
 import World
 import Collision
 import qualified Player
+import Monads
+import Movers
+
+import Debug.Trace
 
 
 type Time = Float
 type DTime = Float
-
--- entity update monad (mutable state + collect new entities/visuals)
-type EM s a = ReaderT s (StateT s (MaybeT (WriterT ([Entity],[Visual]) (Rand PureMT)))) a
 
 -- visual item update monad + collect new visual items
 type VM s a = ReaderT s (StateT s (MaybeT (WriterT ([Visual]) (Rand PureMT)))) a
@@ -46,19 +57,18 @@ type VM s a = ReaderT s (StateT s (MaybeT (WriterT ([Visual]) (Rand PureMT)))) a
 -- monad for collect new entites or visuals
 type CM a = WriterT ([Entity],[Visual]) (Rand PureMT) a
 
---update :: Monoid w => (s -> e) -> s -> ReaderT s (StateT s (MaybeT (WriterT w (Rand PureMT)))) a -> CM (Maybe e)
+
+update :: Monad f => (s -> e) -> s -> ReaderT s (StateT s (MaybeT f)) a2 -> f (Maybe e)
 update f a m = fmap f <$> runMaybeT (execStateT (runReaderT m a) a)
 
 collect :: Monoid w => PureMT -> WriterT w (Rand PureMT) a -> ((a,w),PureMT)
 collect randGen m = runIdentity $ runRandT (runWriterT m) randGen
-
-die :: Monad m => ReaderT s (StateT s (MaybeT m)) a
-die = mzero
-
-respawn t f = do
-  s <- get
-  t' <- getRandomR (t + 5, t + 10)
-  addEntities [PSpawn $ Spawn t' (f s)]
+  
+respawn :: Time -> (e -> Entity) -> EntityM e ()
+respawn time create_entity = do
+  entity <- get
+  t' <- getRandomR (time + 5, time + 10)
+  addEntities [PSpawn $ Spawn t' $ create_entity entity]
   die
 
 data Interaction
@@ -79,9 +89,9 @@ data Interaction
   transform entities in interaction, collect newly generated entities
   step entities, also collect generated entities
   append generated entities
--}
-updateEntities :: ResourceCache -> RenderSystem -> PureMT -> Input -> [Entity] -> (PureMT,[Entity],[Visual])
-updateEntities resources engine randGen input@Input{..} ents = (randGen',catMaybes (V.toList nextEnts) ++ newEnts,newVisuals) where
+
+updateEntities :: BSPLevel -> ResourceCache -> RenderSystem -> PureMT -> Input -> [Entity] -> (PureMT,[Entity],[Visual])
+updateEntities level resources engine randGen input@Input{..} ents = (randGen',catMaybes (V.toList nextEnts) ++ newEnts,newVisuals) where
 
   entityVector :: Vector (Maybe Entity)
   entityVector = V.fromList $ map Just ents
@@ -161,7 +171,7 @@ updateEntities resources engine randGen input@Input{..} ents = (randGen',catMayb
     (a,b) | swap -> interact_ False (b,a)
           | otherwise -> return (Just a,Just b)
 
-  pickUpAmmo q w = pAmmos %= Map.adjust ((+) q) w
+  pickUpAmmo q w = pAmmos %= Map.insertWith (+) w q
   pickUpWeapon w = pWeapons %= Set.insert w
 
   oncePerSec = do
@@ -169,143 +179,32 @@ updateEntities resources engine randGen input@Input{..} ents = (randGen',catMayb
     if t > time then return False else do
       pDamageTimer .= time + 1
       return True
+-}
 
 applyWorldRules :: World -> World
-applyWorldRules = spawnPlayer
+applyWorldRules = Player.spawnPlayer
 
--- | Spawn a player if there is none.
-spawnPlayer :: World -> World
-spawnPlayer w = w { _wEntities = entities }
-  where
-    wTime = w ^. wInput . to time
-    entities = (case find hasPlayer (_wEntities w) of
-                  Nothing -> ((PSpawn . Spawn (wTime + 2) $ EPlayer player):)
-                  Just _  -> id) $ _wEntities w
-
-    hasPlayer (EPlayer _)                    = True
-    hasPlayer (PSpawn (Spawn _ (EPlayer _))) = True
-    hasPlayer _                              = False
-
-    isSpawnPoint (ESpawnPoint _) = True
-    isSpawnPoint _               = False
-
-    (ESpawnPoint spawnPoint) = fromJust $ find isSpawnPoint (_wEntities w)
-    player = Player
-      { _pPosition    = _spPosition spawnPoint
-      , _pDirection   = _spAngles spawnPoint
-      , _pFVelocity   = 0
-      , _pSVelocity   = 0
-      , _pHealth      = 100
-      , _pArmor       = 0
-      , _pArmorType   = Nothing
-      , _pShootTime   = 0
-      , _pDamageTimer = 0
-      , _pName        = "Bones"
-      , _pId          = 0
-      , _pWeapons     = Set.fromList [Items.WP_GAUNTLET, Items.WP_MACHINEGUN]
-      , _pSelectedWeapon = Items.WP_MACHINEGUN
-      , _pAmmos       = Map.fromList
-           [ (Items.WP_GAUNTLET,         1)
-           , (Items.WP_MACHINEGUN,     100)
-           , (Items.WP_SHOTGUN,          0)
-           , (Items.WP_GRENADE_LAUNCHER, 0)
-           , (Items.WP_ROCKET_LAUNCHER,  0)
-           , (Items.WP_LIGHTNING,        0)
-           , (Items.WP_RAILGUN,          0)
-           , (Items.WP_PLASMAGUN,        0)
-           , (Items.WP_BFG,              0)
-           ]
-      , _pHoldables  = Map.empty
-      , _pPowerups   = Set.empty
-      }
-
-addEntities ents = tell (ents,[])
-addVisuals vis = tell ([],vis)
-
-stepSpawn :: Time -> DTime -> EM Spawn ()
-stepSpawn t dt = do
-  spawnTime <- view sSpawnTime
-  unless (t < spawnTime) $ do
-    ent <- setSpawnTime <$> view sEntity
-    addEntities [ent]
-    die
-  where
-    setSpawnTime = \case
-      EWeapon a   -> EWeapon   (a & wTime  .~ t)
-      EAmmo a     -> EAmmo     (a & aTime  .~ t)
-      EArmor a    -> EArmor    (a & rTime  .~ t)
-      EHealth a   -> EHealth   (a & hTime  .~ t)
-      EHoldable a -> EHoldable (a & hoTime .~ t)
-      EPowerup p  -> EPowerup  (p & puTime .~ t)
-      e           -> e
-
-stepPlayer :: Input -> EM Player ()
-stepPlayer input@Input{..} = do
-  -- acceleration according input
-  pDirection .= normalize (Vec3 0 0 (sin $ mouseY / 100) + rotU (Vec3 0 0 1) (-mouseX / 100) *. Vec3 1 0 0)
-  direction <- use pDirection
-  let up = Vec3 0 0 1
-      forward = Vec3 1 0 0
-      strafeDirection = normalize $ direction `crossprod` up
-
-  pFVelocity += forwardmove * dtime
-  pSVelocity += sidemove * dtime
-  -- friction
-  len <- use pFVelocity
-  sideLen <- use pSVelocity
-  let friction = 150
-  pFVelocity %= (*) (max 0 $ (len - dtime * friction * signum len) / len)
-  pSVelocity %= (*) (max 0 $ (sideLen - dtime * friction * signum sideLen) / sideLen)
-
-  -- move
-  pFVelocity %= max (-200) . min 200
-  pSVelocity %= max (-200) . min 200
-  forwardVelocity <- use pFVelocity
-  sideVelocity <- use pSVelocity
-
-  pPosition += (dtime * forwardVelocity) *& direction
-  pPosition += (dtime * sideVelocity) *& strafeDirection
+instance Mover Bullet where
+  getPosition = use bPosition
+  getVelocity = use bDirection
+  reactToCollision _ _ = die
+  reactToGroundHit _ _ = die
+  reactToFalling = return ()
+  setPosition newPos = bPosition .= newPos
+  setVelocity newVel = bDirection .= newVel 
+  getBounds = return $ (,) (Vec3 (-3) (-3) (-3)) (Vec3 3 3 3)
   
-  Player.changeWeapon input
-  Player.shoots input
-  Player.togglesHoldable input
-  Player.tickHoldables input
-
-  pHealth %= min 200
-  -- death
-  health <- use pHealth
-  unless (health > 0) $ playerDie time
-
-playerDie time = do
-    pos <- use pPosition
-    ammos     <- Map.toList <$> use pAmmos
-    armor     <- use pArmor
-    armorType <- use pArmorType
-    weapons <- Set.toList <$> use pWeapons
-    let randomPos = (pos +) <$> getRandomR (Vec3 (-50) (-50) (-50), Vec3 50 50 50) 
-    droppedAmmos <- forM ammos $ \(weapon, amount) -> do
-      rpos <- randomPos
-      return $ EAmmo $ Ammo rpos amount True weapon time
-    droppedWeapos <- forM weapons $ \weapon -> do
-      rpos <- randomPos
-      return $ EWeapon $ Weapon rpos True weapon time
-    droppedArmors <- case armorType of
-      Just at | armor > 0 -> do
-        rpos <- randomPos
-        return [(EArmor $ Armor rpos armor True at time)]
-      _ -> return []
-    addEntities $ concat [droppedArmors, droppedWeapos, droppedAmmos]
-    addVisuals [VParticle $ Particle pos (400 *& (extendZero . unitVectorAtAngle $ pi / 50 * i)) 1 | i <- [0..100]]
-    die
-
-stepBullet :: Time -> DTime -> EM Bullet ()
-stepBullet t dt = do
-  dir <- use bDirection
-  bPosition += dt *& dir
-  -- die on spent lifetime
-  bLifeTime -= dt
-  lifeTime <- use bLifeTime
-  when (lifeTime < 0) die
+stepRocket :: EntityM Bullet Bullet
+stepRocket = do
+ Input{..} <- userInput <$> ask
+ dir       <- use bDirection
+ tryMovingWithRay (bPosition += dtime *& dir) reactToCollision
+ bLifeTime -= dtime
+ lifeTime <- use bLifeTime
+ when (lifeTime < 0) die
+ get
+ 
+ 
 
 updateVisuals :: PureMT -> Time -> DTime -> [Visual] -> (PureMT,[Visual])
 updateVisuals randGen time dtime visuals = (randGen',catMaybes visuals' ++ newVisuals) where
@@ -324,22 +223,18 @@ stepParticle t dt = do
   lifeTime <- use vpLifeTime
   when (lifeTime < 0) die
 
--- utils
-unitVectorAtAngle = sinCos
-degToRad a = a/180*pi
-
 -- world step function
-stepFun :: ResourceCache -> RenderSystem -> Float -> World -> World
-stepFun resources engine dt = execState $ do
+stepFun :: BSPLevel -> ResourceCache -> RenderSystem -> DTime -> World -> World
+stepFun map resources engine dt = execState $ do
   -- update time
-  wInput %= (\i -> i {dtime = dt, time = time i + dt})
+  wInput %= (\i -> i {dtime = dt, time = time i + dt}) --update time and deltatime
   input <- use wInput
   ents <- use wEntities
   vis <- use wVisuals
   rand <- use wRandomGen
-  let (r1,e,v1) = updateEntities resources engine rand input ents
+  let (r1,e,v1) = updateScene map resources engine rand input ents
       Input{..} = input
-      (r2,v2) = updateVisuals r1 time dtime vis
+      (r2,v2) = updateVisuals r1 time dtime vis --update visual effects
   wEntities .= e
   wRandomGen .= r2
   wVisuals .= v1 ++ v2
@@ -359,8 +254,7 @@ logPlayerChange old new = do
     nullSomeValues =
       set pPosition (Vec3 0 0 0)  .
       set pDirection (Vec3 0 0 0) .
-      set pFVelocity 0            .
-      set pSVelocity 0            .
+      set pVelocity (Vec3 0 0 0)  .
       set pShootTime 0
 
 -- FIXME: Order
@@ -386,3 +280,94 @@ holdableKeys = Map.fromList
   , (3, Items.HI_PORTAL)
   , (4, Items.HI_INVULNERABILITY)
   ]
+ 
+ 
+class Spawnable object where
+ setSpawnTime :: Time -> object -> object
+ 
+instance Spawnable Entity where
+ setSpawnTime t = \case
+   EWeapon a   -> EWeapon   (a & wTime  .~ t)
+   EAmmo a     -> EAmmo     (a & aTime  .~ t)
+   EArmor a    -> EArmor    (a & rTime  .~ t)
+   EHealth a   -> EHealth   (a & hTime  .~ t)
+   EHoldable a -> EHoldable (a & hoTime .~ t)
+   EPowerup p  -> EPowerup  (p & puTime .~ t)
+   e           -> e
+   
+  
+updateEntity :: EntityEnvironment -> (e -> Entity) -> e -> EntityM e e -> CollectM ()
+updateEntity entityEnv transformation initialState action = do
+  seed <- getRandom
+  let (modifiedEntity, newObjects) = runEntityM entityEnv initialState action (pureMT $ fromIntegral (seed :: Int))
+  maybe (return ()) (addEntity . transformation) modifiedEntity
+  tell newObjects
+  
+  
+applyAction :: EntityEnvironment -> Action -> Entity -> Maybe Entity
+applyAction env (Damage dmg) (EPlayer p)  = Just $ EPlayer $ p { _pHealth = _pHealth p - dmg } 
+applyAction _ _ _ = undefined
+ 
+updateScene :: BSPLevel -> ResourceCache -> RenderSystem -> PureMT -> Input -> [Entity] -> (PureMT,[Entity],[Visual])
+updateScene map resourceCache engine randGen input ents = (newRandGen, actionProcessedEntites, newVisuals) 
+  where
+    entityEnv = EntityEnvironment 
+     { 
+       resources = resourceCache
+     , level     = map 
+     , userInput = input
+     , gravity   = Vec3 0 0 (-15.6)
+     , entities  = entityVector
+     }
+    
+    entityVector :: Vector Entity
+    entityVector = V.fromList ents
+
+    collisions :: [(Int,Int)]
+    collisions = getCollisions engine ents
+
+    interactions :: [(Int,Int)] -> [Interaction]
+    interactions _ = [] 
+    
+    interact_ :: Bool -> (Entity, Entity) -> (Maybe Entity, Maybe Entity)
+    interact_ _ (e1, e2) = (Just e1, Just e2)
+    
+    entities_after_interaction = V.mapMaybe id $ V.modify (\mvector -> mapM_ (go mvector) collisions) $ V.map Just entityVector
+    writeUpdatedEnts mvector i1 i2 (e1, e2) = MV.write mvector i1 e1 >> MV.write mvector i2 e2
+    go mvector (i1,i2) = ((,) <$> MV.read mvector i1 <*> MV.read mvector i2) >>= \case 
+     (Just e1, Just e2) -> writeUpdatedEnts mvector i1 i2 (interact_ True (e1,e2)) 
+     _ -> return ()
+    
+    applyActions ents actions = ents // fmap (apply ents) actions 
+    
+    apply ents (index, action) = let entity = ents ! index in (index, maybe Nothing (applyAction actionEnv action) entity)
+    
+    ((entitiesInNextFrame, newVisuals, actions), newRandGen) = runCollectM randGen $ mapM_ step entities_after_interaction
+    actionProcessedEntites = V.toList $ V.mapMaybe id $ applyActions (V.map Just $ entitiesInNextFrameAsVector) actions
+    
+    entitiesInNextFrameAsVector = V.fromList entitiesInNextFrame
+    actionEnv = entityEnv { entities =  entitiesInNextFrameAsVector }
+      
+    update = updateEntity $ entityEnv { entities = entities_after_interaction }
+
+    step :: Entity -> CollectM ()
+    step (EPlayer player) = update EPlayer player Player.stepPlayer
+    step (PSpawn spawn) = update PSpawn spawn stepSpawn
+    step (EBullet bullet) = update EBullet bullet stepRocket
+    step x = addEntity x 
+    
+    stepSpawn :: EntityM Spawn Spawn
+    stepSpawn = do
+     let 
+      spawnEntity t = do
+       ent <- setSpawnTime t <$> use sEntity
+       addEntity ent
+     spawnTime <- use sSpawnTime
+     t <- time . userInput <$> ask
+     if t < spawnTime then get else spawnEntity t >> die
+   
+     
+    
+
+
+
