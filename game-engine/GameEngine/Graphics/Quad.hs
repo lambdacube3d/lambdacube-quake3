@@ -21,6 +21,7 @@ data QuadInstance
   , quadObject :: Object
   }
 
+addQuad :: GLStorage -> String -> IO QuadInstance
 addQuad storage shaderName = do
   let nullSetter _ = pure ()
   buffer <- compileBuffer
@@ -45,6 +46,7 @@ addQuad storage shaderName = do
   uniformFloat "entityAlpha" (objectUniformSetter obj) 1
   pure $ QuadInstance buffer obj
 
+updateQuad :: QuadInstance -> Picture -> IO ()
 updateQuad QuadInstance{..} Picture{..} = do
   let withV a f = withArray a (\p -> f $ castPtr p)
       Vec2 x y = picturePosition
