@@ -1,4 +1,4 @@
-resolver: nightly-2018-11-07
+resolver: lts-14.27
 
 allow-newer: true
 
@@ -9,7 +9,7 @@ packages:
 - tools/md3-show
 
 extra-deps:
-- proteaaudio-0.7.0.1
+- proteaaudio-0.9.4
 - vect-0.4.7
 - wavefront-0.7.1.1
 - megaparsec-6.5.0

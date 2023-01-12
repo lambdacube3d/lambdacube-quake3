@@ -123,6 +123,7 @@ main = do
            ".ogg" -> sampleFromMemoryOgg buf 1
            ".wav" -> sampleFromMemoryWav buf 1
           soundPlay smp' 1 1 0 1
+          pure ()
 
     (mousePosition,mousePositionSink) <- unsafeExternal (0,0)
     (fblrPress,fblrPressSink) <- unsafeExternal (False,False,False,False,False,False)
